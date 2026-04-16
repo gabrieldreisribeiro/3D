@@ -1,16 +1,13 @@
 ﻿import { useEffect, useState } from 'react';
 import { Link, NavLink, useNavigate, useSearchParams } from 'react-router-dom';
-import { useCart } from '../services/cart';
 import { fetchPublicLogo, resolveAssetUrl } from '../services/api';
-import Button from './ui/Button';
-import Input from './ui/Input';
+import { useCart } from '../services/cart';
 
 function Header() {
   const { items } = useCart();
-  const [logoUrl, setLogoUrl] = useState(null);
   const [searchParams] = useSearchParams();
   const [query, setQuery] = useState(searchParams.get('q') || '');
-  const [menuOpen, setMenuOpen] = useState(false);
+  const [logoUrl, setLogoUrl] = useState(null);
   const navigate = useNavigate();
 
   const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
@@ -23,43 +20,73 @@ function Header() {
 
   const onSearch = (event) => {
     event.preventDefault();
-    navigate(query.trim() ? `/?q=${encodeURIComponent(query.trim())}` : '/');
-    setMenuOpen(false);
+    const value = query.trim();
+    navigate(value ? `/?q=${encodeURIComponent(value)}` : '/');
   };
 
   return (
-    <header className="site-header">
-      <div className="container header-grid">
-        <Link to="/" className="brand-link" onClick={() => setMenuOpen(false)}>
-          {logoUrl ? <img src={logoUrl} className="brand-logo" alt="Logo da loja" /> : <strong>3D Studio Shop</strong>}
+    <header className="sticky top-0 z-50 border-b border-slate-200/80 bg-white/90 backdrop-blur-md">
+      <div className="mx-auto flex h-[70px] w-full max-w-7xl items-center gap-4 px-4 sm:px-6 lg:px-8">
+        <Link to="/" className="flex min-w-[160px] items-center gap-2">
+          {logoUrl ? (
+            <img src={logoUrl} alt="Logo da loja" className="h-9 w-auto object-contain" />
+          ) : (
+            <span className="text-sm font-semibold tracking-tight text-slate-900">PLA Studio</span>
+          )}
         </Link>
 
-        <form className="header-search" onSubmit={onSearch}>
-          <Input
-            aria-label="Buscar produtos"
-            placeholder="Buscar produtos, colecoes e novidades"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-          />
+        <form onSubmit={onSearch} className="hidden flex-1 md:block">
+          <div className="relative">
+            <input
+              type="search"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Buscar suporte, organizador, acessorio..."
+              className="h-10 w-full rounded-full border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 outline-none transition focus:border-violet-400 focus:bg-white focus:ring-2 focus:ring-violet-100"
+            />
+          </div>
         </form>
 
-        <button className="hamburger-btn" type="button" onClick={() => setMenuOpen((current) => !current)}>
-          ☰
-        </button>
-
-        <nav className={`header-actions ${menuOpen ? 'open' : ''}`}>
-          <NavLink to="/" end className="ghost-link" onClick={() => setMenuOpen(false)}>
-            Loja
+        <nav className="ml-auto flex items-center gap-2 sm:gap-3">
+          <NavLink
+            to="/"
+            end
+            className={({ isActive }) =>
+              `rounded-full px-3 py-2 text-xs font-medium transition ${
+                isActive ? 'bg-violet-50 text-violet-700' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'
+              }`
+            }
+          >
+            Inicio
           </NavLink>
-          <NavLink to="/cart" className="cart-pill" onClick={() => setMenuOpen(false)}>
-            Carrinho
-            <span>{itemCount}</span>
+          <NavLink
+            to="/cart"
+            className={({ isActive }) =>
+              `inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-medium transition ${
+                isActive
+                  ? 'border-violet-200 bg-violet-50 text-violet-700'
+                  : 'border-slate-200 bg-white text-slate-600 hover:border-violet-200 hover:text-violet-700'
+              }`
+            }
+          >
+            <span className="text-sm leading-none">🛒</span>
+            <span>Carrinho</span>
+            <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-violet-500 px-1 text-[10px] font-semibold text-white">
+              {itemCount}
+            </span>
           </NavLink>
-          <Button variant="ghost" onClick={onSearch} type="button" className="header-search-btn">
-            Buscar
-          </Button>
         </nav>
       </div>
+
+      <form onSubmit={onSearch} className="border-t border-slate-100 px-4 py-3 md:hidden">
+        <input
+          type="search"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Buscar produtos PLA"
+          className="h-10 w-full rounded-full border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 outline-none transition focus:border-violet-400 focus:bg-white focus:ring-2 focus:ring-violet-100"
+        />
+      </form>
     </header>
   );
 }
