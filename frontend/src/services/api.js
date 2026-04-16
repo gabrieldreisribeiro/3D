@@ -1,4 +1,5 @@
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+﻿const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const ADMIN_TOKEN_KEY = 'admin_token';
 
 async function request(path, options = {}) {
   const response = await fetch(`${API_BASE}${path}`, {
@@ -8,12 +9,56 @@ async function request(path, options = {}) {
 
   const data = await response.json();
   if (!response.ok) {
-    throw new Error(data.detail || data.message || 'Erro na requisição');
+    throw new Error(data.detail || data.message || 'Erro na requisicao');
   }
   return data;
 }
 
-export function fetchProducts() {
+async function adminRequest(path, options = {}) {
+  const token = localStorage.getItem(ADMIN_TOKEN_KEY);
+  const headers = {
+    'Content-Type': 'application/json',
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...(options.headers || {}),
+  };
+
+  const response = await fetch(`${API_BASE}${path}`, {
+    ...options,
+    headers,
+  });
+
+  const data = response.status === 204 ? null : await response.json();
+  if (!response.ok) {
+    if (response.status === 401) {
+      localStorage.removeItem(ADMIN_TOKEN_KEY);
+    }
+    throw new Error(data?.detail || data?.message || 'Erro na requisicao');
+  }
+  return data;
+}
+
+export function resolveAssetUrl(url) {
+  if (!url) return null;
+  if (url.startsWith('http://') || url.startsWith('https://')) return url;
+  return `${API_BASE}${url}`;
+}
+
+export function fetchPublicLogo() {
+  return request('/public/logo');
+}
+
+export function fetchPublicBanners() {
+  return request('/public/banners');
+}
+
+export function fetchCategories() {
+  return request('/categories');
+}
+
+export function fetchProducts(category = null) {
+  if (category) {
+    return request(`/products?category=${encodeURIComponent(category)}`);
+  }
   return request('/products');
 }
 
@@ -32,5 +77,118 @@ export function createOrder(payload) {
   return request('/orders', {
     method: 'POST',
     body: JSON.stringify(payload),
+  });
+}
+
+export function saveAdminToken(token) {
+  localStorage.setItem(ADMIN_TOKEN_KEY, token);
+}
+
+export function getAdminToken() {
+  return localStorage.getItem(ADMIN_TOKEN_KEY);
+}
+
+export function clearAdminToken() {
+  localStorage.removeItem(ADMIN_TOKEN_KEY);
+}
+
+export function adminLogin(payload) {
+  return request('/admin/auth/login', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function uploadAdminLogo(file) {
+  const token = localStorage.getItem(ADMIN_TOKEN_KEY);
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const response = await fetch(`${API_BASE}/admin/logo/upload`, {
+    method: 'POST',
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: formData,
+  });
+
+  const data = await response.json();
+  if (!response.ok) {
+    if (response.status === 401) localStorage.removeItem(ADMIN_TOKEN_KEY);
+    throw new Error(data.detail || data.message || 'Erro no upload da logo');
+  }
+  return data;
+}
+
+export async function uploadAdminBannerImage(file) {
+  const token = localStorage.getItem(ADMIN_TOKEN_KEY);
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const response = await fetch(`${API_BASE}/admin/banners/upload-image`, {
+    method: 'POST',
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: formData,
+  });
+
+  const data = await response.json();
+  if (!response.ok) {
+    if (response.status === 401) localStorage.removeItem(ADMIN_TOKEN_KEY);
+    throw new Error(data.detail || data.message || 'Erro no upload da imagem');
+  }
+  return data;
+}
+
+export function fetchAdminSummary() {
+  return adminRequest('/admin/dashboard/summary');
+}
+
+export function fetchAdminProducts() {
+  return adminRequest('/admin/products');
+}
+
+export function createAdminProduct(payload) {
+  return adminRequest('/admin/products', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export function updateAdminProduct(productId, payload) {
+  return adminRequest(`/admin/products/${productId}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  });
+}
+
+export function setAdminProductStatus(productId, isActive) {
+  return adminRequest(`/admin/products/${productId}/status?is_active=${isActive}`, {
+    method: 'PATCH',
+  });
+}
+
+export function fetchAdminOrders() {
+  return adminRequest('/admin/orders');
+}
+
+export function fetchAdminBanners() {
+  return adminRequest('/admin/banners');
+}
+
+export function createAdminBanner(payload) {
+  return adminRequest('/admin/banners', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export function updateAdminBanner(id, payload) {
+  return adminRequest(`/admin/banners/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  });
+}
+
+export function deleteAdminBanner(id) {
+  return adminRequest(`/admin/banners/${id}`, {
+    method: 'DELETE',
   });
 }

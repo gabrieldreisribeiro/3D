@@ -1,7 +1,11 @@
-import { createContext, useContext, useEffect, useMemo, useState } from 'react';
+﻿import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { validateCoupon } from './api';
 
 const CartContext = createContext();
+
+function getItemPrice(item) {
+  return Number(item.final_price ?? item.price ?? 0);
+}
 
 export function CartProvider({ children }) {
   const [items, setItems] = useState(() => {
@@ -19,7 +23,7 @@ export function CartProvider({ children }) {
   }, [items]);
 
   const subtotal = useMemo(
-    () => items.reduce((sum, item) => sum + item.price * item.quantity, 0),
+    () => items.reduce((sum, item) => sum + getItemPrice(item) * item.quantity, 0),
     [items]
   );
 
@@ -65,7 +69,7 @@ export function CartProvider({ children }) {
   const applyCoupon = async (code) => {
     if (!code) {
       setCoupon(null);
-      setCouponMessage('Informe um cupom válido');
+      setCouponMessage('Informe um cupom valido');
       return;
     }
     try {
@@ -74,7 +78,7 @@ export function CartProvider({ children }) {
       setCouponMessage(`Cupom aplicado: ${result.value}%`);
     } catch (error) {
       setCoupon(null);
-      setCouponMessage(error.message || 'Cupom inválido');
+      setCouponMessage(error.message || 'Cupom invalido');
     }
   };
 

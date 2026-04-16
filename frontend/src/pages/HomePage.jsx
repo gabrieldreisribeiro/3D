@@ -1,75 +1,109 @@
-import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+﻿import { useEffect, useMemo, useState } from 'react';
 import ProductCard from '../components/ProductCard';
-import { fetchProducts } from '../services/api';
+import Carousel from '../components/ui/Carousel';
+import EmptyState from '../components/ui/EmptyState';
+import SectionHeader from '../components/ui/SectionHeader';
+import {
+  fetchCategories,
+  fetchProducts,
+  fetchPublicBanners,
+  resolveAssetUrl,
+} from '../services/api';
 import { useCart } from '../services/cart';
+
+const fallbackSlides = [
+  {
+    id: 'fallback-1',
+    title: 'Colecao premium para criadores',
+    subtitle: 'Design moderno para ambientes comerciais e residenciais',
+    image_url: 'https://images.unsplash.com/photo-1519710164239-da123dc03ef4?auto=format&fit=crop&w=1800&q=70',
+    target_url: '/#produtos',
+  },
+];
 
 function HomePage() {
   const [products, setProducts] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [activeCategory, setActiveCategory] = useState('all');
+  const [banners, setBanners] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const { addToCart } = useCart();
 
   useEffect(() => {
-    fetchProducts()
-      .then(setProducts)
-      .finally(() => setIsLoading(false));
+    fetchPublicBanners().then((bannerItems) => {
+      const parsedBanners = bannerItems.map((item) => ({
+        ...item,
+        image_url: resolveAssetUrl(item.image_url) || item.image_url,
+      }));
+      setBanners(parsedBanners.length ? parsedBanners : fallbackSlides);
+    });
+
+    fetchCategories().then(setCategories);
   }, []);
 
+  useEffect(() => {
+    setIsLoading(true);
+    const categorySlug = activeCategory === 'all' ? null : activeCategory;
+    fetchProducts(categorySlug)
+      .then(setProducts)
+      .finally(() => setIsLoading(false));
+  }, [activeCategory]);
+
+  const categoryChips = useMemo(
+    () => [
+      { key: 'all', label: 'All products' },
+      ...categories.map((category) => ({ key: category.slug, label: category.name })),
+    ],
+    [categories]
+  );
+
+  const onCategoryClick = (key) => {
+    if (key === 'main') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+    setActiveCategory(key);
+  };
+
   return (
-    <section className="home-page container">
-      <div className="hero-panel">
-        <div>
-          <span className="eyebrow">Impressão 3D Premium</span>
-          <h1>Modelos sofisticados para ambientes criativos e projetos profissionais</h1>
-          <p>Descubra peças com acabamento pensado para designers, arquitetura e entusiastas do 3D.</p>
-          <div className="hero-actions">
-            <Link className="button button-primary" to="/cart">
-              Ver carrinho
-            </Link>
-            <Link className="button button-secondary" to="#produtos">
-              Ver produtos
-            </Link>
-          </div>
-        </div>
-        <div className="hero-visual">
-          <div className="hero-card">
-            <span>Top peça</span>
-            <strong>Estatueta Orgânica</strong>
-          </div>
-        </div>
-      </div>
+    <section className="container home-page-pro">
+      <Carousel slides={banners} />
 
-      <div className="highlight-grid">
-        <article>
-          <h2>Design pensado para venda</h2>
-          <p>Texturas limpas, formas modernas e coleção preparada para impressionar clientes.</p>
-        </article>
-        <article>
-          <h2>Produção local</h2>
-          <p>Entrega rápida e montagem segura para peças de alto valor.</p>
-        </article>
-        <article>
-          <h2>Acabamento premium</h2>
-          <p>Opções de acabamento detalhado em cada modelo.</p>
-        </article>
-      </div>
+      <section id="produtos" className="catalog-section">
+        <SectionHeader
+          eyebrow="Colecao"
+          title="Produtos em destaque"
+          subtitle="Selecao com foco em design, utilidade e qualidade de impressao"
+        />
 
-      <div className="section-header" id="produtos">
-        <div>
-          <span className="eyebrow">Coleção em destaque</span>
-          <h2>Produtos selecionados para seu próximo projeto</h2>
-        </div>
-      </div>
-
-      {isLoading ? (
-        <div className="loading-state">Carregando produtos...</div>
-      ) : (
-        <div className="product-grid">
-          {products.map((product) => (
-            <ProductCard key={product.id} product={product} onAdd={addToCart} />
+        <div className="category-chip-row">
+          {categoryChips.map((chip) => (
+            <button
+              key={chip.key}
+              className={`category-chip ${activeCategory === chip.key ? 'active' : ''}`}
+              onClick={() => onCategoryClick(chip.key)}
+              type="button"
+            >
+              {chip.label}
+            </button>
           ))}
         </div>
-      )}
+
+        {isLoading ? (
+          <div className="loading-state-pro">Carregando produtos...</div>
+        ) : products.length === 0 ? (
+          <EmptyState
+            title="Nenhum produto encontrado"
+            description="Tente outra categoria para ver mais itens."
+          />
+        ) : (
+          <div className="product-grid-pro">
+            {products.map((product) => (
+              <ProductCard key={product.id} product={product} onAdd={addToCart} />
+            ))}
+          </div>
+        )}
+      </section>
     </section>
   );
 }

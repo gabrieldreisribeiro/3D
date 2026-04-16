@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+ï»¿from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
 
 from app.core.security import create_admin_token, get_db, require_admin, verify_password
@@ -11,8 +11,23 @@ from app.schemas import (
     AdminProductCreate,
     AdminProductResponse,
     AdminProductUpdate,
+    BannerCreate,
+    BannerResponse,
+    BannerUpdate,
+    LogoResponse,
 )
-from app.services.order_service import admin_list_orders, admin_total_orders, admin_total_sold
+from app.services.banner_service import create_banner, delete_banner, get_banner, list_admin_banners, update_banner
+from app.services.banner_upload_service import save_banner_image
+from app.services.logo_service import save_logo
+from app.services.order_service import (
+    admin_list_orders,
+    admin_total_orders,
+    admin_total_sold,
+    dashboard_order_status,
+    dashboard_orders_last_days,
+    dashboard_sales_last_days,
+    dashboard_top_products,
+)
 from app.services.product_service import (
     admin_create_product,
     admin_get_product_by_id,
@@ -34,9 +49,23 @@ def _serialize_product(product):
 def login(payload: AdminLoginRequest, db: Session = Depends(get_db)):
     admin = db.query(AdminUser).filter(AdminUser.email == payload.email.lower(), AdminUser.is_active == True).first()
     if not admin or not verify_password(payload.password, admin.password_hash):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Credenciais inválidas')
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Credenciais invalidas')
 
     return AdminLoginResponse(token=create_admin_token(admin.id), email=admin.email)
+
+
+@router.post('/logo/upload', response_model=LogoResponse)
+def upload_logo(
+    file: UploadFile = File(...),
+    _: AdminUser = Depends(require_admin),
+):
+    url = save_logo(file)
+    return LogoResponse(url=url)
+
+
+@router.post('/banners/upload-image', response_model=LogoResponse)
+def upload_banner_image(file: UploadFile = File(...), _: AdminUser = Depends(require_admin)):
+    return LogoResponse(url=save_banner_image(file))
 
 
 @router.get('/dashboard/summary', response_model=AdminDashboardSummary)
@@ -45,6 +74,10 @@ def dashboard_summary(_: AdminUser = Depends(require_admin), db: Session = Depen
         total_products=len(admin_list_products(db)),
         total_orders=admin_total_orders(db),
         total_sold=admin_total_sold(db),
+        sales_series=dashboard_sales_last_days(db),
+        orders_series=dashboard_orders_last_days(db),
+        top_products=dashboard_top_products(db),
+        order_status=dashboard_order_status(db),
     )
 
 
@@ -59,9 +92,13 @@ def create_admin_product(payload: AdminProductCreate, _: AdminUser = Depends(req
     slug = payload.slug.strip().lower()
     payload.slug = slug
     if admin_slug_exists(db, slug):
-        raise HTTPException(status_code=400, detail='Slug já está em uso')
+        raise HTTPException(status_code=400, detail='Slug ja esta em uso')
 
-    product = admin_create_product(db, payload)
+    try:
+        product = admin_create_product(db, payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
     return _serialize_product(product)
 
 
@@ -74,14 +111,18 @@ def update_admin_product(
 ):
     product = admin_get_product_by_id(db, product_id)
     if not product:
-        raise HTTPException(status_code=404, detail='Produto não encontrado')
+        raise HTTPException(status_code=404, detail='Produto nao encontrado')
 
     slug = payload.slug.strip().lower()
     payload.slug = slug
     if admin_slug_exists(db, slug, ignore_id=product_id):
-        raise HTTPException(status_code=400, detail='Slug já está em uso')
+        raise HTTPException(status_code=400, detail='Slug ja esta em uso')
 
-    product = admin_update_product(db, product, payload)
+    try:
+        product = admin_update_product(db, product, payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
     return _serialize_product(product)
 
 
@@ -94,7 +135,7 @@ def set_product_status(
 ):
     product = admin_get_product_by_id(db, product_id)
     if not product:
-        raise HTTPException(status_code=404, detail='Produto não encontrado')
+        raise HTTPException(status_code=404, detail='Produto nao encontrado')
 
     product = admin_set_product_status(db, product, is_active)
     return _serialize_product(product)
@@ -103,3 +144,34 @@ def set_product_status(
 @router.get('/orders', response_model=list[AdminOrderResponse])
 def list_admin_orders(_: AdminUser = Depends(require_admin), db: Session = Depends(get_db)):
     return admin_list_orders(db)
+
+
+@router.get('/banners', response_model=list[BannerResponse])
+def list_banners(_: AdminUser = Depends(require_admin), db: Session = Depends(get_db)):
+    return list_admin_banners(db)
+
+
+@router.post('/banners', response_model=BannerResponse)
+def create_banner_endpoint(payload: BannerCreate, _: AdminUser = Depends(require_admin), db: Session = Depends(get_db)):
+    return create_banner(db, payload)
+
+
+@router.put('/banners/{banner_id}', response_model=BannerResponse)
+def update_banner_endpoint(
+    banner_id: int,
+    payload: BannerUpdate,
+    _: AdminUser = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    banner = get_banner(db, banner_id)
+    if not banner:
+        raise HTTPException(status_code=404, detail='Banner nao encontrado')
+    return update_banner(db, banner, payload)
+
+
+@router.delete('/banners/{banner_id}', status_code=204)
+def delete_banner_endpoint(banner_id: int, _: AdminUser = Depends(require_admin), db: Session = Depends(get_db)):
+    banner = get_banner(db, banner_id)
+    if not banner:
+        raise HTTPException(status_code=404, detail='Banner nao encontrado')
+    delete_banner(db, banner)

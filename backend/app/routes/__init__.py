@@ -1,1 +1,1 @@
-from . import admin, coupons, orders, products
+﻿from . import admin, coupons, orders, products, public

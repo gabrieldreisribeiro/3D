@@ -1,26 +1,25 @@
-import { Link } from 'react-router-dom';
+﻿import { Link } from 'react-router-dom';
 import RatingPill from './RatingPill';
+import Button from './ui/Button';
 
 function ProductCard({ product, onAdd }) {
+  const price = Number(product.final_price ?? product.price ?? 0);
+
   return (
-    <article className="product-card">
-      <div className="product-image" style={{ backgroundImage: `url(${product.cover_image})` }} />
-      <div className="product-body">
-        <div>
-          <h3>{product.title}</h3>
-          <p>{product.short_description}</p>
-        </div>
-        <div className="product-details">
+    <article className="product-card-pro">
+      <div className="product-card-image" style={{ backgroundImage: `url(${product.cover_image})` }} />
+      <div className="product-card-body">
+        <h3>{product.title}</h3>
+        <p>{product.short_description}</p>
+        <div className="product-card-meta">
           <RatingPill rating={product.rating_average} count={product.rating_count} />
-          <strong className="product-price">R$ {product.price.toFixed(2)}</strong>
+          <strong>R$ {price.toFixed(2)}</strong>
         </div>
-        <div className="product-actions">
-          <Link className="button button-secondary" to={`/product/${product.slug}`}>
-            Ver detalhes
+        <div className="product-card-actions">
+          <Link to={`/product/${product.slug}`}>
+            <Button variant="secondary">Detalhes</Button>
           </Link>
-          <button className="button button-primary" onClick={() => onAdd(product)}>
-            Adicionar
-          </button>
+          <Button onClick={() => onAdd(product)}>Adicionar</Button>
         </div>
       </div>
     </article>

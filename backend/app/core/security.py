@@ -1,4 +1,4 @@
-import base64
+ï»¿import base64
 import hashlib
 import hmac
 import os
@@ -50,14 +50,14 @@ def parse_admin_token(token: str) -> int:
         decoded = base64.urlsafe_b64decode(token.encode('utf-8')).decode('utf-8')
         admin_id_raw, expires_raw, signature = decoded.split(':', 2)
     except Exception as exc:  # noqa: BLE001
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Token inválido') from exc
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Token invalido') from exc
 
     payload = f'{admin_id_raw}:{expires_raw}'
     if not hmac.compare_digest(signature, _sign(payload)):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Token inválido')
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Token invalido')
 
     if int(expires_raw) < int(datetime.now(timezone.utc).timestamp()):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Sessão expirada')
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Sessao expirada')
 
     return int(admin_id_raw)
 
@@ -75,7 +75,7 @@ def require_admin(
     db: Session = Depends(get_db),
 ) -> AdminUser:
     if not credentials or credentials.scheme.lower() != 'bearer':
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Não autenticado')
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Nao autenticado')
 
     admin_id = parse_admin_token(credentials.credentials)
     admin = db.query(AdminUser).filter(AdminUser.id == admin_id, AdminUser.is_active == True).first()

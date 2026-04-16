@@ -1,7 +1,17 @@
-from datetime import datetime
+﻿from datetime import datetime
 from typing import List, Optional
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, Field
+
+
+class CategoryResponse(BaseModel):
+    id: int
+    name: str
+    slug: str
+    is_active: bool
+
+    class Config:
+        orm_mode = True
 
 
 class ProductBase(BaseModel):
@@ -10,12 +20,18 @@ class ProductBase(BaseModel):
     slug: str
     short_description: str
     full_description: str
-    price: float
     cover_image: str
     images: List[str]
     is_active: bool
     rating_average: float
     rating_count: int
+    category_id: Optional[int]
+
+    price: float
+    final_price: float
+    calculated_price: float
+    cost_total: float
+    estimated_profit: float
 
     class Config:
         orm_mode = True
@@ -25,15 +41,59 @@ class ProductResponse(ProductBase):
     pass
 
 
+class BannerBase(BaseModel):
+    title: Optional[str] = None
+    subtitle: Optional[str] = None
+    image_url: str = Field(..., min_length=5)
+    target_url: Optional[str] = None
+    sort_order: int = 0
+    is_active: bool = True
+    show_in_carousel: bool = True
+
+
+class BannerCreate(BannerBase):
+    pass
+
+
+class BannerUpdate(BannerBase):
+    pass
+
+
+class BannerResponse(BaseModel):
+    id: int
+    title: Optional[str]
+    subtitle: Optional[str]
+    image_url: str
+    target_url: Optional[str]
+    sort_order: int
+    is_active: bool
+    show_in_carousel: bool
+    created_at: Optional[datetime]
+
+    class Config:
+        orm_mode = True
+
+
 class AdminProductBase(BaseModel):
     title: str = Field(..., min_length=2, max_length=160)
     slug: str = Field(..., min_length=2, max_length=160)
     short_description: str = Field(..., min_length=2, max_length=260)
     full_description: str = Field(..., min_length=2)
-    price: float = Field(..., gt=0)
     cover_image: str = Field(..., min_length=5)
     images: List[str] = Field(default_factory=list)
     is_active: bool = True
+    category_id: Optional[int] = Field(default=None)
+
+    grams_filament: float = Field(default=0, ge=0)
+    price_kg_filament: float = Field(default=0, ge=0)
+    hours_printing: float = Field(default=0, ge=0)
+    avg_power_watts: float = Field(default=0, ge=0)
+    price_kwh: float = Field(default=0, ge=0)
+    total_hours_labor: float = Field(default=0, ge=0)
+    price_hour_labor: float = Field(default=0, ge=0)
+    extra_cost: float = Field(default=0, ge=0)
+    profit_margin: float = Field(default=0, ge=0, lt=100)
+    manual_price: Optional[float] = Field(default=None, ge=0)
 
 
 class AdminProductCreate(AdminProductBase):
@@ -50,10 +110,27 @@ class AdminProductResponse(BaseModel):
     slug: str
     short_description: str
     full_description: str
-    price: float
     cover_image: str
     images: List[str]
     is_active: bool
+    category_id: Optional[int]
+
+    grams_filament: float
+    price_kg_filament: float
+    hours_printing: float
+    avg_power_watts: float
+    price_kwh: float
+    total_hours_labor: float
+    price_hour_labor: float
+    extra_cost: float
+    profit_margin: float
+    manual_price: Optional[float]
+
+    cost_total: float
+    calculated_price: float
+    estimated_profit: float
+    final_price: float
+    price: float
 
     class Config:
         orm_mode = True
@@ -102,13 +179,13 @@ class OrderResponse(BaseModel):
 
 
 class AdminLoginRequest(BaseModel):
-    email: EmailStr
+    email: str
     password: str = Field(..., min_length=6)
 
 
 class AdminLoginResponse(BaseModel):
     token: str
-    email: EmailStr
+    email: str
 
 
 class AdminOrderItemResponse(BaseModel):
@@ -129,7 +206,30 @@ class AdminOrderResponse(BaseModel):
     items: List[AdminOrderItemResponse]
 
 
+class DashboardSeriesPoint(BaseModel):
+    label: str
+    value: float
+
+
+class DashboardTopProduct(BaseModel):
+    title: str
+    quantity: int
+
+
+class DashboardStatusPoint(BaseModel):
+    status: str
+    value: int
+
+
 class AdminDashboardSummary(BaseModel):
     total_products: int
     total_orders: int
     total_sold: float
+    sales_series: List[DashboardSeriesPoint]
+    orders_series: List[DashboardSeriesPoint]
+    top_products: List[DashboardTopProduct]
+    order_status: List[DashboardStatusPoint]
+
+
+class LogoResponse(BaseModel):
+    url: Optional[str]

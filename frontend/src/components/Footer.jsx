@@ -1,12 +1,9 @@
-function Footer() {
+﻿function Footer() {
   return (
-    <footer className="footer">
-      <div className="container footer-grid">
-        <div>
-          <p className="footer-brand">3D Studio Shop</p>
-          <p>Marketplace premium de itens para impressão 3D.</p>
-        </div>
-        <p className="footer-note">Entrega local, design detalhado e suporte rápido.</p>
+    <footer className="site-footer">
+      <div className="container footer-row">
+        <p>3D Studio Shop</p>
+        <small>Marketplace premium para produtos impressos em 3D</small>
       </div>
     </footer>
   );
