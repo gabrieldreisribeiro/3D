@@ -20,12 +20,6 @@ venv/
 .mypy_cache/
 .coverage
 
-# Uploads
-uploads/*
-backend/uploads/*
-!uploads/.gitkeep
-!backend/uploads/.gitkeep
-
 # Frontend (React/Vite)
 node_modules/
 dist/
