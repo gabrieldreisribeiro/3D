@@ -7,7 +7,18 @@ from app.models import Order, OrderItem
 
 
 def create_order(db: Session, items, coupon_code, subtotal, discount, total):
-    order = Order(subtotal=subtotal, discount=discount, total=total, coupon_code=coupon_code)
+    return _create_order(db, items, coupon_code, subtotal, discount, total, 'pending', None)
+
+
+def _create_order(db: Session, items, coupon_code, subtotal, discount, total, payment_status, payment_method):
+    order = Order(
+        subtotal=subtotal,
+        discount=discount,
+        total=total,
+        coupon_code=coupon_code,
+        payment_status=payment_status or 'pending',
+        payment_method=payment_method,
+    )
     db.add(order)
     db.flush()
     for item in items:
@@ -22,6 +33,10 @@ def create_order(db: Session, items, coupon_code, subtotal, discount, total):
     db.commit()
     db.refresh(order)
     return order
+
+
+def create_order_with_payment(db: Session, items, coupon_code, subtotal, discount, total, payment_status, payment_method):
+    return _create_order(db, items, coupon_code, subtotal, discount, total, payment_status, payment_method)
 
 
 def admin_list_orders(db: Session):
@@ -88,14 +103,9 @@ def dashboard_top_products(db: Session, limit: int = 5):
 
 
 def dashboard_order_status(db: Session):
-    total_orders = admin_total_orders(db)
-    if total_orders == 0:
-        return [
-            {'status': 'Concluido', 'value': 0},
-            {'status': 'Novo', 'value': 0},
-        ]
-
+    rows = db.query(Order.payment_status, func.count(Order.id)).group_by(Order.payment_status).all()
+    mapped = {str(status or 'pending').lower(): int(count) for status, count in rows}
     return [
-        {'status': 'Concluido', 'value': total_orders},
-        {'status': 'Novo', 'value': 0},
+        {'status': 'Pago', 'value': mapped.get('paid', 0)},
+        {'status': 'Pendente', 'value': mapped.get('pending', 0)},
     ]

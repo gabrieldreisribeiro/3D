@@ -2,7 +2,7 @@
 
 from app.core.security import hash_password
 from app.db.session import Base, SessionLocal, engine
-from app.models import AdminUser, Banner, Category, Coupon, Product
+from app.models import AdminUser, Banner, Category, Coupon, Product, StoreSettings
 
 PRODUCTS = [
     {
@@ -115,10 +115,16 @@ BANNERS = [
 
 def _ensure_orders_created_at_column(session):
     columns = session.execute(text("PRAGMA table_info('orders')")).fetchall()
-    has_created_at = any(column[1] == 'created_at' for column in columns)
+    names = {column[1] for column in columns}
+    has_created_at = 'created_at' in names
     if not has_created_at:
         session.execute(text("ALTER TABLE orders ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP"))
-        session.commit()
+    if 'payment_status' not in names:
+        session.execute(text("ALTER TABLE orders ADD COLUMN payment_status VARCHAR(20) DEFAULT 'pending'"))
+    if 'payment_method' not in names:
+        session.execute(text("ALTER TABLE orders ADD COLUMN payment_method VARCHAR(30)"))
+    session.execute(text("UPDATE orders SET payment_status = COALESCE(payment_status, 'pending')"))
+    session.commit()
 
 
 def _ensure_coupon_columns(session):
@@ -266,6 +272,9 @@ def init_db() -> None:
                     is_active=True,
                 )
             )
+
+        if session.query(StoreSettings).first() is None:
+            session.add(StoreSettings(id=1, whatsapp_number=None, pix_key=None))
 
         session.commit()
         _migrate_existing_product_prices_and_categories(session)

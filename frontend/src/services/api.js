@@ -70,6 +70,10 @@ export function fetchPublicBanners() {
   return request('/public/banners');
 }
 
+export function fetchPublicSettings() {
+  return request('/public/settings');
+}
+
 export function fetchCategories() {
   return request('/categories');
 }
@@ -177,6 +181,17 @@ export async function uploadAdminProductImage(file) {
 
 export function fetchAdminSummary() {
   return adminRequest('/admin/dashboard/summary');
+}
+
+export function fetchAdminSettings() {
+  return adminRequest('/admin/settings');
+}
+
+export function updateAdminSettings(payload) {
+  return adminRequest('/admin/settings', {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  });
 }
 
 export function fetchAdminProducts() {

@@ -238,6 +238,8 @@ class OrderItemCreate(BaseModel):
 class OrderCreate(BaseModel):
     items: List[OrderItemCreate]
     coupon: Optional[str] = None
+    payment_status: Literal['pending', 'paid'] = 'pending'
+    payment_method: Optional[str] = None
 
 
 class OrderItemResponse(BaseModel):
@@ -256,6 +258,8 @@ class OrderResponse(BaseModel):
     discount: float
     total: float
     coupon_code: Optional[str]
+    payment_status: str
+    payment_method: Optional[str]
     items: List[OrderItemResponse]
 
     class Config:
@@ -286,6 +290,8 @@ class AdminOrderResponse(BaseModel):
     discount: float
     total: float
     coupon_code: Optional[str]
+    payment_status: str
+    payment_method: Optional[str]
     created_at: Optional[datetime]
     items: List[AdminOrderItemResponse]
 
@@ -317,3 +323,16 @@ class AdminDashboardSummary(BaseModel):
 
 class LogoResponse(BaseModel):
     url: Optional[str]
+
+
+class StoreSettingsBase(BaseModel):
+    whatsapp_number: Optional[str] = None
+    pix_key: Optional[str] = None
+
+
+class StoreSettingsUpdate(StoreSettingsBase):
+    pass
+
+
+class StoreSettingsResponse(StoreSettingsBase):
+    pass

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import QuantitySelector from '../components/QuantitySelector';
 import Button from '../components/ui/Button';
@@ -6,7 +6,7 @@ import Card from '../components/ui/Card';
 import EmptyState from '../components/ui/EmptyState';
 import Input from '../components/ui/Input';
 import SectionHeader from '../components/ui/SectionHeader';
-import { createOrder, fetchPublicLogo, resolveAssetUrl } from '../services/api';
+import { createOrder, fetchPublicLogo, fetchPublicSettings, resolveAssetUrl } from '../services/api';
 import { getLogoSizeConfig, getLogoSizeKey } from '../services/logoSettings';
 import { useCart } from '../services/cart';
 
@@ -25,7 +25,11 @@ function CartPage() {
   } = useCart();
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
+  const [pendingLoading, setPendingLoading] = useState(false);
+  const [paidLoading, setPaidLoading] = useState(false);
   const [pdfLoading, setPdfLoading] = useState(false);
+  const [showPixBox, setShowPixBox] = useState(false);
+  const [storeSettings, setStoreSettings] = useState({ whatsapp_number: '', pix_key: '' });
   const navigate = useNavigate();
 
   const getItemPrice = (item) => Number(item.unit_price ?? item.final_price ?? item.price ?? 0);
@@ -52,6 +56,74 @@ function CartPage() {
     new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(value || 0));
 
   const getCartItemKey = (item) => item.cart_key || `${item.slug}::base`;
+
+  useEffect(() => {
+    fetchPublicSettings()
+      .then((data) => {
+        setStoreSettings({
+          whatsapp_number: data?.whatsapp_number || '',
+          pix_key: data?.pix_key || '',
+        });
+      })
+      .catch(() => {
+        setStoreSettings({ whatsapp_number: '', pix_key: '' });
+      });
+  }, []);
+
+  const whatsappNumber = useMemo(() => {
+    const configured = String(storeSettings.whatsapp_number || '').trim();
+    if (configured) return configured.replace(/[^\d+]/g, '');
+    return String(import.meta.env.VITE_WHATSAPP_NUMBER || '').trim().replace(/[^\d+]/g, '');
+  }, [storeSettings.whatsapp_number]);
+
+  const pixKey = String(storeSettings.pix_key || '').trim();
+
+  const formatPixField = (id, value) => {
+    const content = String(value || '');
+    return `${id}${String(content.length).padStart(2, '0')}${content}`;
+  };
+
+  const crc16 = (value) => {
+    let crc = 0xffff;
+    for (let i = 0; i < value.length; i += 1) {
+      crc ^= value.charCodeAt(i) << 8;
+      for (let j = 0; j < 8; j += 1) {
+        if (crc & 0x8000) {
+          crc = (crc << 1) ^ 0x1021;
+        } else {
+          crc <<= 1;
+        }
+        crc &= 0xffff;
+      }
+    }
+    return crc.toString(16).toUpperCase().padStart(4, '0');
+  };
+
+  const pixPayload = useMemo(() => {
+    if (!pixKey) return '';
+    const merchantAccountInfo = formatPixField(
+      '26',
+      `${formatPixField('00', 'BR.GOV.BCB.PIX')}${formatPixField('01', pixKey)}`
+    );
+    const payloadWithoutCrc = [
+      formatPixField('00', '01'),
+      formatPixField('01', '12'),
+      merchantAccountInfo,
+      formatPixField('52', '0000'),
+      formatPixField('53', '986'),
+      formatPixField('58', 'BR'),
+      formatPixField('59', 'PLA STUDIO'),
+      formatPixField('60', 'SAO PAULO'),
+      formatPixField('62', formatPixField('05', '***')),
+      '6304',
+    ].join('');
+    return `${payloadWithoutCrc}${crc16(payloadWithoutCrc)}`;
+  }, [pixKey]);
+
+  const pixQrCodeUrl = useMemo(() => {
+    if (!pixPayload) return '';
+    return `https://api.qrserver.com/v1/create-qr-code/?size=280x280&data=${encodeURIComponent(pixPayload)}`;
+  }, [pixPayload]);
 
   const fileToDataUrl = (blob) =>
     new Promise((resolve, reject) => {
@@ -200,15 +272,30 @@ function CartPage() {
     }
   };
 
-  const handleCheckout = async () => {
+  const handleCheckout = async (paymentStatus) => {
+    const isPaid = paymentStatus === 'paid';
+    if (!whatsappNumber) {
+      alert('Configure o numero de WhatsApp no painel para concluir este fluxo.');
+      return;
+    }
+
+    if (isPaid && !pixKey) {
+      alert('Configure a chave Pix no painel para enviar pedido com status pago.');
+      return;
+    }
+
+    if (isPaid) setPaidLoading(true);
+    else setPendingLoading(true);
     setLoading(true);
+
     try {
       const order = await createOrder({
         items: items.map((item) => ({ slug: item.slug, quantity: item.quantity })),
         coupon: coupon?.code || null,
+        payment_status: isPaid ? 'paid' : 'pending',
+        payment_method: isPaid ? 'pix' : 'whatsapp',
       });
 
-      const number = import.meta.env.VITE_WHATSAPP_NUMBER;
       const lines = items
         .map((item) => {
           const selectedSubItems = item.selected_sub_items || [];
@@ -226,12 +313,16 @@ function CartPage() {
           return `${item.quantity}x ${item.title}${colorText} - R$ ${getItemPrice(item).toFixed(2)}${details}\nPrazo estimado: ${days} dia(s) apos pagamento`;
         })
         .join('\n');
-      const message = `Ola! Novo pedido:\n${lines}\nSubtotal: R$ ${subtotal.toFixed(2)}\nDesconto: R$ ${discount.toFixed(2)}\nTotal: R$ ${total.toFixed(2)}\nCodigo do pedido: ${order.id}`;
+      const statusText = isPaid ? 'PAGO (Pix)' : 'PENDENTE';
+      const proofLine = isPaid ? '\nComprovante: vou enviar em anexo nesta conversa.' : '';
+      const message = `Ola! Novo pedido:\n${lines}\nSubtotal: R$ ${subtotal.toFixed(2)}\nDesconto: R$ ${discount.toFixed(2)}\nTotal: R$ ${total.toFixed(2)}\nStatus: ${statusText}${proofLine}\nCodigo do pedido: ${order.id}`;
       clearCart();
-      window.open(`https://wa.me/${number}?text=${encodeURIComponent(message)}`, '_blank');
+      window.open(`https://wa.me/${whatsappNumber}?text=${encodeURIComponent(message)}`, '_blank');
     } catch (error) {
       alert(error.message || 'Erro ao finalizar pedido.');
     } finally {
+      if (isPaid) setPaidLoading(false);
+      else setPendingLoading(false);
       setLoading(false);
     }
   };
@@ -316,9 +407,36 @@ function CartPage() {
               Baixar orcamento em PDF
             </Button>
 
-            <Button loading={loading} onClick={handleCheckout}>
-              Finalizar pedido
+            <Button variant="secondary" onClick={() => setShowPixBox((current) => !current)}>
+              {showPixBox ? 'Fechar pagamento Pix' : 'Pagar com Pix (QR Code)'}
             </Button>
+
+            {showPixBox ? (
+              <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                <p className="text-xs text-slate-600">Escaneie o QR Code Pix com seu banco e depois envie o pedido como pago.</p>
+                {pixQrCodeUrl ? (
+                  <img src={pixQrCodeUrl} alt="QR Code Pix" className="mx-auto h-56 w-56 rounded-xl border border-slate-200 bg-white p-2" />
+                ) : (
+                  <p className="text-xs text-rose-600">Chave Pix nao configurada no painel.</p>
+                )}
+                {pixPayload ? (
+                  <div className="space-y-2">
+                    <p className="text-[11px] text-slate-500">Pix copia e cola:</p>
+                    <textarea readOnly className="h-24 w-full rounded-[10px] border border-slate-200 bg-white p-2 text-[11px] text-slate-700" value={pixPayload} />
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+
+            {showPixBox ? (
+              <Button loading={paidLoading} disabled={loading || !pixKey} onClick={() => handleCheckout('paid')}>
+                Enviar pedido pago no WhatsApp
+              </Button>
+            ) : (
+              <Button variant="ghost" loading={pendingLoading} disabled={loading} onClick={() => handleCheckout('pending')}>
+                Enviar pedido pendente no WhatsApp
+              </Button>
+            )}
           </Card>
         </div>
       )}

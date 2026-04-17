@@ -21,6 +21,14 @@ function AdminOrdersPage() {
       .finally(() => setLoading(false));
   }, []);
 
+  const getStatusTone = (status) => (status === 'paid' ? 'success' : 'warning');
+  const getStatusLabel = (status) => (status === 'paid' ? 'Pago' : 'Pendente');
+  const getMethodLabel = (method) => {
+    if (method === 'pix') return 'Pix';
+    if (method === 'whatsapp') return 'WhatsApp';
+    return method || '-';
+  };
+
   return (
     <section className="space-y-6">
       <SectionHeader eyebrow="Operacao" title="Pedidos" subtitle="Acompanhe detalhes e totais" />
@@ -30,7 +38,7 @@ function AdminOrdersPage() {
         {error ? <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">{error}</div> : null}
         {!loading && !error ? (
           <Table
-            columns={['Pedido', 'Data', 'Total', 'Status', 'Acoes']}
+            columns={['Pedido', 'Data', 'Total', 'Status', 'Pagamento', 'Acoes']}
             rows={orders}
             empty={<div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center text-sm text-slate-500">Nenhum pedido registrado.</div>}
             renderRow={(order) => (
@@ -39,7 +47,10 @@ function AdminOrdersPage() {
                 <td>{order.created_at ? new Date(order.created_at).toLocaleString('pt-BR') : '-'}</td>
                 <td>R$ {order.total.toFixed(2)}</td>
                 <td>
-                  <StatusBadge tone="success">Concluido</StatusBadge>
+                  <StatusBadge tone={getStatusTone(order.payment_status)}>{getStatusLabel(order.payment_status)}</StatusBadge>
+                </td>
+                <td>
+                  <span className="text-sm text-slate-600">{getMethodLabel(order.payment_method)}</span>
                 </td>
                 <td>
                   <Button variant="secondary" onClick={() => setSelectedOrder(order)}>
@@ -63,6 +74,8 @@ function AdminOrdersPage() {
             <p>Subtotal: <strong className="text-slate-900">R$ {selectedOrder.subtotal.toFixed(2)}</strong></p>
             <p>Desconto: <strong className="text-slate-900">R$ {selectedOrder.discount.toFixed(2)}</strong></p>
             <p>Total: <strong className="text-slate-900">R$ {selectedOrder.total.toFixed(2)}</strong></p>
+            <p>Status: <strong className="text-slate-900">{getStatusLabel(selectedOrder.payment_status)}</strong></p>
+            <p>Pagamento: <strong className="text-slate-900">{getMethodLabel(selectedOrder.payment_method)}</strong></p>
             <ul className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
               {selectedOrder.items.map((item) => (
                 <li key={item.id} className="flex items-center justify-between">

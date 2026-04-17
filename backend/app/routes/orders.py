@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from app.db.session import SessionLocal
 from app.schemas import OrderCreate, OrderResponse
 from app.services.coupon_service import build_client_hash, register_coupon_usage, validate_coupon_for_client
-from app.services.order_service import create_order
+from app.services.order_service import create_order_with_payment
 from app.services.product_service import get_product_by_slug
 
 router = APIRouter()
@@ -62,7 +62,18 @@ def create_order_endpoint(payload: OrderCreate, request: Request, db: Session = 
             raise HTTPException(status_code=400, detail='Tipo de cupom invalido')
 
     total = subtotal - discount
-    order = create_order(db, order_items, coupon.code if payload.coupon and coupon else None, subtotal, discount, total)
+    payment_status = payload.payment_status if payload.payment_status in {'pending', 'paid'} else 'pending'
+    payment_method = (payload.payment_method or '').strip() or None
+    order = create_order_with_payment(
+        db,
+        order_items,
+        coupon.code if payload.coupon and coupon else None,
+        subtotal,
+        discount,
+        total,
+        payment_status,
+        payment_method,
+    )
     if coupon:
         register_coupon_usage(db, coupon, client_hash, order.id)
         db.commit()

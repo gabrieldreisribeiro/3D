@@ -86,6 +86,8 @@ class Order(Base):
     id = Column(Integer, primary_key=True, index=True)
     customer_name = Column(String(120), nullable=True)
     coupon_code = Column(String(60), nullable=True)
+    payment_status = Column(String(20), nullable=False, default='pending')
+    payment_method = Column(String(30), nullable=True)
     subtotal = Column(Float, nullable=False)
     discount = Column(Float, nullable=False)
     total = Column(Float, nullable=False)
@@ -127,3 +129,11 @@ class AdminUser(Base):
     password_hash = Column(String(300), nullable=False)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, nullable=False, server_default=func.now())
+
+
+class StoreSettings(Base):
+    __tablename__ = 'store_settings'
+
+    id = Column(Integer, primary_key=True, index=True, default=1)
+    whatsapp_number = Column(String(30), nullable=True)
+    pix_key = Column(String(160), nullable=True)

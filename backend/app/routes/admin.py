@@ -19,6 +19,8 @@ from app.schemas import (
     BannerResponse,
     BannerUpdate,
     LogoResponse,
+    StoreSettingsResponse,
+    StoreSettingsUpdate,
 )
 from app.services.coupon_service import (
     admin_coupon_by_id,
@@ -53,6 +55,7 @@ from app.services.product_service import (
     parse_secondary_pairs_from_storage,
     parse_sub_items_from_storage,
 )
+from app.services.settings_service import get_or_create_settings, update_store_settings
 
 router = APIRouter(prefix='/admin', tags=['admin'])
 
@@ -81,6 +84,28 @@ def upload_logo(
 ):
     url = save_logo(file)
     return LogoResponse(url=url)
+
+
+@router.get('/settings', response_model=StoreSettingsResponse)
+def read_store_settings(_: AdminUser = Depends(require_admin), db: Session = Depends(get_db)):
+    settings = get_or_create_settings(db)
+    return StoreSettingsResponse(
+        whatsapp_number=settings.whatsapp_number,
+        pix_key=settings.pix_key,
+    )
+
+
+@router.put('/settings', response_model=StoreSettingsResponse)
+def save_store_settings(
+    payload: StoreSettingsUpdate,
+    _: AdminUser = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    settings = update_store_settings(db, payload.whatsapp_number, payload.pix_key)
+    return StoreSettingsResponse(
+        whatsapp_number=settings.whatsapp_number,
+        pix_key=settings.pix_key,
+    )
 
 
 @router.post('/banners/upload-image', response_model=LogoResponse)
