@@ -12,8 +12,7 @@ __pycache__/
 *.pyc
 *.pyo
 *.pyd
-*.sqlite3
-*.db
+
 venv/
 .env/
 .envrc
