@@ -1,7 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import ProductCard from '../components/ProductCard';
-import Modal from '../components/ui/Modal';
 import { fetchCategories, fetchProducts, fetchPublicBanners, resolveAssetUrl } from '../services/api';
 import { useCart } from '../services/cart';
 
@@ -40,6 +39,7 @@ function HomePage() {
   const [itemsPerPage, setItemsPerPage] = useState(12);
   const [loading, setLoading] = useState(true);
   const { addToCart } = useCart();
+  const filterPopoverRef = useRef(null);
 
   useEffect(() => {
     fetchPublicBanners()
@@ -135,6 +135,31 @@ function HomePage() {
       setCurrentPage(totalPages);
     }
   }, [currentPage, totalPages]);
+
+  useEffect(() => {
+    if (!isFiltersModalOpen) return undefined;
+
+    const handleClickOutside = (event) => {
+      if (!filterPopoverRef.current) return;
+      if (!filterPopoverRef.current.contains(event.target)) {
+        setIsFiltersModalOpen(false);
+      }
+    };
+
+    const handleEscape = (event) => {
+      if (event.key === 'Escape') {
+        setIsFiltersModalOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    window.addEventListener('keydown', handleEscape);
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      window.removeEventListener('keydown', handleEscape);
+    };
+  }, [isFiltersModalOpen]);
 
   const visibleBanner = banners[currentBanner] || fallbackSlides[0];
 
@@ -241,26 +266,103 @@ function HomePage() {
           ))}
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white p-3">
-          <button
-            type="button"
-            onClick={() => setIsFiltersModalOpen(true)}
-            className="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-200 px-3 text-xs font-semibold text-slate-700 transition hover:border-violet-300 hover:text-violet-700"
-          >
-            <svg
-              viewBox="0 0 24 24"
-              aria-hidden="true"
-              className="h-4 w-4"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.9"
-              strokeLinecap="round"
-              strokeLinejoin="round"
+        <div className="relative z-[60] flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white p-3">
+          <div ref={filterPopoverRef} className="relative z-[70]">
+            <button
+              type="button"
+              onClick={() => setIsFiltersModalOpen((prev) => !prev)}
+              className="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-200 px-3 text-xs font-semibold text-slate-700 transition hover:border-violet-300 hover:text-violet-700"
             >
-              <path d="M3 4h18l-7 8v6l-4 2v-8L3 4z" />
-            </svg>
-            Filtros
-          </button>
+              <svg
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+                className="h-4 w-4"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.9"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M3 4h18l-7 8v6l-4 2v-8L3 4z" />
+              </svg>
+              Filtros
+            </button>
+
+            {isFiltersModalOpen ? (
+              <div className="absolute left-0 top-[calc(100%+8px)] z-[90] w-[320px] rounded-xl border border-slate-200 bg-white p-3 shadow-xl">
+                <div className="grid gap-3">
+                  <div className="grid grid-cols-2 gap-2">
+                    <label className="grid gap-1 text-xs text-slate-600">
+                      Preco minimo
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={draftMinPrice}
+                        onChange={(event) => setDraftMinPrice(event.target.value)}
+                        className="h-9 rounded-lg border border-slate-200 px-2 text-xs outline-none focus:border-violet-300"
+                        placeholder="0.00"
+                      />
+                    </label>
+
+                    <label className="grid gap-1 text-xs text-slate-600">
+                      Preco maximo
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={draftMaxPrice}
+                        onChange={(event) => setDraftMaxPrice(event.target.value)}
+                        className="h-9 rounded-lg border border-slate-200 px-2 text-xs outline-none focus:border-violet-300"
+                        placeholder="999.99"
+                      />
+                    </label>
+                  </div>
+
+                  <label className="grid gap-1 text-xs text-slate-600">
+                    Ordenar
+                    <select
+                      value={draftSortBy}
+                      onChange={(event) => setDraftSortBy(event.target.value)}
+                      className="h-9 rounded-lg border border-slate-200 bg-white px-2 text-xs font-medium text-slate-700 outline-none focus:border-violet-300"
+                    >
+                      <option value="relevance">Relevancia</option>
+                      <option value="votes">Mais votados</option>
+                      <option value="price_asc">Menor preco</option>
+                      <option value="price_desc">Maior preco</option>
+                      <option value="name_asc">Nome A-Z</option>
+                    </select>
+                  </label>
+
+                  <div className="flex justify-end gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDraftMinPrice('');
+                        setDraftMaxPrice('');
+                        setDraftSortBy('relevance');
+                      }}
+                      className="h-9 rounded-lg border border-slate-200 px-3 text-xs font-semibold text-slate-700 transition hover:border-violet-300 hover:text-violet-700"
+                    >
+                      Limpar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMinPrice(draftMinPrice);
+                        setMaxPrice(draftMaxPrice);
+                        setSortBy(draftSortBy);
+                        setIsFiltersModalOpen(false);
+                      }}
+                      className="h-9 rounded-lg bg-violet-600 px-3 text-xs font-semibold text-white transition hover:bg-violet-700"
+                    >
+                      Aplicar
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : null}
+          </div>
 
           {hasActiveFilters ? (
             <button
@@ -354,84 +456,6 @@ function HomePage() {
         )}
       </section>
 
-      <Modal
-        open={isFiltersModalOpen}
-        title="Filtrar produtos"
-        onClose={() => setIsFiltersModalOpen(false)}
-        closeOnBackdrop
-        closeOnEscape
-        size="sm"
-        footer={
-          <>
-            <button
-              type="button"
-              onClick={() => {
-                setDraftMinPrice('');
-                setDraftMaxPrice('');
-                setDraftSortBy('relevance');
-              }}
-              className="h-9 rounded-lg border border-slate-200 px-3 text-xs font-semibold text-slate-700 transition hover:border-violet-300 hover:text-violet-700"
-            >
-              Limpar
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setMinPrice(draftMinPrice);
-                setMaxPrice(draftMaxPrice);
-                setSortBy(draftSortBy);
-                setIsFiltersModalOpen(false);
-              }}
-              className="h-9 rounded-lg bg-violet-600 px-3 text-xs font-semibold text-white transition hover:bg-violet-700"
-            >
-              Aplicar
-            </button>
-          </>
-        }
-      >
-        <div className="grid gap-3 sm:grid-cols-2">
-          <label className="grid gap-1 text-xs text-slate-600">
-            Preco minimo
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              value={draftMinPrice}
-              onChange={(event) => setDraftMinPrice(event.target.value)}
-              className="h-9 rounded-lg border border-slate-200 px-2 text-xs outline-none focus:border-violet-300"
-              placeholder="0.00"
-            />
-          </label>
-
-          <label className="grid gap-1 text-xs text-slate-600">
-            Preco maximo
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              value={draftMaxPrice}
-              onChange={(event) => setDraftMaxPrice(event.target.value)}
-              className="h-9 rounded-lg border border-slate-200 px-2 text-xs outline-none focus:border-violet-300"
-              placeholder="999.99"
-            />
-          </label>
-
-          <label className="grid gap-1 text-xs text-slate-600 sm:col-span-2">
-            Ordenar
-            <select
-              value={draftSortBy}
-              onChange={(event) => setDraftSortBy(event.target.value)}
-              className="h-9 rounded-lg border border-slate-200 bg-white px-2 text-xs font-medium text-slate-700 outline-none focus:border-violet-300"
-            >
-              <option value="relevance">Relevancia</option>
-              <option value="votes">Mais votados</option>
-              <option value="price_asc">Menor preco</option>
-              <option value="price_desc">Maior preco</option>
-              <option value="name_asc">Nome A-Z</option>
-            </select>
-          </label>
-        </div>
-      </Modal>
     </div>
   );
 }
