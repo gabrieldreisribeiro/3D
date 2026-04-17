@@ -47,6 +47,9 @@ function CartPage() {
     if (safeHours <= 0) return 1;
     return Math.max(1, Math.ceil(safeHours / 24));
   };
+  const getLineLeadHours = (item) => getItemLeadHours(item) * Number(item.quantity || 1);
+  const totalLeadHours = items.reduce((sum, item) => sum + getLineLeadHours(item), 0);
+  const totalLeadDays = getDaysFromHours(totalLeadHours);
   const formatColors = (primary, secondary) => {
     const values = [primary, secondary].filter(Boolean);
     if (!values.length) return null;
@@ -229,7 +232,7 @@ function CartPage() {
         const unitPrice = getItemPrice(item);
         const lineTotal = unitPrice * item.quantity;
         const selectedSubItems = item.selected_sub_items || [];
-        const deliveryDays = getDaysFromHours(getItemLeadHours(item));
+        const deliveryDays = getDaysFromHours(getLineLeadHours(item));
         const selectedSubItemsText = selectedSubItems.length
           ? ` (${selectedSubItems.map((subItem) => `${subItem.quantity}x ${subItem.title}`).join(', ')})`
           : '';
@@ -310,13 +313,13 @@ function CartPage() {
             : '';
           const colorLabel = formatColors(item.selected_color, item.selected_secondary_color);
           const colorText = colorLabel ? ` (cor: ${colorLabel})` : '';
-          const days = getDaysFromHours(getItemLeadHours(item));
+          const days = getDaysFromHours(getLineLeadHours(item));
           return `${item.quantity}x ${item.title}${colorText} - R$ ${getItemPrice(item).toFixed(2)}${details}\nPrazo estimado: ${days} dia(s) apos pagamento`;
         })
         .join('\n');
       const statusText = isPaid ? 'PAGO (Pix)' : 'PENDENTE';
       const proofLine = isPaid ? '\nComprovante: vou enviar em anexo nesta conversa.' : '';
-      const message = `Ola! Novo pedido:\n${lines}\nSubtotal: R$ ${subtotal.toFixed(2)}\nDesconto: R$ ${discount.toFixed(2)}\nTotal: R$ ${total.toFixed(2)}\nStatus: ${statusText}${proofLine}\nCodigo do pedido: ${order.id}`;
+      const message = `Ola! Novo pedido:\n${lines}\nPrazo estimado total: ${totalLeadDays} dia(s) apos pagamento\nSubtotal: R$ ${subtotal.toFixed(2)}\nDesconto: R$ ${discount.toFixed(2)}\nTotal: R$ ${total.toFixed(2)}\nStatus: ${statusText}${proofLine}\nCodigo do pedido: ${order.id}`;
       clearCart();
       window.open(`https://wa.me/${whatsappNumber}?text=${encodeURIComponent(message)}`, '_blank');
     } catch (error) {
@@ -366,7 +369,7 @@ function CartPage() {
                     </div>
                   ) : null}
                   <p className="mb-2 text-xs text-slate-500">
-                    Prazo estimado: {getDaysFromHours(getItemLeadHours(item))} dia(s) apos confirmacao do pagamento
+                    Prazo estimado: {getDaysFromHours(getLineLeadHours(item))} dia(s) apos confirmacao do pagamento
                   </p>
                   <div className="cart-item-controls">
                     <QuantitySelector value={item.quantity} onChange={(value) => updateQuantity(getCartItemKey(item), value)} />
@@ -396,6 +399,10 @@ function CartPage() {
             <div className="summary-line total">
               <span>Total</span>
               <strong>R$ {total.toFixed(2)}</strong>
+            </div>
+            <div className="summary-line">
+              <span>Prazo total estimado</span>
+              <strong>{totalLeadDays} dia(s)</strong>
             </div>
 
             <Input label="Cupom" value={code} onChange={(event) => setCode(event.target.value)} placeholder="DESCONTO10" />
