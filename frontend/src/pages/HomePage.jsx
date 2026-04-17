@@ -222,7 +222,7 @@ function HomePage() {
                         to={`/product/${product.slug}`}
                         className="inline-flex h-11 w-full items-center justify-center rounded-[10px] bg-gradient-to-r from-violet-500 to-fuchsia-500 text-sm font-semibold text-white shadow-sm transition-all duration-300 hover:shadow-glow"
                       >
-                        Montar kit
+                        Monte o seu
                       </Link>
                     ) : (
                       <button

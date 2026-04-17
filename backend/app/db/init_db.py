@@ -121,6 +121,19 @@ def _ensure_orders_created_at_column(session):
         session.commit()
 
 
+def _ensure_coupon_columns(session):
+    columns = session.execute(text("PRAGMA table_info('coupons')")).fetchall()
+    names = {column[1] for column in columns}
+    if 'expires_at' not in names:
+        session.execute(text("ALTER TABLE coupons ADD COLUMN expires_at DATETIME"))
+    if 'max_uses' not in names:
+        session.execute(text("ALTER TABLE coupons ADD COLUMN max_uses INTEGER"))
+    if 'uses_count' not in names:
+        session.execute(text("ALTER TABLE coupons ADD COLUMN uses_count INTEGER DEFAULT 0"))
+    session.execute(text("UPDATE coupons SET uses_count = COALESCE(uses_count, 0)"))
+    session.commit()
+
+
 def _ensure_product_pricing_columns(session):
     columns = session.execute(text("PRAGMA table_info('products')")).fetchall()
     names = {column[1] for column in columns}
@@ -128,6 +141,11 @@ def _ensure_product_pricing_columns(session):
     required_columns = {
         'category_id': "INTEGER",
         'sub_items': "TEXT DEFAULT ''",
+        'lead_time_hours': "REAL DEFAULT 0",
+        'allow_colors': "BOOLEAN DEFAULT 0",
+        'available_colors': "TEXT DEFAULT ''",
+        'allow_secondary_color': "BOOLEAN DEFAULT 0",
+        'secondary_color_pairs': "TEXT DEFAULT ''",
         'grams_filament': "REAL DEFAULT 0",
         'price_kg_filament': "REAL DEFAULT 0",
         'hours_printing': "REAL DEFAULT 0",
@@ -205,6 +223,7 @@ def init_db() -> None:
     session = SessionLocal()
     try:
         _ensure_orders_created_at_column(session)
+        _ensure_coupon_columns(session)
         _ensure_product_pricing_columns(session)
         _seed_categories(session)
 

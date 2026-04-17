@@ -29,6 +29,11 @@ class Product(Base):
     rating_average = Column(Float, default=5.0)
     rating_count = Column(Integer, default=0)
     category_id = Column(Integer, ForeignKey('categories.id'), nullable=True, index=True)
+    lead_time_hours = Column(Float, default=0.0)
+    allow_colors = Column(Boolean, default=False)
+    available_colors = Column(Text, nullable=False, default='')
+    allow_secondary_color = Column(Boolean, default=False)
+    secondary_color_pairs = Column(Text, nullable=False, default='')
 
     grams_filament = Column(Float, default=0.0)
     price_kg_filament = Column(Float, default=0.0)
@@ -57,6 +62,22 @@ class Coupon(Base):
     type = Column(String(30), nullable=False)
     value = Column(Float, nullable=False)
     is_active = Column(Boolean, default=True)
+    expires_at = Column(DateTime, nullable=True)
+    max_uses = Column(Integer, nullable=True)
+    uses_count = Column(Integer, nullable=False, default=0)
+    usages = relationship('CouponUsage', back_populates='coupon', cascade='all, delete')
+
+
+class CouponUsage(Base):
+    __tablename__ = 'coupon_usages'
+
+    id = Column(Integer, primary_key=True, index=True)
+    coupon_id = Column(Integer, ForeignKey('coupons.id', ondelete='CASCADE'), nullable=False, index=True)
+    client_hash = Column(String(128), nullable=False, index=True)
+    order_id = Column(Integer, ForeignKey('orders.id', ondelete='SET NULL'), nullable=True, index=True)
+    created_at = Column(DateTime, nullable=False, server_default=func.now())
+
+    coupon = relationship('Coupon', back_populates='usages')
 
 
 class Order(Base):

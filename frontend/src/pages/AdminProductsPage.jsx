@@ -36,6 +36,11 @@ const createEmptySubItem = () => ({
   image_url: '',
   pricing_mode: 'manual',
   manual_price: '',
+  lead_time_hours: '0',
+  allow_colors: false,
+  available_colors: [],
+  allow_secondary_color: false,
+  secondary_color_pairs: [],
   ...defaultPricingFields,
 });
 
@@ -50,6 +55,11 @@ const initialForm = {
   category_id: '',
   pricing_mode: 'calculated',
   manual_price: '',
+  lead_time_hours: '0',
+  allow_colors: false,
+  available_colors: [],
+  allow_secondary_color: false,
+  secondary_color_pairs: [],
   sub_items: [],
   ...defaultPricingFields,
 };
@@ -59,12 +69,65 @@ function toNumber(value) {
   return Number.isNaN(parsed) ? 0 : parsed;
 }
 
+function parseColors(value) {
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => String(item || '').trim())
+      .filter(Boolean);
+  }
+  return String(value || '')
+    .split(/[\n,]+/)
+    .map((item) => item.trim().toUpperCase())
+    .filter(Boolean);
+}
+
+function parseImageLinks(value) {
+  return String(value || '')
+    .split(/[\n,]+/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function normalizeHexColor(value) {
+  const color = String(value || '').trim().toUpperCase();
+  if (!color) return '';
+  if (/^#[0-9A-F]{6}$/.test(color)) return color;
+  return '';
+}
+
+function normalizeSecondaryPair(pair) {
+  const primary = normalizeHexColor(pair?.primary);
+  const secondary = normalizeHexColor(pair?.secondary);
+  if (!primary || !secondary) return null;
+  return { primary, secondary };
+}
+
+function parseSecondaryPairs(value) {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set();
+  const pairs = [];
+  value.forEach((item) => {
+    const normalized = normalizeSecondaryPair(item);
+    if (!normalized) return;
+    const key = `${normalized.primary}|${normalized.secondary}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    pairs.push(normalized);
+  });
+  return pairs;
+}
+
 function mapSubItemToPayload(item) {
   const pricingMode = item.pricing_mode || 'manual';
   const payload = {
     title: String(item.title || '').trim(),
     image_url: String(item.image_url || '').trim() || null,
     pricing_mode: pricingMode,
+    lead_time_hours: toNumber(item.lead_time_hours),
+    allow_colors: Boolean(item.allow_colors),
+    available_colors: item.allow_colors ? parseColors(item.available_colors) : [],
+    allow_secondary_color: Boolean(item.allow_secondary_color) && Boolean(item.allow_colors),
+    secondary_color_pairs: item.allow_colors && item.allow_secondary_color ? parseSecondaryPairs(item.secondary_color_pairs) : [],
     manual_price: pricingMode === 'manual' ? toNumber(item.manual_price) : null,
     grams_filament: pricingMode === 'calculated' ? toNumber(item.grams_filament) : 0,
     price_kg_filament: pricingMode === 'calculated' ? toNumber(item.price_kg_filament) : 0,
@@ -86,6 +149,8 @@ function mapSubItemToPayload(item) {
 
 function toPayload(form) {
   const pricingMode = form.pricing_mode || 'calculated';
+  const hasSubItems = (form.sub_items || []).length > 0;
+  const shouldUseProductPricing = !hasSubItems;
 
   return {
     title: form.title.trim(),
@@ -94,22 +159,26 @@ function toPayload(form) {
     full_description: form.full_description.trim(),
     cover_image: form.cover_image.trim(),
     images: form.images
-      .split('\n')
-      .map((item) => item.trim())
-      .filter(Boolean),
+      ? parseImageLinks(form.images)
+      : [],
     sub_items: (form.sub_items || []).map(mapSubItemToPayload),
     is_active: form.is_active,
     category_id: form.category_id === '' ? null : Number(form.category_id),
-    manual_price: pricingMode === 'manual' ? toNumber(form.manual_price) : null,
-    grams_filament: pricingMode === 'calculated' ? toNumber(form.grams_filament) : 0,
-    price_kg_filament: pricingMode === 'calculated' ? toNumber(form.price_kg_filament) : 0,
-    hours_printing: pricingMode === 'calculated' ? toNumber(form.hours_printing) : 0,
-    avg_power_watts: pricingMode === 'calculated' ? toNumber(form.avg_power_watts) : 0,
-    price_kwh: pricingMode === 'calculated' ? toNumber(form.price_kwh) : 0,
-    total_hours_labor: pricingMode === 'calculated' ? toNumber(form.total_hours_labor) : 0,
-    price_hour_labor: pricingMode === 'calculated' ? toNumber(form.price_hour_labor) : 0,
-    extra_cost: pricingMode === 'calculated' ? toNumber(form.extra_cost) : 0,
-    profit_margin: pricingMode === 'calculated' ? toNumber(form.profit_margin) : 0,
+    lead_time_hours: toNumber(form.lead_time_hours),
+    allow_colors: Boolean(form.allow_colors),
+    available_colors: form.allow_colors ? parseColors(form.available_colors) : [],
+    allow_secondary_color: Boolean(form.allow_colors) && Boolean(form.allow_secondary_color),
+    secondary_color_pairs: form.allow_colors && form.allow_secondary_color ? parseSecondaryPairs(form.secondary_color_pairs) : [],
+    manual_price: shouldUseProductPricing && pricingMode === 'manual' ? toNumber(form.manual_price) : null,
+    grams_filament: shouldUseProductPricing && pricingMode === 'calculated' ? toNumber(form.grams_filament) : 0,
+    price_kg_filament: shouldUseProductPricing && pricingMode === 'calculated' ? toNumber(form.price_kg_filament) : 0,
+    hours_printing: shouldUseProductPricing && pricingMode === 'calculated' ? toNumber(form.hours_printing) : 0,
+    avg_power_watts: shouldUseProductPricing && pricingMode === 'calculated' ? toNumber(form.avg_power_watts) : 0,
+    price_kwh: shouldUseProductPricing && pricingMode === 'calculated' ? toNumber(form.price_kwh) : 0,
+    total_hours_labor: shouldUseProductPricing && pricingMode === 'calculated' ? toNumber(form.total_hours_labor) : 0,
+    price_hour_labor: shouldUseProductPricing && pricingMode === 'calculated' ? toNumber(form.price_hour_labor) : 0,
+    extra_cost: shouldUseProductPricing && pricingMode === 'calculated' ? toNumber(form.extra_cost) : 0,
+    profit_margin: shouldUseProductPricing && pricingMode === 'calculated' ? toNumber(form.profit_margin) : 0,
   };
 }
 
@@ -136,6 +205,11 @@ function fromProduct(product) {
       title: item.title || item.name || '',
       image_url: item.image_url || '',
       pricing_mode: subPricingMode,
+      lead_time_hours: String(item.lead_time_hours ?? 0),
+      allow_colors: Boolean(item.allow_colors),
+      available_colors: Array.isArray(item.available_colors) ? item.available_colors : [],
+      allow_secondary_color: Boolean(item.allow_secondary_color),
+      secondary_color_pairs: parseSecondaryPairs(item.secondary_color_pairs || []),
       manual_price: item.manual_price == null ? String(item.final_price ?? item.price ?? '') : String(item.manual_price),
       grams_filament: String(item.grams_filament ?? 0),
       price_kg_filament: String(item.price_kg_filament ?? 0),
@@ -155,12 +229,17 @@ function fromProduct(product) {
     short_description: product.short_description,
     full_description: product.full_description,
     cover_image: product.cover_image,
-    images: (product.images || []).join('\n'),
+    images: (product.images || []).filter(Boolean).join(', '),
     sub_items: subItems,
     is_active: product.is_active,
     category_id: product.category_id == null ? '' : String(product.category_id),
     pricing_mode: pricingMode,
     manual_price: product.manual_price == null ? '' : String(product.manual_price),
+    lead_time_hours: String(product.lead_time_hours ?? 0),
+    allow_colors: Boolean(product.allow_colors),
+    available_colors: Array.isArray(product.available_colors) ? product.available_colors : [],
+    allow_secondary_color: Boolean(product.allow_secondary_color),
+    secondary_color_pairs: parseSecondaryPairs(product.secondary_color_pairs || []),
     grams_filament: String(product.grams_filament ?? 0),
     price_kg_filament: String(product.price_kg_filament ?? 0),
     hours_printing: String(product.hours_printing ?? 0),
@@ -187,6 +266,9 @@ function AdminProductsPage() {
   const [confirmTarget, setConfirmTarget] = usePersistentState('modal:admin-products:confirm-target', null);
   const [selectedProduct, setSelectedProduct] = usePersistentState('modal:admin-products:selected', null);
   const [modalMode, setModalMode] = usePersistentState('modal:admin-products:mode', 'create');
+  const [collapsedSubItems, setCollapsedSubItems] = useState({});
+  const [productPairDraft, setProductPairDraft] = useState({ primary: '', secondary: '' });
+  const [subItemPairDrafts, setSubItemPairDrafts] = useState({});
 
   const loadProducts = () => {
     setLoading(true);
@@ -207,6 +289,9 @@ function AdminProductsPage() {
     if (shouldResetForm) setForm(initialForm);
     setError('');
     setSelectedProduct(null);
+    setCollapsedSubItems({});
+    setProductPairDraft({ primary: '', secondary: '' });
+    setSubItemPairDrafts({});
     setModalMode('create');
     setIsModalOpen(true);
   };
@@ -214,7 +299,20 @@ function AdminProductsPage() {
   const openEdit = (product) => {
     const sameEditingTarget = editingId === product.id && modalMode === 'edit';
     setEditingId(product.id);
-    if (!sameEditingTarget) setForm(fromProduct(product));
+    if (!sameEditingTarget) {
+      setForm(fromProduct(product));
+      const nextCollapsed = {};
+      (product.sub_items || []).forEach((_, index) => {
+        nextCollapsed[index] = index > 0;
+      });
+      setCollapsedSubItems(nextCollapsed);
+      setProductPairDraft({ primary: '', secondary: '' });
+      const pairDrafts = {};
+      (product.sub_items || []).forEach((_, index) => {
+        pairDrafts[index] = { primary: '', secondary: '' };
+      });
+      setSubItemPairDrafts(pairDrafts);
+    }
     setError('');
     setSelectedProduct(product);
     setModalMode('edit');
@@ -266,14 +364,132 @@ function AdminProductsPage() {
     }));
   };
 
+  const addProductColor = (color) => {
+    const normalized = normalizeHexColor(color);
+    if (!normalized) return;
+    setForm((current) => {
+      const currentColors = parseColors(current.available_colors);
+      if (currentColors.includes(normalized)) return current;
+      return { ...current, available_colors: [...currentColors, normalized] };
+    });
+  };
+
+  const removeProductColor = (color) => {
+    setForm((current) => ({
+      ...current,
+      available_colors: parseColors(current.available_colors).filter((item) => item !== color),
+    }));
+  };
+
+  const addSubItemColor = (index, color) => {
+    const normalized = normalizeHexColor(color);
+    if (!normalized) return;
+    setForm((current) => ({
+      ...current,
+      sub_items: current.sub_items.map((item, itemIndex) => {
+        if (itemIndex !== index) return item;
+        const currentColors = parseColors(item.available_colors);
+        if (currentColors.includes(normalized)) return item;
+        return { ...item, available_colors: [...currentColors, normalized] };
+      }),
+    }));
+  };
+
+  const removeSubItemColor = (index, color) => {
+    setForm((current) => ({
+      ...current,
+      sub_items: current.sub_items.map((item, itemIndex) =>
+        itemIndex === index ? { ...item, available_colors: parseColors(item.available_colors).filter((it) => it !== color) } : item
+      ),
+    }));
+  };
+
   const addSubItem = () => {
+    const nextIndex = (form.sub_items || []).length;
     setForm((current) => ({ ...current, sub_items: [...(current.sub_items || []), createEmptySubItem()] }));
+    setCollapsedSubItems((current) => ({
+      ...current,
+      [nextIndex]: false,
+    }));
+    setSubItemPairDrafts((current) => ({ ...current, [nextIndex]: { primary: '', secondary: '' } }));
   };
 
   const removeSubItem = (index) => {
     setForm((current) => ({
       ...current,
       sub_items: current.sub_items.filter((_, itemIndex) => itemIndex !== index),
+    }));
+    setCollapsedSubItems((current) => {
+      const next = {};
+      Object.keys(current).forEach((key) => {
+        const itemIndex = Number(key);
+        if (itemIndex < index) next[itemIndex] = current[itemIndex];
+        if (itemIndex > index) next[itemIndex - 1] = current[itemIndex];
+      });
+      return next;
+    });
+    setSubItemPairDrafts((current) => {
+      const next = {};
+      Object.keys(current).forEach((key) => {
+        const itemIndex = Number(key);
+        if (itemIndex < index) next[itemIndex] = current[itemIndex];
+        if (itemIndex > index) next[itemIndex - 1] = current[itemIndex];
+      });
+      return next;
+    });
+  };
+
+  const addProductSecondaryPair = () => {
+    const normalized = normalizeSecondaryPair(productPairDraft);
+    if (!normalized) return;
+    setForm((current) => {
+      const currentPairs = parseSecondaryPairs(current.secondary_color_pairs);
+      const exists = currentPairs.some((item) => item.primary === normalized.primary && item.secondary === normalized.secondary);
+      if (exists) return current;
+      return { ...current, secondary_color_pairs: [...currentPairs, normalized] };
+    });
+    setProductPairDraft({ primary: '', secondary: '' });
+  };
+
+  const removeProductSecondaryPair = (pair) => {
+    setForm((current) => ({
+      ...current,
+      secondary_color_pairs: parseSecondaryPairs(current.secondary_color_pairs).filter(
+        (item) => !(item.primary === pair.primary && item.secondary === pair.secondary)
+      ),
+    }));
+  };
+
+  const addSubItemSecondaryPair = (index) => {
+    const draft = subItemPairDrafts[index] || { primary: '', secondary: '' };
+    const normalized = normalizeSecondaryPair(draft);
+    if (!normalized) return;
+    setForm((current) => ({
+      ...current,
+      sub_items: current.sub_items.map((item, itemIndex) => {
+        if (itemIndex !== index) return item;
+        const currentPairs = parseSecondaryPairs(item.secondary_color_pairs);
+        const exists = currentPairs.some((pair) => pair.primary === normalized.primary && pair.secondary === normalized.secondary);
+        if (exists) return item;
+        return { ...item, secondary_color_pairs: [...currentPairs, normalized] };
+      }),
+    }));
+    setSubItemPairDrafts((current) => ({ ...current, [index]: { primary: '', secondary: '' } }));
+  };
+
+  const removeSubItemSecondaryPair = (index, pair) => {
+    setForm((current) => ({
+      ...current,
+      sub_items: current.sub_items.map((item, itemIndex) =>
+        itemIndex === index
+          ? {
+              ...item,
+              secondary_color_pairs: parseSecondaryPairs(item.secondary_color_pairs).filter(
+                (currentPair) => !(currentPair.primary === pair.primary && currentPair.secondary === pair.secondary)
+              ),
+            }
+          : item
+      ),
     }));
   };
 
@@ -409,36 +625,42 @@ function AdminProductsPage() {
           <Input label="Titulo" value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} required />
           <Input label="Slug" value={form.slug} onChange={(event) => setForm({ ...form, slug: event.target.value })} required />
           <Select label="Categoria" options={categoryOptions} value={form.category_id} onChange={(event) => setForm({ ...form, category_id: event.target.value })} />
-          <div className="flex flex-col gap-1.5">
-            <span className="text-xs font-medium uppercase tracking-wide text-slate-500">Modo de preco</span>
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => setForm({ ...form, pricing_mode: 'calculated' })}
-                className={`h-10 rounded-[10px] border px-4 text-sm font-medium transition ${
-                  form.pricing_mode === 'calculated'
-                    ? 'border-violet-600 bg-violet-600 text-white'
-                    : 'border-slate-200 bg-white text-slate-600 hover:border-violet-200 hover:text-violet-700'
-                }`}
-              >
-                Calculo automatico
-              </button>
-              <button
-                type="button"
-                onClick={() => setForm({ ...form, pricing_mode: 'manual' })}
-                className={`h-10 rounded-[10px] border px-4 text-sm font-medium transition ${
-                  form.pricing_mode === 'manual'
-                    ? 'border-violet-600 bg-violet-600 text-white'
-                    : 'border-slate-200 bg-white text-slate-600 hover:border-violet-200 hover:text-violet-700'
-                }`}
-              >
-                Preco fixo
-              </button>
+          {(form.sub_items || []).length === 0 ? (
+            <div className="flex flex-col gap-1.5">
+              <span className="text-xs font-medium uppercase tracking-wide text-slate-500">Modo de preco</span>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => setForm({ ...form, pricing_mode: 'calculated' })}
+                  className={`h-10 rounded-[10px] border px-4 text-sm font-medium transition ${
+                    form.pricing_mode === 'calculated'
+                      ? 'border-violet-600 bg-violet-600 text-white'
+                      : 'border-slate-200 bg-white text-slate-600 hover:border-violet-200 hover:text-violet-700'
+                  }`}
+                >
+                  Calculo automatico
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setForm({ ...form, pricing_mode: 'manual' })}
+                  className={`h-10 rounded-[10px] border px-4 text-sm font-medium transition ${
+                    form.pricing_mode === 'manual'
+                      ? 'border-violet-600 bg-violet-600 text-white'
+                      : 'border-slate-200 bg-white text-slate-600 hover:border-violet-200 hover:text-violet-700'
+                  }`}
+                >
+                  Preco fixo
+                </button>
+              </div>
+              <p className="text-xs text-slate-500">
+                Em calculo automatico, o preco final e calculado ao salvar com base nos custos.
+              </p>
             </div>
-            <p className="text-xs text-slate-500">
-              Em calculo automatico, o preco final e calculado ao salvar com base nos custos.
-            </p>
-          </div>
+          ) : (
+            <div className="rounded-[10px] border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+              Com sub itens ativos, o preco principal do produto fica oculto e a venda sera pela composicao dos sub itens.
+            </div>
+          )}
 
           <Input
             label="Descricao curta"
@@ -477,14 +699,133 @@ function AdminProductsPage() {
           />
 
           <TextArea
-            label="Imagens extras (uma por linha)"
+            label="Imagens extras (separe por virgula ou quebras de linha)"
             rows="4"
             value={form.images}
             onChange={(event) => setForm({ ...form, images: event.target.value })}
             className="md:col-span-2"
           />
 
-          {form.pricing_mode === 'manual' ? (
+          <Input
+            label="Tempo de producao (horas)"
+            type="number"
+            min="0"
+            step="1"
+            value={form.lead_time_hours}
+            onChange={(event) => setForm({ ...form, lead_time_hours: event.target.value })}
+          />
+          <label className="inline-flex items-center gap-2 rounded-[10px] border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+            <input
+              type="checkbox"
+              checked={form.allow_colors}
+              onChange={(event) => setForm({ ...form, allow_colors: event.target.checked })}
+            />
+            <span>Permitir escolha de cores neste produto</span>
+          </label>
+          {form.allow_colors ? (
+            <div className="md:col-span-2 rounded-[10px] border border-slate-200 bg-slate-50 p-3">
+              <div className="mb-2 flex items-center justify-between">
+                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Paleta de cores do produto</p>
+                <div className="flex items-center gap-2">
+                  <input
+                    id="product-color-picker"
+                    type="color"
+                    defaultValue="#FFFFFF"
+                    className="h-9 w-11 cursor-pointer rounded-md border border-slate-200 bg-white p-1"
+                  />
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() => {
+                      const input = document.getElementById('product-color-picker');
+                      if (input) addProductColor(input.value);
+                    }}
+                    className="h-9 px-3"
+                  >
+                    +
+                  </Button>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {parseColors(form.available_colors).length === 0 ? (
+                  <small className="text-xs text-slate-500">Nenhuma cor adicionada.</small>
+                ) : (
+                  parseColors(form.available_colors).map((color) => (
+                    <div key={color} className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-2 py-1">
+                      <span className="inline-block h-5 w-5 rounded-full border border-slate-300" style={{ backgroundColor: color }} />
+                      <code className="text-xs text-slate-700">{color}</code>
+                      <button
+                        type="button"
+                        onClick={() => removeProductColor(color)}
+                        className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-slate-200 text-xs text-slate-600 hover:bg-slate-100"
+                        aria-label={`Remover cor ${color}`}
+                      >
+                        x
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+              <div className="mt-3 rounded-[10px] border border-slate-200 bg-white p-3">
+                <label className="inline-flex items-center gap-2 text-sm text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(form.allow_secondary_color)}
+                    onChange={(event) => setForm({ ...form, allow_secondary_color: event.target.checked })}
+                  />
+                  <span>Permitir furta cor neste produto</span>
+                </label>
+
+                {form.allow_secondary_color ? (
+                  <div className="mt-3 space-y-2">
+                    <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Combinacoes permitidas (principal + furta cor)</p>
+                    <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
+                      <Select
+                        label="Cor principal"
+                        options={[{ value: '', label: 'Selecione' }, ...parseColors(form.available_colors).map((color) => ({ value: color, label: color }))]}
+                        value={productPairDraft.primary}
+                        onChange={(event) => setProductPairDraft((current) => ({ ...current, primary: event.target.value }))}
+                      />
+                      <Select
+                        label="Furta cor"
+                        options={[{ value: '', label: 'Selecione' }, ...parseColors(form.available_colors).map((color) => ({ value: color, label: color }))]}
+                        value={productPairDraft.secondary}
+                        onChange={(event) => setProductPairDraft((current) => ({ ...current, secondary: event.target.value }))}
+                      />
+                      <div className="flex items-end">
+                        <Button type="button" variant="secondary" className="h-11 px-4" onClick={addProductSecondaryPair}>
+                          +
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {parseSecondaryPairs(form.secondary_color_pairs).length === 0 ? (
+                        <small className="text-xs text-slate-500">Nenhuma combinacao definida.</small>
+                      ) : (
+                        parseSecondaryPairs(form.secondary_color_pairs).map((pair) => (
+                          <div key={`${pair.primary}-${pair.secondary}`} className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-2 py-1">
+                            <span className="inline-block h-4 w-4 rounded-full border border-slate-300" style={{ backgroundColor: pair.primary }} />
+                            <span className="text-xs text-slate-700">+</span>
+                            <span className="inline-block h-4 w-4 rounded-full border border-slate-300" style={{ backgroundColor: pair.secondary }} />
+                            <code className="text-xs text-slate-700">{pair.primary} + {pair.secondary}</code>
+                            <button
+                              type="button"
+                              onClick={() => removeProductSecondaryPair(pair)}
+                              className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-slate-200 text-xs text-slate-600 hover:bg-slate-100"
+                            >
+                              x
+                            </button>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
+
+          {(form.sub_items || []).length === 0 && form.pricing_mode === 'manual' ? (
             <Input
               label="Preco do produto"
               type="number"
@@ -493,7 +834,8 @@ function AdminProductsPage() {
               value={form.manual_price}
               onChange={(event) => setForm({ ...form, manual_price: event.target.value })}
             />
-          ) : (
+          ) : null}
+          {(form.sub_items || []).length === 0 && form.pricing_mode === 'calculated' ? (
             <>
               <Input label="Filamento (gramas)" type="number" min="0" step="0.01" value={form.grams_filament} onChange={(event) => setForm({ ...form, grams_filament: event.target.value })} />
               <Input label="Preco KG filamento" type="number" min="0" step="0.01" value={form.price_kg_filament} onChange={(event) => setForm({ ...form, price_kg_filament: event.target.value })} />
@@ -505,7 +847,7 @@ function AdminProductsPage() {
               <Input label="Custos extras" type="number" min="0" step="0.01" value={form.extra_cost} onChange={(event) => setForm({ ...form, extra_cost: event.target.value })} />
               <Input label="Margem de lucro (%)" type="number" min="0" step="0.01" value={form.profit_margin} onChange={(event) => setForm({ ...form, profit_margin: event.target.value })} />
             </>
-          )}
+          ) : null}
 
           <div className="md:col-span-2 rounded-xl border border-slate-200 p-4">
             <div className="mb-3 flex items-center justify-between">
@@ -522,10 +864,22 @@ function AdminProductsPage() {
                 <div key={`sub-item-${index}`} className="rounded-xl border border-slate-200 bg-slate-50 p-4">
                   <div className="mb-3 flex items-center justify-between">
                     <strong className="text-sm text-slate-900">Sub item {index + 1}</strong>
-                    <Button type="button" variant="danger" onClick={() => removeSubItem(index)}>Remover</Button>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        onClick={() => setCollapsedSubItems((current) => ({ ...current, [index]: !current[index] }))}
+                      >
+                        {collapsedSubItems[index] ? 'Expandir' : 'Minimizar'}
+                      </Button>
+                      <Button type="button" variant="danger" onClick={() => removeSubItem(index)}>Remover</Button>
+                    </div>
                   </div>
 
-                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  {collapsedSubItems[index] ? (
+                    <p className="text-xs text-slate-500">Sub item minimizado.</p>
+                  ) : (
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                     <Input label="Titulo" value={subItem.title} onChange={(event) => updateSubItem(index, 'title', event.target.value)} required />
                     <div className="flex flex-col gap-1.5">
                       <span className="text-xs font-medium uppercase tracking-wide text-slate-500">Modo de preco</span>
@@ -554,6 +908,134 @@ function AdminProductsPage() {
                         </button>
                       </div>
                     </div>
+                    <Input
+                      label="Tempo de producao (horas)"
+                      type="number"
+                      min="0"
+                      step="1"
+                      value={subItem.lead_time_hours}
+                      onChange={(event) => updateSubItem(index, 'lead_time_hours', event.target.value)}
+                    />
+                    <label className="inline-flex items-center gap-2 rounded-[10px] border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700">
+                      <input
+                        type="checkbox"
+                        checked={Boolean(subItem.allow_colors)}
+                        onChange={(event) => updateSubItem(index, 'allow_colors', event.target.checked)}
+                      />
+                      <span>Permitir escolha de cores no sub item</span>
+                    </label>
+                    {subItem.allow_colors ? (
+                      <div className="md:col-span-2 rounded-[10px] border border-slate-200 bg-white p-3">
+                        <div className="mb-2 flex items-center justify-between">
+                          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Paleta de cores do sub item</p>
+                          <div className="flex items-center gap-2">
+                            <input
+                              id={`subitem-color-picker-${index}`}
+                              type="color"
+                              defaultValue="#FFFFFF"
+                              className="h-9 w-11 cursor-pointer rounded-md border border-slate-200 bg-white p-1"
+                            />
+                            <Button
+                              type="button"
+                              variant="secondary"
+                              onClick={() => {
+                                const input = document.getElementById(`subitem-color-picker-${index}`);
+                                if (input) addSubItemColor(index, input.value);
+                              }}
+                              className="h-9 px-3"
+                            >
+                              +
+                            </Button>
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {parseColors(subItem.available_colors).length === 0 ? (
+                            <small className="text-xs text-slate-500">Nenhuma cor adicionada.</small>
+                          ) : (
+                            parseColors(subItem.available_colors).map((color) => (
+                              <div key={`${index}-${color}`} className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-2 py-1">
+                                <span className="inline-block h-5 w-5 rounded-full border border-slate-300" style={{ backgroundColor: color }} />
+                                <code className="text-xs text-slate-700">{color}</code>
+                                <button
+                                  type="button"
+                                  onClick={() => removeSubItemColor(index, color)}
+                                  className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-slate-200 text-xs text-slate-600 hover:bg-slate-100"
+                                  aria-label={`Remover cor ${color}`}
+                                >
+                                  x
+                                </button>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                        <div className="mt-3 rounded-[10px] border border-slate-200 bg-slate-50 p-3">
+                          <label className="inline-flex items-center gap-2 text-sm text-slate-700">
+                            <input
+                              type="checkbox"
+                              checked={Boolean(subItem.allow_secondary_color)}
+                              onChange={(event) => updateSubItem(index, 'allow_secondary_color', event.target.checked)}
+                            />
+                            <span>Permitir furta cor neste sub item</span>
+                          </label>
+
+                          {subItem.allow_secondary_color ? (
+                            <div className="mt-3 space-y-2">
+                              <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Combinacoes permitidas (principal + furta cor)</p>
+                              <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
+                                <Select
+                                  label="Cor principal"
+                                  options={[{ value: '', label: 'Selecione' }, ...parseColors(subItem.available_colors).map((color) => ({ value: color, label: color }))]}
+                                  value={(subItemPairDrafts[index] || { primary: '', secondary: '' }).primary}
+                                  onChange={(event) =>
+                                    setSubItemPairDrafts((current) => ({
+                                      ...current,
+                                      [index]: { ...(current[index] || { primary: '', secondary: '' }), primary: event.target.value },
+                                    }))
+                                  }
+                                />
+                                <Select
+                                  label="Furta cor"
+                                  options={[{ value: '', label: 'Selecione' }, ...parseColors(subItem.available_colors).map((color) => ({ value: color, label: color }))]}
+                                  value={(subItemPairDrafts[index] || { primary: '', secondary: '' }).secondary}
+                                  onChange={(event) =>
+                                    setSubItemPairDrafts((current) => ({
+                                      ...current,
+                                      [index]: { ...(current[index] || { primary: '', secondary: '' }), secondary: event.target.value },
+                                    }))
+                                  }
+                                />
+                                <div className="flex items-end">
+                                  <Button type="button" variant="secondary" className="h-11 px-4" onClick={() => addSubItemSecondaryPair(index)}>
+                                    +
+                                  </Button>
+                                </div>
+                              </div>
+                              <div className="flex flex-wrap gap-2">
+                                {parseSecondaryPairs(subItem.secondary_color_pairs).length === 0 ? (
+                                  <small className="text-xs text-slate-500">Nenhuma combinacao definida.</small>
+                                ) : (
+                                  parseSecondaryPairs(subItem.secondary_color_pairs).map((pair) => (
+                                    <div key={`${index}-${pair.primary}-${pair.secondary}`} className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-2 py-1">
+                                      <span className="inline-block h-4 w-4 rounded-full border border-slate-300" style={{ backgroundColor: pair.primary }} />
+                                      <span className="text-xs text-slate-700">+</span>
+                                      <span className="inline-block h-4 w-4 rounded-full border border-slate-300" style={{ backgroundColor: pair.secondary }} />
+                                      <code className="text-xs text-slate-700">{pair.primary} + {pair.secondary}</code>
+                                      <button
+                                        type="button"
+                                        onClick={() => removeSubItemSecondaryPair(index, pair)}
+                                        className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-slate-200 text-xs text-slate-600 hover:bg-slate-100"
+                                      >
+                                        x
+                                      </button>
+                                    </div>
+                                  ))
+                                )}
+                              </div>
+                            </div>
+                          ) : null}
+                        </div>
+                      </div>
+                    ) : null}
                     <Input
                       label="Imagem (URL)"
                       className="md:col-span-2"
@@ -590,7 +1072,8 @@ function AdminProductsPage() {
                         <Input label="Margem de lucro (%)" type="number" min="0" step="0.01" value={subItem.profit_margin} onChange={(event) => updateSubItem(index, 'profit_margin', event.target.value)} />
                       </>
                     )}
-                  </div>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

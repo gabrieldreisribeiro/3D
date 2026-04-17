@@ -1,9 +1,26 @@
-﻿const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 const ADMIN_TOKEN_KEY = 'admin_token';
+const CLIENT_FP_KEY = 'client_fingerprint';
+
+function getClientFingerprint() {
+  if (typeof window === 'undefined') return '';
+  try {
+    const existing = localStorage.getItem(CLIENT_FP_KEY);
+    if (existing) return existing;
+    const generated = typeof crypto !== 'undefined' && crypto.randomUUID
+      ? crypto.randomUUID()
+      : `fp-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    localStorage.setItem(CLIENT_FP_KEY, generated);
+    return generated;
+  } catch {
+    return '';
+  }
+}
 
 async function request(path, options = {}) {
+  const fingerprint = getClientFingerprint();
   const response = await fetch(`${API_BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...(fingerprint ? { 'X-Client-Fingerprint': fingerprint } : {}) },
     ...options,
   });
 
@@ -16,9 +33,11 @@ async function request(path, options = {}) {
 
 async function adminRequest(path, options = {}) {
   const token = localStorage.getItem(ADMIN_TOKEN_KEY);
+  const fingerprint = getClientFingerprint();
   const headers = {
     'Content-Type': 'application/json',
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...(fingerprint ? { 'X-Client-Fingerprint': fingerprint } : {}),
     ...(options.headers || {}),
   };
 

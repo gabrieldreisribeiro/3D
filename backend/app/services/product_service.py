@@ -1,5 +1,7 @@
 ﻿import json
 
+from datetime import datetime
+
 from fastapi import HTTPException
 from sqlalchemy.orm import Session, joinedload
 
@@ -27,7 +29,14 @@ def get_product_by_slug(db: Session, slug: str):
 
 
 def validate_coupon(db: Session, code: str):
-    return db.query(Coupon).filter(Coupon.code == code.upper(), Coupon.is_active == True).first()
+    coupon = db.query(Coupon).filter(Coupon.code == code.upper(), Coupon.is_active == True).first()
+    if not coupon:
+        return None
+    if coupon.expires_at and coupon.expires_at <= datetime.utcnow():
+        return None
+    if coupon.max_uses is not None and int(coupon.uses_count or 0) >= int(coupon.max_uses):
+        return None
+    return coupon
 
 
 def admin_list_products(db: Session):
@@ -52,6 +61,51 @@ def _to_float(value, default=0.0):
         return float(default)
 
 
+def _to_bool(value) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return value != 0
+    text = str(value or '').strip().lower()
+    return text in {'1', 'true', 'sim', 'yes', 'on'}
+
+
+def _normalize_colors(raw_colors) -> list[str]:
+    if not raw_colors:
+        return []
+
+    if isinstance(raw_colors, str):
+        chunks = raw_colors.replace('\r', '\n').replace(',', '\n').split('\n')
+    else:
+        chunks = list(raw_colors)
+
+    colors = []
+    for chunk in chunks:
+        color = str(chunk or '').strip()
+        if color and color not in colors:
+            colors.append(color)
+    return colors[:50]
+
+
+def _normalize_secondary_pairs(raw_pairs, available_colors: list[str]) -> list[dict]:
+    if not raw_pairs:
+        return []
+    pairs = []
+    for item in raw_pairs:
+        raw = item.model_dump() if hasattr(item, 'model_dump') else dict(item)
+        primary = str(raw.get('primary') or '').strip().upper()
+        secondary = str(raw.get('secondary') or '').strip().upper()
+        if not primary or not secondary:
+            continue
+        if primary not in available_colors or secondary not in available_colors:
+            continue
+        key = f'{primary}|{secondary}'
+        if any(existing.get('_key') == key for existing in pairs):
+            continue
+        pairs.append({'primary': primary, 'secondary': secondary, '_key': key})
+    return [{'primary': pair['primary'], 'secondary': pair['secondary']} for pair in pairs]
+
+
 def _normalize_sub_item_payload(item) -> dict:
     raw = item.model_dump() if hasattr(item, 'model_dump') else dict(item)
     title = (raw.get('title') or raw.get('name') or '').strip()
@@ -66,6 +120,11 @@ def _normalize_sub_item_payload(item) -> dict:
         'title': title,
         'image_url': (raw.get('image_url') or '').strip() or None,
         'pricing_mode': pricing_mode,
+        'lead_time_hours': _to_float(raw.get('lead_time_hours')),
+        'allow_colors': _to_bool(raw.get('allow_colors')),
+        'available_colors': _normalize_colors(raw.get('available_colors')),
+        'allow_secondary_color': _to_bool(raw.get('allow_secondary_color')),
+        'secondary_color_pairs': _normalize_secondary_pairs(raw.get('secondary_color_pairs') or [], _normalize_colors(raw.get('available_colors'))),
         'grams_filament': _to_float(raw.get('grams_filament')),
         'price_kg_filament': _to_float(raw.get('price_kg_filament')),
         'hours_printing': _to_float(raw.get('hours_printing')),
@@ -96,6 +155,13 @@ def _normalize_sub_item_payload(item) -> dict:
         base['estimated_profit'] = 0.0
         base['final_price'] = manual_value
 
+    if not base['allow_colors']:
+        base['available_colors'] = []
+        base['allow_secondary_color'] = False
+        base['secondary_color_pairs'] = []
+    if not base['allow_secondary_color']:
+        base['secondary_color_pairs'] = []
+
     return base
 
 
@@ -125,6 +191,37 @@ def parse_sub_items_from_storage(raw_value) -> list[dict]:
     return parsed
 
 
+def prepare_colors_for_storage(colors) -> str:
+    return json.dumps(_normalize_colors(colors), ensure_ascii=False)
+
+
+def parse_colors_from_storage(raw_value) -> list[str]:
+    if not raw_value:
+        return []
+    try:
+        parsed = json.loads(raw_value) if isinstance(raw_value, str) else raw_value
+    except Exception:  # noqa: BLE001
+        return []
+    return _normalize_colors(parsed)
+
+
+def prepare_secondary_pairs_for_storage(pairs, available_colors) -> str:
+    normalized_pairs = _normalize_secondary_pairs(pairs, _normalize_colors(available_colors))
+    return json.dumps(normalized_pairs, ensure_ascii=False)
+
+
+def parse_secondary_pairs_from_storage(raw_value, available_colors) -> list[dict]:
+    if not raw_value:
+        return []
+    try:
+        parsed = json.loads(raw_value) if isinstance(raw_value, str) else raw_value
+    except Exception:  # noqa: BLE001
+        return []
+    if not isinstance(parsed, list):
+        return []
+    return _normalize_secondary_pairs(parsed, _normalize_colors(available_colors))
+
+
 def _apply_pricing(product: Product, payload) -> None:
     pricing = calculate_product_pricing(payload)
     product.cost_total = pricing['cost_total']
@@ -150,6 +247,14 @@ def admin_create_product(db: Session, payload):
         rating_average=5.0,
         rating_count=0,
         category_id=payload.category_id,
+        lead_time_hours=payload.lead_time_hours,
+        allow_colors=payload.allow_colors,
+        available_colors=prepare_colors_for_storage(payload.available_colors if payload.allow_colors else []),
+        allow_secondary_color=payload.allow_secondary_color if payload.allow_colors else False,
+        secondary_color_pairs=prepare_secondary_pairs_for_storage(
+            payload.secondary_color_pairs if payload.allow_colors and payload.allow_secondary_color else [],
+            payload.available_colors if payload.allow_colors else [],
+        ),
         grams_filament=payload.grams_filament,
         price_kg_filament=payload.price_kg_filament,
         hours_printing=payload.hours_printing,
@@ -182,6 +287,14 @@ def admin_update_product(db: Session, product: Product, payload):
     product.sub_items = prepare_sub_items_for_storage(payload.sub_items)
     product.is_active = payload.is_active
     product.category_id = payload.category_id
+    product.lead_time_hours = payload.lead_time_hours
+    product.allow_colors = payload.allow_colors
+    product.available_colors = prepare_colors_for_storage(payload.available_colors if payload.allow_colors else [])
+    product.allow_secondary_color = payload.allow_secondary_color if payload.allow_colors else False
+    product.secondary_color_pairs = prepare_secondary_pairs_for_storage(
+        payload.secondary_color_pairs if payload.allow_colors and payload.allow_secondary_color else [],
+        payload.available_colors if payload.allow_colors else [],
+    )
 
     product.grams_filament = payload.grams_filament
     product.price_kg_filament = payload.price_kg_filament

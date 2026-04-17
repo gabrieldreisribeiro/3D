@@ -14,10 +14,20 @@ class CategoryResponse(BaseModel):
         orm_mode = True
 
 
+class SecondaryColorPair(BaseModel):
+    primary: str = Field(..., min_length=4, max_length=7)
+    secondary: str = Field(..., min_length=4, max_length=7)
+
+
 class ProductSubItem(BaseModel):
     title: str = Field(..., min_length=1, max_length=140)
     image_url: Optional[str] = None
     pricing_mode: Literal['manual', 'calculated'] = 'manual'
+    lead_time_hours: float = Field(default=0, ge=0)
+    allow_colors: bool = False
+    available_colors: List[str] = Field(default_factory=list)
+    allow_secondary_color: bool = False
+    secondary_color_pairs: List[SecondaryColorPair] = Field(default_factory=list)
 
     grams_filament: float = Field(default=0, ge=0)
     price_kg_filament: float = Field(default=0, ge=0)
@@ -49,6 +59,11 @@ class ProductBase(BaseModel):
     rating_average: float
     rating_count: int
     category_id: Optional[int]
+    lead_time_hours: float
+    allow_colors: bool
+    available_colors: List[str]
+    allow_secondary_color: bool
+    secondary_color_pairs: List[SecondaryColorPair]
 
     price: float
     final_price: float
@@ -107,6 +122,11 @@ class AdminProductBase(BaseModel):
     sub_items: List[ProductSubItem] = Field(default_factory=list)
     is_active: bool = True
     category_id: Optional[int] = Field(default=None)
+    lead_time_hours: float = Field(default=0, ge=0)
+    allow_colors: bool = False
+    available_colors: List[str] = Field(default_factory=list)
+    allow_secondary_color: bool = False
+    secondary_color_pairs: List[SecondaryColorPair] = Field(default_factory=list)
 
     grams_filament: float = Field(default=0, ge=0)
     price_kg_filament: float = Field(default=0, ge=0)
@@ -139,6 +159,11 @@ class AdminProductResponse(BaseModel):
     sub_items: List[ProductSubItem]
     is_active: bool
     category_id: Optional[int]
+    lead_time_hours: float
+    allow_colors: bool
+    available_colors: List[str]
+    allow_secondary_color: bool
+    secondary_color_pairs: List[SecondaryColorPair]
 
     grams_filament: float
     price_kg_filament: float
@@ -169,6 +194,9 @@ class CouponResponse(BaseModel):
     code: str
     type: str
     value: float
+    expires_at: Optional[datetime] = None
+    max_uses: Optional[int] = None
+    uses_count: int = 0
 
 
 class AdminCouponBase(BaseModel):
@@ -176,6 +204,8 @@ class AdminCouponBase(BaseModel):
     type: Literal['percent', 'fixed']
     value: float = Field(..., gt=0)
     is_active: bool = True
+    expires_at: Optional[datetime] = None
+    max_uses: Optional[int] = Field(default=None, ge=1)
 
 
 class AdminCouponCreate(AdminCouponBase):
@@ -192,6 +222,9 @@ class AdminCouponResponse(BaseModel):
     type: str
     value: float
     is_active: bool
+    expires_at: Optional[datetime] = None
+    max_uses: Optional[int] = None
+    uses_count: int = 0
 
     class Config:
         orm_mode = True

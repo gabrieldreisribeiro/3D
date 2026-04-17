@@ -7,6 +7,8 @@ from app.services.product_service import (
     get_product_by_slug,
     list_categories,
     list_products,
+    parse_colors_from_storage,
+    parse_secondary_pairs_from_storage,
     parse_sub_items_from_storage,
 )
 
@@ -32,6 +34,8 @@ def read_products(category: str | None = Query(default=None), db: Session = Depe
     for product in products:
         product.images = product.images.split(',') if product.images else []
         product.sub_items = parse_sub_items_from_storage(product.sub_items)
+        product.available_colors = parse_colors_from_storage(product.available_colors)
+        product.secondary_color_pairs = parse_secondary_pairs_from_storage(product.secondary_color_pairs, product.available_colors)
     return products
 
 
@@ -42,4 +46,6 @@ def read_product(slug: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail='Produto nao encontrado')
     product.images = product.images.split(',') if product.images else []
     product.sub_items = parse_sub_items_from_storage(product.sub_items)
+    product.available_colors = parse_colors_from_storage(product.available_colors)
+    product.secondary_color_pairs = parse_secondary_pairs_from_storage(product.secondary_color_pairs, product.available_colors)
     return product

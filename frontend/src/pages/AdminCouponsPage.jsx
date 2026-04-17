@@ -22,23 +22,50 @@ const initialForm = {
   type: 'percent',
   value: '0',
   is_active: true,
+  expires_at: '',
+  limit_mode: 'none',
+  max_uses: '',
 };
 
+function toLocalDateTimeInput(value) {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const pad = (item) => String(item).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function formatDateTime(value) {
+  if (!value) return 'Sem expiracao';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Sem expiracao';
+  return date.toLocaleString('pt-BR');
+}
+
 function toPayload(form) {
+  const limitMode = form.limit_mode || 'none';
   return {
     code: form.code.trim().toUpperCase(),
     type: form.type,
     value: Number(form.value || 0),
     is_active: form.is_active,
+    expires_at: limitMode === 'date' ? (form.expires_at || null) : null,
+    max_uses: limitMode === 'quantity' ? Number(form.max_uses || 0) : null,
   };
 }
 
 function fromCoupon(coupon) {
+  let limitMode = 'none';
+  if (coupon.expires_at) limitMode = 'date';
+  if (coupon.max_uses != null) limitMode = 'quantity';
   return {
     code: coupon.code,
     type: coupon.type,
     value: String(coupon.value ?? 0),
     is_active: coupon.is_active,
+    expires_at: toLocalDateTimeInput(coupon.expires_at),
+    limit_mode: limitMode,
+    max_uses: coupon.max_uses == null ? '' : String(coupon.max_uses),
   };
 }
 
@@ -149,7 +176,7 @@ function AdminCouponsPage() {
 
         {!loading ? (
           <Table
-            columns={['Codigo', 'Tipo', 'Valor', 'Status', 'Acoes']}
+            columns={['Codigo', 'Tipo', 'Valor', 'Limite', 'Uso', 'Status', 'Acoes']}
             rows={coupons}
             empty={<EmptyState title="Sem cupons" description="Crie seu primeiro cupom para campanhas." />}
             renderRow={(coupon) => (
@@ -157,6 +184,12 @@ function AdminCouponsPage() {
                 <td><strong className="font-semibold text-slate-900">{coupon.code}</strong></td>
                 <td>{coupon.type === 'percent' ? 'Percentual' : 'Valor fixo'}</td>
                 <td>{coupon.type === 'percent' ? `${coupon.value}%` : `R$ ${coupon.value.toFixed(2)}`}</td>
+                <td>{coupon.max_uses != null ? `Qtd: ${coupon.max_uses}` : formatDateTime(coupon.expires_at)}</td>
+                <td>
+                  {coupon.max_uses != null
+                    ? `${coupon.uses_count ?? 0}/${coupon.max_uses}`
+                    : `${coupon.uses_count ?? 0}`}
+                </td>
                 <td>
                   <StatusBadge tone={coupon.is_active ? 'success' : 'danger'}>
                     {coupon.is_active ? 'Ativo' : 'Inativo'}
@@ -210,6 +243,36 @@ function AdminCouponsPage() {
             onChange={(event) => setForm({ ...form, value: event.target.value })}
             required
           />
+          <Select
+            label="Limitar cupom por"
+            options={[
+              { value: 'none', label: 'Sem limite' },
+              { value: 'date', label: 'Data de validade' },
+              { value: 'quantity', label: 'Quantidade disponivel' },
+            ]}
+            value={form.limit_mode || 'none'}
+            onChange={(event) => setForm({ ...form, limit_mode: event.target.value })}
+          />
+          {(form.limit_mode || 'none') === 'date' ? (
+            <Input
+              label="Data e hora de expiracao"
+              type="datetime-local"
+              value={form.expires_at}
+              onChange={(event) => setForm({ ...form, expires_at: event.target.value })}
+              required
+            />
+          ) : null}
+          {(form.limit_mode || 'none') === 'quantity' ? (
+            <Input
+              label="Quantidade disponivel de uso"
+              type="number"
+              min="1"
+              step="1"
+              value={form.max_uses}
+              onChange={(event) => setForm({ ...form, max_uses: event.target.value })}
+              required
+            />
+          ) : null}
           <label className="inline-flex items-center gap-2 rounded-[10px] border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
             <input
               type="checkbox"

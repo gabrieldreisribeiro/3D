@@ -28,10 +28,30 @@ function CartPage() {
   const [pdfLoading, setPdfLoading] = useState(false);
   const navigate = useNavigate();
 
-  const getItemPrice = (item) => Number(item.final_price ?? item.price ?? 0);
+  const getItemPrice = (item) => Number(item.unit_price ?? item.final_price ?? item.price ?? 0);
+  const getItemLeadHours = (item) => {
+    const baseHours = Number(item.lead_time_hours ?? 0);
+    const subItemsHours = (item.selected_sub_items || []).reduce(
+      (sum, subItem) => sum + Number(subItem.lead_time_hours ?? 0) * Number(subItem.quantity ?? 0),
+      0
+    );
+    return baseHours + subItemsHours;
+  };
+  const getDaysFromHours = (hours) => {
+    const safeHours = Math.max(0, Number(hours || 0));
+    if (safeHours <= 0) return 1;
+    return Math.max(1, Math.ceil(safeHours / 24));
+  };
+  const formatColors = (primary, secondary) => {
+    const values = [primary, secondary].filter(Boolean);
+    if (!values.length) return null;
+    return values.join(' + ');
+  };
 
   const formatBRL = (value) =>
     new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(value || 0));
+
+  const getCartItemKey = (item) => item.cart_key || `${item.slug}::base`;
 
   const fileToDataUrl = (blob) =>
     new Promise((resolve, reject) => {
@@ -135,7 +155,14 @@ function CartPage() {
       items.forEach((item) => {
         const unitPrice = getItemPrice(item);
         const lineTotal = unitPrice * item.quantity;
-        const titleLines = doc.splitTextToSize(item.title, 250);
+        const selectedSubItems = item.selected_sub_items || [];
+        const deliveryDays = getDaysFromHours(getItemLeadHours(item));
+        const selectedSubItemsText = selectedSubItems.length
+          ? ` (${selectedSubItems.map((subItem) => `${subItem.quantity}x ${subItem.title}`).join(', ')})`
+          : '';
+        const colorLabel = formatColors(item.selected_color, item.selected_secondary_color);
+        const subtitle = colorLabel ? ` | Cores: ${colorLabel} | Entrega: ${deliveryDays} dia(s)` : ` | Entrega: ${deliveryDays} dia(s)`;
+        const titleLines = doc.splitTextToSize(`${item.title}${selectedSubItemsText}${subtitle}`, 250);
         const rowHeight = Math.max(22, titleLines.length * 12);
 
         doc.text(titleLines, left + 12, y);
@@ -182,7 +209,23 @@ function CartPage() {
       });
 
       const number = import.meta.env.VITE_WHATSAPP_NUMBER;
-      const lines = items.map((item) => `${item.quantity}x ${item.title} - R$ ${getItemPrice(item).toFixed(2)}`).join('\n');
+      const lines = items
+        .map((item) => {
+          const selectedSubItems = item.selected_sub_items || [];
+          const details = selectedSubItems.length
+            ? `\n  - ${selectedSubItems
+              .map((subItem) => {
+                const subItemColors = formatColors(subItem.selected_color, subItem.selected_secondary_color);
+                return `${subItem.quantity}x ${subItem.title}${subItemColors ? ` (cor: ${subItemColors})` : ''}`;
+              })
+              .join('\n  - ')}`
+            : '';
+          const colorLabel = formatColors(item.selected_color, item.selected_secondary_color);
+          const colorText = colorLabel ? ` (cor: ${colorLabel})` : '';
+          const days = getDaysFromHours(getItemLeadHours(item));
+          return `${item.quantity}x ${item.title}${colorText} - R$ ${getItemPrice(item).toFixed(2)}${details}\nPrazo estimado: ${days} dia(s) apos pagamento`;
+        })
+        .join('\n');
       const message = `Ola! Novo pedido:\n${lines}\nSubtotal: R$ ${subtotal.toFixed(2)}\nDesconto: R$ ${discount.toFixed(2)}\nTotal: R$ ${total.toFixed(2)}\nCodigo do pedido: ${order.id}`;
       clearCart();
       window.open(`https://wa.me/${number}?text=${encodeURIComponent(message)}`, '_blank');
@@ -207,19 +250,43 @@ function CartPage() {
         <div className="cart-layout-pro">
           <div className="cart-items-pro">
             {items.map((item) => (
-              <Card key={item.slug} className="cart-item-pro">
+              <Card key={getCartItemKey(item)} className="cart-item-pro">
                 <div className="cart-item-image" style={{ backgroundImage: `url(${item.cover_image})` }} />
                 <div>
                   <h3>{item.title}</h3>
                   <p>{item.short_description}</p>
+                  {formatColors(item.selected_color, item.selected_secondary_color) ? (
+                    <p className="mb-1 text-xs text-slate-600">Cor: {formatColors(item.selected_color, item.selected_secondary_color)}</p>
+                  ) : null}
+                  {(item.selected_sub_items || []).length > 0 ? (
+                    <div className="mb-2 space-y-1 text-xs text-slate-600">
+                      {(item.selected_sub_items || []).map((subItem, index) => (
+                        <div key={`${subItem.title}-${index}`} className="flex items-center justify-between">
+                          <span>
+                            {subItem.quantity}x {subItem.title}
+                            {formatColors(subItem.selected_color, subItem.selected_secondary_color)
+                              ? ` - cor: ${formatColors(subItem.selected_color, subItem.selected_secondary_color)}`
+                              : ''}
+                          </span>
+                          <strong>R$ {(Number(subItem.unit_price || 0) * Number(subItem.quantity || 0)).toFixed(2)}</strong>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                  <p className="mb-2 text-xs text-slate-500">
+                    Prazo estimado: {getDaysFromHours(getItemLeadHours(item))} dia(s) apos confirmacao do pagamento
+                  </p>
                   <div className="cart-item-controls">
-                    <QuantitySelector value={item.quantity} onChange={(value) => updateQuantity(item.slug, value)} />
-                    <Button variant="ghost" onClick={() => removeItem(item.slug)}>
+                    <QuantitySelector value={item.quantity} onChange={(value) => updateQuantity(getCartItemKey(item), value)} />
+                    <Button variant="ghost" onClick={() => removeItem(getCartItemKey(item))}>
                       Remover
                     </Button>
                   </div>
                 </div>
-                <strong className="cart-item-price">R$ {getItemPrice(item).toFixed(2)}</strong>
+                <div className="text-right">
+                  <strong className="cart-item-price">R$ {getItemPrice(item).toFixed(2)}</strong>
+                  <p className="mt-1 text-xs text-slate-500">total: R$ {(getItemPrice(item) * item.quantity).toFixed(2)}</p>
+                </div>
               </Card>
             ))}
           </div>

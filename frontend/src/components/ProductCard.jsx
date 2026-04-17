@@ -22,7 +22,7 @@ function ProductCard({ product, onAdd }) {
           </Link>
           {hasSubItems ? (
             <Link to={`/product/${product.slug}`}>
-              <Button>Montar kit</Button>
+              <Button>Monte o seu</Button>
             </Link>
           ) : (
             <Button onClick={() => onAdd(product)}>Adicionar</Button>

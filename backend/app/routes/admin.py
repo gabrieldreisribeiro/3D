@@ -49,6 +49,8 @@ from app.services.product_service import (
     admin_set_product_status,
     admin_slug_exists,
     admin_update_product,
+    parse_colors_from_storage,
+    parse_secondary_pairs_from_storage,
     parse_sub_items_from_storage,
 )
 
@@ -58,6 +60,8 @@ router = APIRouter(prefix='/admin', tags=['admin'])
 def _serialize_product(product):
     product.images = product.images.split(',') if product.images else []
     product.sub_items = parse_sub_items_from_storage(product.sub_items)
+    product.available_colors = parse_colors_from_storage(product.available_colors)
+    product.secondary_color_pairs = parse_secondary_pairs_from_storage(product.secondary_color_pairs, product.available_colors)
     return product
 
 
@@ -177,7 +181,15 @@ def create_coupon(payload: AdminCouponCreate, _: AdminUser = Depends(require_adm
     if admin_coupon_code_exists(db, payload.code):
         raise HTTPException(status_code=400, detail='Codigo de cupom ja esta em uso')
     try:
-        return admin_create_coupon(db, payload.code, payload.type, payload.value, payload.is_active)
+        return admin_create_coupon(
+            db,
+            payload.code,
+            payload.type,
+            payload.value,
+            payload.is_active,
+            payload.expires_at,
+            payload.max_uses,
+        )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -195,7 +207,16 @@ def update_coupon(
     if admin_coupon_code_exists(db, payload.code, ignore_id=coupon_id):
         raise HTTPException(status_code=400, detail='Codigo de cupom ja esta em uso')
     try:
-        return admin_update_coupon(db, coupon, payload.code, payload.type, payload.value, payload.is_active)
+        return admin_update_coupon(
+            db,
+            coupon,
+            payload.code,
+            payload.type,
+            payload.value,
+            payload.is_active,
+            payload.expires_at,
+            payload.max_uses,
+        )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
