@@ -183,30 +183,31 @@ function HomePage() {
 
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-4 py-6 sm:px-6 lg:gap-10 lg:px-8">
-      <section className="relative overflow-hidden rounded-2xl border border-slate-200 bg-slate-900 text-white shadow-sm">
+      <section className="relative left-1/2 right-1/2 -ml-[50vw] -mr-[50vw] w-screen overflow-hidden">
         <img
           src={visibleBanner.image_url}
           alt={visibleBanner.title}
           className="absolute inset-0 h-full w-full object-cover"
         />
-        <div className="absolute inset-0 bg-gradient-to-r from-slate-950/85 via-slate-900/55 to-slate-900/25" />
+        <div className="absolute inset-0 bg-gradient-to-b from-violet-500/40 via-fuchsia-500/15 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-r from-slate-950/58 via-slate-900/24 to-transparent" />
 
-        <div className="relative z-10 flex min-h-[340px] flex-col justify-between gap-8 p-6 sm:min-h-[380px] sm:p-8 lg:p-10">
-          <div className="max-w-2xl space-y-3">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-violet-200">PLA Engineering Collection</p>
-            <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">{visibleBanner.title}</h1>
-            <p className="text-sm text-slate-200/90 sm:text-base">{visibleBanner.subtitle}</p>
-            <div className="pt-2">
+        <div className="relative mx-auto flex min-h-[360px] w-full max-w-7xl flex-col justify-between px-4 py-8 sm:min-h-[390px] sm:px-6 lg:px-8">
+          <div className="w-full max-w-2xl rounded-2xl border border-white/20 bg-white/10 p-5 backdrop-blur-md sm:p-6">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-violet-100">PLA Engineering Collection</p>
+            <h1 className="mt-2 text-2xl font-bold tracking-tight text-white sm:text-3xl">{visibleBanner.title}</h1>
+            <p className="mt-2 text-sm text-slate-100/90 sm:text-base">{visibleBanner.subtitle}</p>
+            <div className="pt-4">
               <Link
                 to={visibleBanner.target_url || '/#produtos'}
-                className="inline-flex h-11 items-center justify-center rounded-[10px] bg-gradient-to-r from-violet-500 to-fuchsia-500 px-5 text-sm font-semibold text-white shadow-glow transition-all duration-300 hover:scale-[1.02] hover:brightness-110"
+                className="inline-flex h-10 items-center justify-center rounded-[10px] bg-gradient-to-r from-violet-500 to-fuchsia-500 px-4 text-sm font-semibold text-white shadow-glow transition-all duration-300 hover:brightness-110"
               >
                 Explorar catalogo
               </Link>
             </div>
           </div>
 
-          <div className="flex items-center justify-between">
+          <div className="mt-6 flex items-center justify-between">
             <div className="flex items-center gap-2">
               {banners.map((item, index) => (
                 <button
@@ -214,7 +215,7 @@ function HomePage() {
                   type="button"
                   onClick={() => setCurrentBanner(index)}
                   className={`h-2 rounded-full transition-all duration-300 ${
-                    currentBanner === index ? 'w-6 bg-white' : 'w-2 bg-white/60 hover:bg-white/80'
+                    currentBanner === index ? 'w-6 bg-white' : 'w-2 bg-white/65 hover:bg-white/85'
                   }`}
                   aria-label={`Ir para slide ${index + 1}`}
                 />
@@ -225,7 +226,7 @@ function HomePage() {
               <button
                 type="button"
                 onClick={() => setCurrentBanner((prev) => (prev - 1 + banners.length) % banners.length)}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/30 bg-white/10 text-sm text-white backdrop-blur transition hover:bg-white/20"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/35 bg-white/15 text-sm text-white backdrop-blur transition hover:bg-white/25"
                 aria-label="Slide anterior"
               >
                 {'<'}
@@ -233,7 +234,7 @@ function HomePage() {
               <button
                 type="button"
                 onClick={() => setCurrentBanner((prev) => (prev + 1) % banners.length)}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/30 bg-white/10 text-sm text-white backdrop-blur transition hover:bg-white/20"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/35 bg-white/15 text-sm text-white backdrop-blur transition hover:bg-white/25"
                 aria-label="Proximo slide"
               >
                 {'>'}

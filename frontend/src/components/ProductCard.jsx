@@ -32,7 +32,7 @@ function ProductCard({ product, onAdd, highlightLabel = '' }) {
           <strong className={hasSubItems ? 'is-custom' : ''}>{hasSubItems ? 'Personalizado' : `R$ ${price.toFixed(2)}`}</strong>
         </div>
 
-        <p className="product-card-installments">em ate 12x sem juros</p>
+        {/* <p className="product-card-installments">em ate 12x sem juros</p> */}
 
         <div className="product-card-actions">
           <Link to={`/product/${product.slug}`}>
