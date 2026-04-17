@@ -1,4 +1,6 @@
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+import { API_BASE_URL, buildApiUrl } from '../config/endpoints';
+
+const API_BASE = API_BASE_URL;
 const ADMIN_TOKEN_KEY = 'admin_token';
 const CLIENT_FP_KEY = 'client_fingerprint';
 
@@ -19,7 +21,7 @@ function getClientFingerprint() {
 
 async function request(path, options = {}) {
   const fingerprint = getClientFingerprint();
-  const response = await fetch(`${API_BASE}${path}`, {
+  const response = await fetch(buildApiUrl(path), {
     headers: { 'Content-Type': 'application/json', ...(fingerprint ? { 'X-Client-Fingerprint': fingerprint } : {}) },
     ...options,
   });
@@ -41,7 +43,7 @@ async function adminRequest(path, options = {}) {
     ...(options.headers || {}),
   };
 
-  const response = await fetch(`${API_BASE}${path}`, {
+  const response = await fetch(buildApiUrl(path), {
     ...options,
     headers,
   });
@@ -127,7 +129,7 @@ export async function uploadAdminLogo(file) {
   const formData = new FormData();
   formData.append('file', file);
 
-  const response = await fetch(`${API_BASE}/admin/logo/upload`, {
+  const response = await fetch(buildApiUrl('/admin/logo/upload'), {
     method: 'POST',
     headers: token ? { Authorization: `Bearer ${token}` } : {},
     body: formData,
@@ -146,7 +148,7 @@ export async function uploadAdminBannerImage(file) {
   const formData = new FormData();
   formData.append('file', file);
 
-  const response = await fetch(`${API_BASE}/admin/banners/upload-image`, {
+  const response = await fetch(buildApiUrl('/admin/banners/upload-image'), {
     method: 'POST',
     headers: token ? { Authorization: `Bearer ${token}` } : {},
     body: formData,
@@ -165,7 +167,7 @@ export async function uploadAdminProductImage(file) {
   const formData = new FormData();
   formData.append('file', file);
 
-  const response = await fetch(`${API_BASE}/admin/products/upload-image`, {
+  const response = await fetch(buildApiUrl('/admin/products/upload-image'), {
     method: 'POST',
     headers: token ? { Authorization: `Bearer ${token}` } : {},
     body: formData,

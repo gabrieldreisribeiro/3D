@@ -1,17 +1,16 @@
 ﻿from datetime import datetime
 from typing import List, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class CategoryResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     name: str
     slug: str
     is_active: bool
-
-    class Config:
-        orm_mode = True
 
 
 class SecondaryColorPair(BaseModel):
@@ -47,6 +46,8 @@ class ProductSubItem(BaseModel):
 
 
 class ProductBase(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     title: str
     slug: str
@@ -71,10 +72,6 @@ class ProductBase(BaseModel):
     cost_total: float
     estimated_profit: float
 
-    class Config:
-        orm_mode = True
-
-
 class ProductResponse(ProductBase):
     pass
 
@@ -98,6 +95,8 @@ class BannerUpdate(BannerBase):
 
 
 class BannerResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     title: Optional[str]
     subtitle: Optional[str]
@@ -107,10 +106,6 @@ class BannerResponse(BaseModel):
     is_active: bool
     show_in_carousel: bool
     created_at: Optional[datetime]
-
-    class Config:
-        orm_mode = True
-
 
 class AdminProductBase(BaseModel):
     title: str = Field(..., min_length=2, max_length=160)
@@ -149,6 +144,8 @@ class AdminProductUpdate(AdminProductBase):
 
 
 class AdminProductResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     title: str
     slug: str
@@ -182,10 +179,6 @@ class AdminProductResponse(BaseModel):
     final_price: float
     price: float
 
-    class Config:
-        orm_mode = True
-
-
 class CouponRequest(BaseModel):
     code: str
 
@@ -217,6 +210,8 @@ class AdminCouponUpdate(AdminCouponBase):
 
 
 class AdminCouponResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     code: str
     type: str
@@ -225,10 +220,6 @@ class AdminCouponResponse(BaseModel):
     expires_at: Optional[datetime] = None
     max_uses: Optional[int] = None
     uses_count: int = 0
-
-    class Config:
-        orm_mode = True
-
 
 class OrderItemCreate(BaseModel):
     slug: str
@@ -243,16 +234,16 @@ class OrderCreate(BaseModel):
 
 
 class OrderItemResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     product_slug: str
     title: str
     quantity: int
     unit_price: float
 
-    class Config:
-        orm_mode = True
-
-
 class OrderResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     subtotal: float
     discount: float
@@ -261,10 +252,6 @@ class OrderResponse(BaseModel):
     payment_status: str
     payment_method: Optional[str]
     items: List[OrderItemResponse]
-
-    class Config:
-        orm_mode = True
-
 
 class AdminLoginRequest(BaseModel):
     email: str

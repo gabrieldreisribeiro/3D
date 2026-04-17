@@ -6,6 +6,7 @@ import Card from '../components/ui/Card';
 import EmptyState from '../components/ui/EmptyState';
 import Input from '../components/ui/Input';
 import SectionHeader from '../components/ui/SectionHeader';
+import { WHATSAPP_NUMBER } from '../config/endpoints';
 import { createOrder, fetchPublicLogo, fetchPublicSettings, resolveAssetUrl } from '../services/api';
 import { getLogoSizeConfig, getLogoSizeKey } from '../services/logoSettings';
 import { useCart } from '../services/cart';
@@ -73,7 +74,7 @@ function CartPage() {
   const whatsappNumber = useMemo(() => {
     const configured = String(storeSettings.whatsapp_number || '').trim();
     if (configured) return configured.replace(/[^\d+]/g, '');
-    return String(import.meta.env.VITE_WHATSAPP_NUMBER || '').trim().replace(/[^\d+]/g, '');
+    return String(WHATSAPP_NUMBER || '').trim().replace(/[^\d+]/g, '');
   }, [storeSettings.whatsapp_number]);
 
   const pixKey = String(storeSettings.pix_key || '').trim();

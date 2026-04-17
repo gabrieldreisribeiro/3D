@@ -1,4 +1,7 @@
-﻿from fastapi import FastAPI
+import os
+
+import uvicorn
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
@@ -27,7 +30,21 @@ app.include_router(admin.router)
 app.include_router(public.router)
 
 
+@app.get('/')
+def root():
+    return {'status': 'ok', 'service': '3D Marketplace API'}
+
+
+@app.get('/healthz')
+def healthz():
+    return {'status': 'healthy'}
+
+
 @app.on_event('startup')
 def startup_event():
     ensure_upload_dirs()
     init_db()
+
+
+if __name__ == '__main__':
+    uvicorn.run('app.main:app', host='0.0.0.0', port=int(os.getenv('PORT', '8000')))
