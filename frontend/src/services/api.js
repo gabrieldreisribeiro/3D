@@ -76,6 +76,10 @@ export function fetchPublicSettings() {
   return request('/public/settings');
 }
 
+export function fetchMostOrderedProducts(limit = 4) {
+  return request(`/public/most-ordered?limit=${encodeURIComponent(limit)}`);
+}
+
 export function fetchCategories() {
   return request('/categories');
 }

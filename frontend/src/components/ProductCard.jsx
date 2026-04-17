@@ -7,7 +7,7 @@ function ProductCard({ product, onAdd, highlightLabel = '' }) {
   const hasSubItems = (product.sub_items || []).length > 0;
   const ratingCount = Number(product.rating_count || 0);
   const ratingAverage = ratingCount > 0 ? Number(product.rating_average || 0) : 0;
-  const badgeLabel = hasSubItems ? 'Personalizado' : highlightLabel;
+  const badgeLabel = highlightLabel || (hasSubItems ? 'Personalizado' : '');
 
   return (
     <article className="product-card-pro">

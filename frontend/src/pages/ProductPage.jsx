@@ -51,6 +51,55 @@ function getSecondaryOptions(availableColors, pairs, selectedPrimary) {
   return Array.from(new Set(filtered));
 }
 
+function getSecondarySwatches(availableColors, pairs, selectedPrimary) {
+  const normalizedPairs = Array.isArray(pairs) ? pairs : [];
+  if (normalizedPairs.length) {
+    const filteredPairs = normalizedPairs
+      .filter((pair) => (selectedPrimary ? pair.primary === selectedPrimary : true))
+      .map((pair) => ({
+        primary: String(pair.primary || selectedPrimary || '').trim(),
+        secondary: String(pair.secondary || '').trim(),
+      }))
+      .filter((pair) => pair.secondary);
+
+    const uniquePairs = [];
+    const seen = new Set();
+    filteredPairs.forEach((pair) => {
+      const key = `${pair.primary}|${pair.secondary}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        uniquePairs.push(pair);
+      }
+    });
+    return uniquePairs;
+  }
+
+  const colors = getSecondaryOptions(availableColors, pairs, selectedPrimary);
+  return colors.map((secondary) => ({
+    primary: String(selectedPrimary || '').trim(),
+    secondary,
+  }));
+}
+
+function ColorSwatchButton({ selected, onClick, primaryColor = '', secondaryColor = '', size = 32, title = '' }) {
+  const normalizedPrimary = String(primaryColor || '').trim();
+  const normalizedSecondary = String(secondaryColor || '').trim();
+  const isSplit = Boolean(normalizedPrimary && normalizedSecondary);
+  const backgroundStyle = isSplit
+    ? { background: `linear-gradient(90deg, ${normalizedPrimary} 0 50%, ${normalizedSecondary} 50% 100%)` }
+    : { backgroundColor: normalizedSecondary || normalizedPrimary || '#ffffff' };
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`rounded-full border-2 ${selected ? 'border-violet-600' : 'border-slate-200'}`}
+      style={{ width: size, height: size, ...backgroundStyle }}
+      title={title || (isSplit ? `${normalizedPrimary} + ${normalizedSecondary}` : normalizedSecondary || normalizedPrimary)}
+    />
+  );
+}
+
 function resolveImageUrl(url) {
   const normalized = String(url || '').trim();
   if (!normalized) return '';
@@ -127,6 +176,11 @@ function ProductPage() {
   const customizedLeadTimeDays = estimateDaysFromHours(productLeadTimeHours + selectedSubItemsLeadTimeHours);
   const shouldScrollSubItems = (product.sub_items || []).length > 3;
   const productSecondaryOptions = getSecondaryOptions(
+    product.available_colors || [],
+    product.secondary_color_pairs || [],
+    selectedColor
+  );
+  const productSecondarySwatches = getSecondarySwatches(
     product.available_colors || [],
     product.secondary_color_pairs || [],
     selectedColor
@@ -231,12 +285,12 @@ function ProductPage() {
                           <p className="text-xs font-semibold text-slate-500">Cor principal</p>
                           <div className="flex flex-wrap gap-2">
                             {(item.available_colors || []).map((color) => (
-                              <button
+                              <ColorSwatchButton
                                 key={`${getSubItemKey(item, index)}-primary-${color}`}
-                                type="button"
                                 onClick={() => handleSubItemColor(getSubItemKey(item, index), color)}
-                                className={`h-7 w-7 rounded-full border-2 ${selectedSubItemColors[getSubItemKey(item, index)] === color ? 'border-violet-600' : 'border-slate-200'}`}
-                                style={{ backgroundColor: color }}
+                                selected={selectedSubItemColors[getSubItemKey(item, index)] === color}
+                                secondaryColor={color}
+                                size={28}
                                 title={color}
                               />
                             ))}
@@ -245,18 +299,19 @@ function ProductPage() {
                             <>
                               <p className="text-xs font-semibold text-slate-500">Furta cor (segunda cor, opcional)</p>
                               <div className="flex flex-wrap gap-2">
-                                {getSecondaryOptions(
+                                {getSecondarySwatches(
                                   item.available_colors || [],
                                   item.secondary_color_pairs || [],
                                   selectedSubItemColors[getSubItemKey(item, index)]
-                                ).map((color) => (
-                                  <button
-                                    key={`${getSubItemKey(item, index)}-secondary-${color}`}
-                                    type="button"
-                                    onClick={() => handleSubItemSecondaryColor(getSubItemKey(item, index), color)}
-                                    className={`h-7 w-7 rounded-full border-2 ${selectedSubItemSecondaryColors[getSubItemKey(item, index)] === color ? 'border-violet-600' : 'border-slate-200'}`}
-                                    style={{ backgroundColor: color }}
-                                    title={color}
+                                ).map((pair) => (
+                                  <ColorSwatchButton
+                                    key={`${getSubItemKey(item, index)}-secondary-${pair.primary}-${pair.secondary}`}
+                                    onClick={() => handleSubItemSecondaryColor(getSubItemKey(item, index), pair.secondary)}
+                                    selected={selectedSubItemSecondaryColors[getSubItemKey(item, index)] === pair.secondary}
+                                    primaryColor={pair.primary || selectedSubItemColors[getSubItemKey(item, index)]}
+                                    secondaryColor={pair.secondary}
+                                    size={28}
+                                    title={`${pair.primary || selectedSubItemColors[getSubItemKey(item, index)] || '-'} + ${pair.secondary}`}
                                   />
                                 ))}
                               </div>
@@ -274,12 +329,12 @@ function ProductPage() {
                   <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Cor principal do produto</p>
                   <div className="flex flex-wrap gap-2">
                     {(product.available_colors || []).map((color) => (
-                      <button
+                      <ColorSwatchButton
                         key={`product-primary-${color}`}
-                        type="button"
                         onClick={() => setSelectedColor(color)}
-                        className={`h-8 w-8 rounded-full border-2 ${selectedColor === color ? 'border-violet-600' : 'border-slate-200'}`}
-                        style={{ backgroundColor: color }}
+                        selected={selectedColor === color}
+                        secondaryColor={color}
+                        size={32}
                         title={color}
                       />
                     ))}
@@ -288,14 +343,15 @@ function ProductPage() {
                     <>
                       <p className="mb-1 mt-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Furta cor (segunda cor, opcional)</p>
                       <div className="flex flex-wrap gap-2">
-                        {productSecondaryOptions.map((color) => (
-                          <button
-                            key={`product-secondary-${color}`}
-                            type="button"
-                            onClick={() => setSelectedSecondaryColor(color)}
-                            className={`h-8 w-8 rounded-full border-2 ${selectedSecondaryColor === color ? 'border-violet-600' : 'border-slate-200'}`}
-                            style={{ backgroundColor: color }}
-                            title={color}
+                        {productSecondarySwatches.map((pair) => (
+                          <ColorSwatchButton
+                            key={`product-secondary-${pair.primary}-${pair.secondary}`}
+                            onClick={() => setSelectedSecondaryColor(pair.secondary)}
+                            selected={selectedSecondaryColor === pair.secondary}
+                            primaryColor={pair.primary || selectedColor}
+                            secondaryColor={pair.secondary}
+                            size={32}
+                            title={`${pair.primary || selectedColor || '-'} + ${pair.secondary}`}
                           />
                         ))}
                       </div>

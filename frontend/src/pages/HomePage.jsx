@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import ProductCard from '../components/ProductCard';
-import { fetchCategories, fetchProducts, fetchPublicBanners, resolveAssetUrl } from '../services/api';
+import { fetchCategories, fetchMostOrderedProducts, fetchProducts, fetchPublicBanners, resolveAssetUrl } from '../services/api';
 import { useCart } from '../services/cart';
 
 const fallbackSlides = [
@@ -35,6 +35,7 @@ function HomePage() {
   const [draftSortBy, setDraftSortBy] = useState('relevance');
   const [banners, setBanners] = useState(fallbackSlides);
   const [currentBanner, setCurrentBanner] = useState(0);
+  const [mostOrdered, setMostOrdered] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(12);
   const [loading, setLoading] = useState(true);
@@ -55,6 +56,7 @@ function HomePage() {
       .catch(() => setBanners(fallbackSlides));
 
     fetchCategories().then(setCategories).catch(() => setCategories([]));
+    fetchMostOrderedProducts(4).then(setMostOrdered).catch(() => setMostOrdered([]));
   }, []);
 
   useEffect(() => {
@@ -162,6 +164,7 @@ function HomePage() {
   }, [isFiltersModalOpen]);
 
   const visibleBanner = banners[currentBanner] || fallbackSlides[0];
+  const mostOrderedProducts = useMemo(() => mostOrdered.slice(0, 4), [mostOrdered]);
 
   const chips = [
     { key: 'main', label: 'Main page' },
@@ -243,6 +246,25 @@ function HomePage() {
           </div>
         </div>
       </section>
+
+      {mostOrderedProducts.length ? (
+        <section className="space-y-4">
+          <div className="space-y-1">
+            <h2 className="text-2xl font-bold tracking-tight text-slate-900">Mais pedidos</h2>
+            <p className="text-sm text-slate-500">Os produtos mais escolhidos pelos clientes</p>
+          </div>
+          <div className="market-products-grid">
+            {mostOrderedProducts.map((product) => (
+              <ProductCard
+                key={`most-ordered-${product.id}`}
+                product={product}
+                onAdd={addToCart}
+                highlightLabel={'\uD83D\uDD25 Mais vendido'}
+              />
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       <section id="produtos" className="space-y-5">
         <div className="space-y-1">

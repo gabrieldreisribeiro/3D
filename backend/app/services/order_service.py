@@ -3,7 +3,7 @@
 from sqlalchemy import func
 from sqlalchemy.orm import Session, selectinload
 
-from app.models import Order, OrderItem
+from app.models import Order, OrderItem, Product
 
 
 def create_order(db: Session, items, coupon_code, subtotal, discount, total):
@@ -109,3 +109,34 @@ def dashboard_order_status(db: Session):
         {'status': 'Pago', 'value': mapped.get('paid', 0)},
         {'status': 'Pendente', 'value': mapped.get('pending', 0)},
     ]
+
+
+def list_most_ordered_products(db: Session, limit: int = 4):
+    safe_limit = max(1, min(int(limit or 4), 12))
+
+    rows = (
+        db.query(OrderItem.product_slug, func.sum(OrderItem.quantity).label('qty'))
+        .group_by(OrderItem.product_slug)
+        .order_by(func.sum(OrderItem.quantity).desc())
+        .limit(safe_limit)
+        .all()
+    )
+    ranked_slugs = [str(row[0] or '').strip() for row in rows if row[0]]
+    if ranked_slugs:
+        products = (
+            db.query(Product)
+            .filter(Product.is_active == True, Product.slug.in_(ranked_slugs))
+            .all()
+        )
+        by_slug = {product.slug: product for product in products}
+        ordered = [by_slug[slug] for slug in ranked_slugs if slug in by_slug]
+        if ordered:
+            return ordered[:safe_limit]
+
+    return (
+        db.query(Product)
+        .filter(Product.is_active == True)
+        .order_by(Product.id.desc())
+        .limit(safe_limit)
+        .all()
+    )

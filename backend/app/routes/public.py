@@ -1,10 +1,16 @@
-﻿from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.core.security import get_db
-from app.schemas import BannerResponse, LogoResponse, StoreSettingsResponse
+from app.schemas import BannerResponse, LogoResponse, ProductResponse, StoreSettingsResponse
 from app.services.banner_service import list_public_banners
 from app.services.logo_service import get_public_logo_url
+from app.services.order_service import list_most_ordered_products
+from app.services.product_service import (
+    parse_colors_from_storage,
+    parse_secondary_pairs_from_storage,
+    parse_sub_items_from_storage,
+)
 from app.services.settings_service import get_or_create_settings
 
 router = APIRouter(prefix='/public', tags=['public'])
@@ -27,3 +33,14 @@ def read_public_settings(db: Session = Depends(get_db)):
         whatsapp_number=settings.whatsapp_number,
         pix_key=settings.pix_key,
     )
+
+
+@router.get('/most-ordered', response_model=list[ProductResponse])
+def read_most_ordered_products(limit: int = Query(default=4, ge=1, le=12), db: Session = Depends(get_db)):
+    products = list_most_ordered_products(db, limit=limit)
+    for product in products:
+        product.images = product.images.split(',') if product.images else []
+        product.sub_items = parse_sub_items_from_storage(product.sub_items)
+        product.available_colors = parse_colors_from_storage(product.available_colors)
+        product.secondary_color_pairs = parse_secondary_pairs_from_storage(product.secondary_color_pairs, product.available_colors)
+    return products
