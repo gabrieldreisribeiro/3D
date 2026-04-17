@@ -1,5 +1,7 @@
-﻿import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
+import ProductCard from '../components/ProductCard';
+import Modal from '../components/ui/Modal';
 import { fetchCategories, fetchProducts, fetchPublicBanners, resolveAssetUrl } from '../services/api';
 import { useCart } from '../services/cart';
 
@@ -25,8 +27,17 @@ function HomePage() {
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [activeCategory, setActiveCategory] = useState('all');
+  const [minPrice, setMinPrice] = useState('');
+  const [maxPrice, setMaxPrice] = useState('');
+  const [sortBy, setSortBy] = useState('relevance');
+  const [isFiltersModalOpen, setIsFiltersModalOpen] = useState(false);
+  const [draftMinPrice, setDraftMinPrice] = useState('');
+  const [draftMaxPrice, setDraftMaxPrice] = useState('');
+  const [draftSortBy, setDraftSortBy] = useState('relevance');
   const [banners, setBanners] = useState(fallbackSlides);
   const [currentBanner, setCurrentBanner] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(12);
   const [loading, setLoading] = useState(true);
   const { addToCart } = useCart();
 
@@ -63,17 +74,67 @@ function HomePage() {
   }, [banners]);
 
   const query = (searchParams.get('q') || '').trim().toLowerCase();
+  const getProductPrice = (product) => Number(product.final_price ?? product.price ?? 0);
 
   const filteredProducts = useMemo(() => {
-    if (!query) return products;
-    return products.filter((product) =>
+    const min = minPrice === '' ? null : Number(minPrice);
+    const max = maxPrice === '' ? null : Number(maxPrice);
+
+    let next = products.filter((product) =>
       [product.title, product.short_description, product.slug].some((value) =>
         String(value || '')
           .toLowerCase()
           .includes(query)
       )
     );
-  }, [products, query]);
+
+    next = next.filter((product) => {
+      const price = getProductPrice(product);
+      if (min !== null && Number.isFinite(min) && price < min) return false;
+      if (max !== null && Number.isFinite(max) && price > max) return false;
+      return true;
+    });
+
+    const sorted = [...next];
+    if (sortBy === 'price_asc') {
+      sorted.sort((a, b) => getProductPrice(a) - getProductPrice(b));
+    } else if (sortBy === 'price_desc') {
+      sorted.sort((a, b) => getProductPrice(b) - getProductPrice(a));
+    } else if (sortBy === 'votes') {
+      sorted.sort((a, b) => {
+        const votesDiff = Number(b.rating_count || 0) - Number(a.rating_count || 0);
+        if (votesDiff !== 0) return votesDiff;
+        return Number(b.rating_average || 0) - Number(a.rating_average || 0);
+      });
+    } else if (sortBy === 'name_asc') {
+      sorted.sort((a, b) => String(a.title || '').localeCompare(String(b.title || '')));
+    }
+
+    return sorted;
+  }, [products, query, minPrice, maxPrice, sortBy]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredProducts.length / itemsPerPage));
+  const paginatedProducts = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return filteredProducts.slice(start, start + itemsPerPage);
+  }, [filteredProducts, currentPage, itemsPerPage]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeCategory, query, itemsPerPage, minPrice, maxPrice, sortBy]);
+
+  useEffect(() => {
+    if (!isFiltersModalOpen) return;
+    setDraftMinPrice(minPrice);
+    setDraftMaxPrice(maxPrice);
+    setDraftSortBy(sortBy);
+  }, [isFiltersModalOpen, minPrice, maxPrice, sortBy]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
 
   const visibleBanner = banners[currentBanner] || fallbackSlides[0];
 
@@ -90,6 +151,10 @@ function HomePage() {
     }
     setActiveCategory(key);
   };
+
+  const rangeStart = filteredProducts.length ? (currentPage - 1) * itemsPerPage + 1 : 0;
+  const rangeEnd = Math.min(currentPage * itemsPerPage, filteredProducts.length);
+  const hasActiveFilters = minPrice !== '' || maxPrice !== '' || sortBy !== 'relevance';
 
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-4 py-6 sm:px-6 lg:gap-10 lg:px-8">
@@ -138,7 +203,7 @@ function HomePage() {
                 className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/30 bg-white/10 text-sm text-white backdrop-blur transition hover:bg-white/20"
                 aria-label="Slide anterior"
               >
-                ←
+                {'<'}
               </button>
               <button
                 type="button"
@@ -146,7 +211,7 @@ function HomePage() {
                 className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/30 bg-white/10 text-sm text-white backdrop-blur transition hover:bg-white/20"
                 aria-label="Proximo slide"
               >
-                →
+                {'>'}
               </button>
             </div>
           </div>
@@ -176,6 +241,46 @@ function HomePage() {
           ))}
         </div>
 
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white p-3">
+          <button
+            type="button"
+            onClick={() => setIsFiltersModalOpen(true)}
+            className="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-200 px-3 text-xs font-semibold text-slate-700 transition hover:border-violet-300 hover:text-violet-700"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+              className="h-4 w-4"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.9"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M3 4h18l-7 8v6l-4 2v-8L3 4z" />
+            </svg>
+            Filtros
+          </button>
+
+          {hasActiveFilters ? (
+            <button
+              type="button"
+              onClick={() => {
+              setMinPrice('');
+              setMaxPrice('');
+              setSortBy('relevance');
+            }}
+            className="h-9 rounded-lg border border-slate-200 px-3 text-xs font-semibold text-slate-700 transition hover:border-violet-300 hover:text-violet-700"
+          >
+              Limpar filtros
+            </button>
+          ) : null}
+
+          <p className="text-xs text-slate-500">
+            {hasActiveFilters ? 'Filtros ativos aplicados' : 'Sem filtros ativos'}
+          </p>
+        </div>
+
         {loading ? (
           <div className="rounded-xl border border-slate-200 bg-white p-10 text-center text-sm text-slate-500">Carregando produtos...</div>
         ) : filteredProducts.length === 0 ? (
@@ -183,63 +288,150 @@ function HomePage() {
             Nenhum produto encontrado para esse filtro.
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {filteredProducts.map((product) => {
-              const productPrice = Number(product.final_price ?? product.price ?? 0);
-              const hasSubItems = (product.sub_items || []).length > 0;
-              return (
-                <article
-                  key={product.id}
-                  className="group rounded-xl border border-slate-100 bg-white/80 p-4 shadow-sm backdrop-blur-md transition-all duration-300 hover:scale-[1.015] hover:shadow-md"
+          <div className="space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2">
+              <p className="text-xs text-slate-600">
+                Mostrando <strong>{rangeStart}</strong> - <strong>{rangeEnd}</strong> de <strong>{filteredProducts.length}</strong> itens
+              </p>
+              <label className="flex items-center gap-2 text-xs text-slate-600">
+                Itens por pagina
+                <select
+                  value={itemsPerPage}
+                  onChange={(event) => setItemsPerPage(Number(event.target.value))}
+                  className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs font-medium text-slate-700 outline-none focus:border-violet-300"
                 >
-                  <Link to={`/product/${product.slug}`} className="block">
-                    <div className="mb-4 flex h-56 items-center justify-center overflow-hidden rounded-lg bg-slate-50 p-4">
-                      <img
-                        src={product.cover_image}
-                        alt={product.title}
-                        className="h-full w-full rounded-md object-cover transition-transform duration-300 group-hover:scale-[1.03]"
-                      />
-                    </div>
-                  </Link>
+                  <option value={12}>12</option>
+                  <option value={24}>24</option>
+                  <option value={36}>36</option>
+                  <option value={48}>48</option>
+                </select>
+              </label>
+            </div>
 
-                  <div className="space-y-3">
-                    <div>
-                      <h3 className="text-base font-semibold tracking-tight text-slate-900">{product.title}</h3>
-                      <p className="mt-1 line-clamp-2 text-sm text-slate-500">{product.short_description}</p>
-                    </div>
+            <div className="market-products-grid">
+              {paginatedProducts.map((product) => (
+                <ProductCard key={product.id} product={product} onAdd={addToCart} />
+              ))}
+            </div>
 
-                    <div className="flex items-center justify-between">
-                      <span className="inline-flex rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-500">
-                        ★ {Number(product.rating_average || 0).toFixed(1)}
-                      </span>
-                      <strong className="text-lg font-bold text-slate-900">
-                        {hasSubItems ? 'Personalizado' : `R$ ${productPrice.toFixed(2)}`}
-                      </strong>
-                    </div>
+            {totalPages > 1 ? (
+              <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+                  disabled={currentPage === 1}
+                  className="h-8 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Anterior
+                </button>
 
-                    {hasSubItems ? (
-                      <Link
-                        to={`/product/${product.slug}`}
-                        className="inline-flex h-11 w-full items-center justify-center rounded-[10px] bg-gradient-to-r from-violet-500 to-fuchsia-500 text-sm font-semibold text-white shadow-sm transition-all duration-300 hover:shadow-glow"
-                      >
-                        Monte o seu
-                      </Link>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => addToCart(product)}
-                        className="h-11 w-full rounded-[10px] bg-gradient-to-r from-violet-500 to-fuchsia-500 text-sm font-semibold text-white shadow-sm transition-all duration-300 hover:shadow-glow"
-                      >
-                        Adicionar ao carrinho
-                      </button>
-                    )}
-                  </div>
-                </article>
-              );
-            })}
+                {Array.from({ length: totalPages }, (_, index) => index + 1).map((page) => (
+                  <button
+                    key={page}
+                    type="button"
+                    onClick={() => setCurrentPage(page)}
+                    className={`h-8 min-w-8 rounded-lg border px-2 text-xs font-semibold transition ${
+                      page === currentPage
+                        ? 'border-violet-600 bg-violet-600 text-white'
+                        : 'border-slate-200 bg-white text-slate-700 hover:border-violet-300 hover:text-violet-700'
+                    }`}
+                  >
+                    {page}
+                  </button>
+                ))}
+
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+                  disabled={currentPage === totalPages}
+                  className="h-8 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Proxima
+                </button>
+              </div>
+            ) : null}
           </div>
         )}
       </section>
+
+      <Modal
+        open={isFiltersModalOpen}
+        title="Filtrar produtos"
+        onClose={() => setIsFiltersModalOpen(false)}
+        closeOnBackdrop
+        closeOnEscape
+        size="sm"
+        footer={
+          <>
+            <button
+              type="button"
+              onClick={() => {
+                setDraftMinPrice('');
+                setDraftMaxPrice('');
+                setDraftSortBy('relevance');
+              }}
+              className="h-9 rounded-lg border border-slate-200 px-3 text-xs font-semibold text-slate-700 transition hover:border-violet-300 hover:text-violet-700"
+            >
+              Limpar
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setMinPrice(draftMinPrice);
+                setMaxPrice(draftMaxPrice);
+                setSortBy(draftSortBy);
+                setIsFiltersModalOpen(false);
+              }}
+              className="h-9 rounded-lg bg-violet-600 px-3 text-xs font-semibold text-white transition hover:bg-violet-700"
+            >
+              Aplicar
+            </button>
+          </>
+        }
+      >
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className="grid gap-1 text-xs text-slate-600">
+            Preco minimo
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={draftMinPrice}
+              onChange={(event) => setDraftMinPrice(event.target.value)}
+              className="h-9 rounded-lg border border-slate-200 px-2 text-xs outline-none focus:border-violet-300"
+              placeholder="0.00"
+            />
+          </label>
+
+          <label className="grid gap-1 text-xs text-slate-600">
+            Preco maximo
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={draftMaxPrice}
+              onChange={(event) => setDraftMaxPrice(event.target.value)}
+              className="h-9 rounded-lg border border-slate-200 px-2 text-xs outline-none focus:border-violet-300"
+              placeholder="999.99"
+            />
+          </label>
+
+          <label className="grid gap-1 text-xs text-slate-600 sm:col-span-2">
+            Ordenar
+            <select
+              value={draftSortBy}
+              onChange={(event) => setDraftSortBy(event.target.value)}
+              className="h-9 rounded-lg border border-slate-200 bg-white px-2 text-xs font-medium text-slate-700 outline-none focus:border-violet-300"
+            >
+              <option value="relevance">Relevancia</option>
+              <option value="votes">Mais votados</option>
+              <option value="price_asc">Menor preco</option>
+              <option value="price_desc">Maior preco</option>
+              <option value="name_asc">Nome A-Z</option>
+            </select>
+          </label>
+        </div>
+      </Modal>
     </div>
   );
 }
