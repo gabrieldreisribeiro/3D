@@ -186,6 +186,7 @@ function HomePage() {
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {filteredProducts.map((product) => {
               const productPrice = Number(product.final_price ?? product.price ?? 0);
+              const hasSubItems = (product.sub_items || []).length > 0;
               return (
                 <article
                   key={product.id}
@@ -204,23 +205,34 @@ function HomePage() {
                   <div className="space-y-3">
                     <div>
                       <h3 className="text-base font-semibold tracking-tight text-slate-900">{product.title}</h3>
-                      <p className="mt-1 min-h-[40px] text-sm text-slate-500">{product.short_description}</p>
+                      <p className="mt-1 line-clamp-2 text-sm text-slate-500">{product.short_description}</p>
                     </div>
 
                     <div className="flex items-center justify-between">
                       <span className="inline-flex rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-500">
                         ★ {Number(product.rating_average || 0).toFixed(1)}
                       </span>
-                      <strong className="text-lg font-bold text-slate-900">R$ {productPrice.toFixed(2)}</strong>
+                      <strong className="text-lg font-bold text-slate-900">
+                        {hasSubItems ? 'Personalizado' : `R$ ${productPrice.toFixed(2)}`}
+                      </strong>
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={() => addToCart(product)}
-                      className="h-11 w-full rounded-[10px] bg-gradient-to-r from-violet-500 to-fuchsia-500 text-sm font-semibold text-white shadow-sm transition-all duration-300 hover:shadow-glow"
-                    >
-                      Adicionar ao carrinho
-                    </button>
+                    {hasSubItems ? (
+                      <Link
+                        to={`/product/${product.slug}`}
+                        className="inline-flex h-11 w-full items-center justify-center rounded-[10px] bg-gradient-to-r from-violet-500 to-fuchsia-500 text-sm font-semibold text-white shadow-sm transition-all duration-300 hover:shadow-glow"
+                      >
+                        Montar kit
+                      </Link>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => addToCart(product)}
+                        className="h-11 w-full rounded-[10px] bg-gradient-to-r from-violet-500 to-fuchsia-500 text-sm font-semibold text-white shadow-sm transition-all duration-300 hover:shadow-glow"
+                      >
+                        Adicionar ao carrinho
+                      </button>
+                    )}
                   </div>
                 </article>
               );

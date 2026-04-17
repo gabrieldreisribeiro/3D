@@ -28,7 +28,12 @@ export function CartProvider({ children }) {
   );
 
   const discount = useMemo(
-    () => (coupon ? (subtotal * coupon.value) / 100 : 0),
+    () => {
+      if (!coupon) return 0;
+      if (coupon.type === 'percent') return (subtotal * coupon.value) / 100;
+      if (coupon.type === 'fixed') return Math.min(coupon.value, subtotal);
+      return 0;
+    },
     [coupon, subtotal]
   );
 
@@ -75,7 +80,11 @@ export function CartProvider({ children }) {
     try {
       const result = await validateCoupon(code);
       setCoupon(result);
-      setCouponMessage(`Cupom aplicado: ${result.value}%`);
+      if (result.type === 'percent') {
+        setCouponMessage(`Cupom aplicado: ${result.value}%`);
+      } else {
+        setCouponMessage(`Cupom aplicado: R$ ${Number(result.value).toFixed(2)}`);
+      }
     } catch (error) {
       setCoupon(null);
       setCouponMessage(error.message || 'Cupom invalido');

@@ -1,8 +1,23 @@
 ﻿from decimal import Decimal, ROUND_HALF_UP
+from types import SimpleNamespace
 
 from fastapi import HTTPException
 
 TWOPLACES = Decimal('0.01')
+
+
+REQUIRED_PRICING_FIELDS = [
+    'grams_filament',
+    'price_kg_filament',
+    'hours_printing',
+    'avg_power_watts',
+    'price_kwh',
+    'total_hours_labor',
+    'price_hour_labor',
+    'extra_cost',
+    'profit_margin',
+    'manual_price',
+]
 
 
 def _to_decimal(value, field_name: str, allow_none: bool = False) -> Decimal:
@@ -19,7 +34,7 @@ def _money(value: Decimal) -> float:
     return float(value.quantize(TWOPLACES, rounding=ROUND_HALF_UP))
 
 
-def calculate_product_pricing(payload) -> dict:
+def _run_pricing(payload) -> dict:
     grams_filament = _to_decimal(payload.grams_filament, 'grams_filament')
     price_kg_filament = _to_decimal(payload.price_kg_filament, 'price_kg_filament')
     hours_printing = _to_decimal(payload.hours_printing, 'hours_printing')
@@ -80,3 +95,12 @@ def calculate_product_pricing(payload) -> dict:
         'estimated_profit': _money(lucro_estimado),
         'final_price': _money(final_price),
     }
+
+
+def calculate_product_pricing(payload) -> dict:
+    return _run_pricing(payload)
+
+
+def calculate_product_pricing_from_fields(fields: dict) -> dict:
+    payload = SimpleNamespace(**{name: fields.get(name) for name in REQUIRED_PRICING_FIELDS})
+    return _run_pricing(payload)

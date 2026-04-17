@@ -1,9 +1,13 @@
-﻿from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+﻿
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
 
 from app.core.security import create_admin_token, get_db, require_admin, verify_password
 from app.models import AdminUser
 from app.schemas import (
+    AdminCouponCreate,
+    AdminCouponResponse,
+    AdminCouponUpdate,
     AdminDashboardSummary,
     AdminLoginRequest,
     AdminLoginResponse,
@@ -15,6 +19,15 @@ from app.schemas import (
     BannerResponse,
     BannerUpdate,
     LogoResponse,
+)
+from app.services.coupon_service import (
+    admin_coupon_by_id,
+    admin_coupon_code_exists,
+    admin_create_coupon,
+    admin_delete_coupon,
+    admin_list_coupons,
+    admin_set_coupon_status,
+    admin_update_coupon,
 )
 from app.services.banner_service import create_banner, delete_banner, get_banner, list_admin_banners, update_banner
 from app.services.banner_upload_service import save_banner_image
@@ -35,6 +48,7 @@ from app.services.product_service import (
     admin_set_product_status,
     admin_slug_exists,
     admin_update_product,
+    parse_sub_items_from_storage,
 )
 
 router = APIRouter(prefix='/admin', tags=['admin'])
@@ -42,6 +56,7 @@ router = APIRouter(prefix='/admin', tags=['admin'])
 
 def _serialize_product(product):
     product.images = product.images.split(',') if product.images else []
+    product.sub_items = parse_sub_items_from_storage(product.sub_items)
     return product
 
 
@@ -144,6 +159,60 @@ def set_product_status(
 @router.get('/orders', response_model=list[AdminOrderResponse])
 def list_admin_orders(_: AdminUser = Depends(require_admin), db: Session = Depends(get_db)):
     return admin_list_orders(db)
+
+
+@router.get('/coupons', response_model=list[AdminCouponResponse])
+def list_coupons(_: AdminUser = Depends(require_admin), db: Session = Depends(get_db)):
+    return admin_list_coupons(db)
+
+
+@router.post('/coupons', response_model=AdminCouponResponse)
+def create_coupon(payload: AdminCouponCreate, _: AdminUser = Depends(require_admin), db: Session = Depends(get_db)):
+    if admin_coupon_code_exists(db, payload.code):
+        raise HTTPException(status_code=400, detail='Codigo de cupom ja esta em uso')
+    try:
+        return admin_create_coupon(db, payload.code, payload.type, payload.value, payload.is_active)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.put('/coupons/{coupon_id}', response_model=AdminCouponResponse)
+def update_coupon(
+    coupon_id: int,
+    payload: AdminCouponUpdate,
+    _: AdminUser = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    coupon = admin_coupon_by_id(db, coupon_id)
+    if not coupon:
+        raise HTTPException(status_code=404, detail='Cupom nao encontrado')
+    if admin_coupon_code_exists(db, payload.code, ignore_id=coupon_id):
+        raise HTTPException(status_code=400, detail='Codigo de cupom ja esta em uso')
+    try:
+        return admin_update_coupon(db, coupon, payload.code, payload.type, payload.value, payload.is_active)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.patch('/coupons/{coupon_id}/status', response_model=AdminCouponResponse)
+def set_coupon_status(
+    coupon_id: int,
+    is_active: bool,
+    _: AdminUser = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    coupon = admin_coupon_by_id(db, coupon_id)
+    if not coupon:
+        raise HTTPException(status_code=404, detail='Cupom nao encontrado')
+    return admin_set_coupon_status(db, coupon, is_active)
+
+
+@router.delete('/coupons/{coupon_id}', status_code=204)
+def delete_coupon(coupon_id: int, _: AdminUser = Depends(require_admin), db: Session = Depends(get_db)):
+    coupon = admin_coupon_by_id(db, coupon_id)
+    if not coupon:
+        raise HTTPException(status_code=404, detail='Cupom nao encontrado')
+    admin_delete_coupon(db, coupon)
 
 
 @router.get('/banners', response_model=list[BannerResponse])

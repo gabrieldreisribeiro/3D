@@ -1,5 +1,5 @@
 ﻿from datetime import datetime
-from typing import List, Optional
+from typing import List, Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -14,6 +14,28 @@ class CategoryResponse(BaseModel):
         orm_mode = True
 
 
+class ProductSubItem(BaseModel):
+    title: str = Field(..., min_length=1, max_length=140)
+    image_url: Optional[str] = None
+    pricing_mode: Literal['manual', 'calculated'] = 'manual'
+
+    grams_filament: float = Field(default=0, ge=0)
+    price_kg_filament: float = Field(default=0, ge=0)
+    hours_printing: float = Field(default=0, ge=0)
+    avg_power_watts: float = Field(default=0, ge=0)
+    price_kwh: float = Field(default=0, ge=0)
+    total_hours_labor: float = Field(default=0, ge=0)
+    price_hour_labor: float = Field(default=0, ge=0)
+    extra_cost: float = Field(default=0, ge=0)
+    profit_margin: float = Field(default=0, ge=0, lt=100)
+    manual_price: Optional[float] = Field(default=None, ge=0)
+
+    cost_total: float = 0
+    calculated_price: float = 0
+    estimated_profit: float = 0
+    final_price: float = 0
+
+
 class ProductBase(BaseModel):
     id: int
     title: str
@@ -22,6 +44,7 @@ class ProductBase(BaseModel):
     full_description: str
     cover_image: str
     images: List[str]
+    sub_items: List[ProductSubItem]
     is_active: bool
     rating_average: float
     rating_count: int
@@ -81,6 +104,7 @@ class AdminProductBase(BaseModel):
     full_description: str = Field(..., min_length=2)
     cover_image: str = Field(..., min_length=5)
     images: List[str] = Field(default_factory=list)
+    sub_items: List[ProductSubItem] = Field(default_factory=list)
     is_active: bool = True
     category_id: Optional[int] = Field(default=None)
 
@@ -112,6 +136,7 @@ class AdminProductResponse(BaseModel):
     full_description: str
     cover_image: str
     images: List[str]
+    sub_items: List[ProductSubItem]
     is_active: bool
     category_id: Optional[int]
 
@@ -144,6 +169,32 @@ class CouponResponse(BaseModel):
     code: str
     type: str
     value: float
+
+
+class AdminCouponBase(BaseModel):
+    code: str = Field(..., min_length=2, max_length=60)
+    type: Literal['percent', 'fixed']
+    value: float = Field(..., gt=0)
+    is_active: bool = True
+
+
+class AdminCouponCreate(AdminCouponBase):
+    pass
+
+
+class AdminCouponUpdate(AdminCouponBase):
+    pass
+
+
+class AdminCouponResponse(BaseModel):
+    id: int
+    code: str
+    type: str
+    value: float
+    is_active: bool
+
+    class Config:
+        orm_mode = True
 
 
 class OrderItemCreate(BaseModel):

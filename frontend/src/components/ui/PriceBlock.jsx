@@ -1,9 +1,9 @@
-﻿function PriceBlock({ price, helper = 'Preco unitario' }) {
+﻿function PriceBlock({ price, helper = 'Preco unitario', personalized = false }) {
   const safePrice = Number(price ?? 0);
 
   return (
     <div className="price-block">
-      <strong>R$ {safePrice.toFixed(2)}</strong>
+      <strong>{personalized ? 'Personalizado' : `R$ ${safePrice.toFixed(2)}`}</strong>
       <span>{helper}</span>
     </div>
   );

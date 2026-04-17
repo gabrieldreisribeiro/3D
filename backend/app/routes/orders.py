@@ -41,13 +41,19 @@ def create_order_endpoint(payload: OrderCreate, db: Session = Depends(get_db)):
         )
 
     discount = 0.0
+    coupon = None
     if payload.coupon:
         coupon = validate_coupon(db, payload.coupon)
         if coupon:
-            discount = subtotal * coupon.value / 100.0
+            if coupon.type == 'percent':
+                discount = subtotal * coupon.value / 100.0
+            elif coupon.type == 'fixed':
+                discount = min(float(coupon.value), subtotal)
+            else:
+                raise HTTPException(status_code=400, detail='Tipo de cupom invalido')
         else:
             raise HTTPException(status_code=404, detail='Cupom invalido ou expirado')
 
     total = subtotal - discount
-    order = create_order(db, order_items, payload.coupon, subtotal, discount, total)
+    order = create_order(db, order_items, coupon.code if payload.coupon and coupon else None, subtotal, discount, total)
     return order

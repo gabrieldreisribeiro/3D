@@ -1,7 +1,10 @@
-﻿from sqlalchemy.orm import Session, joinedload
+﻿import json
+
+from fastapi import HTTPException
+from sqlalchemy.orm import Session, joinedload
 
 from app.models import Category, Coupon, Product
-from app.services.product_pricing_service import calculate_product_pricing
+from app.services.product_pricing_service import calculate_product_pricing, calculate_product_pricing_from_fields
 
 
 def list_categories(db: Session):
@@ -42,6 +45,86 @@ def admin_slug_exists(db: Session, slug: str, ignore_id: int | None = None):
     return query.first() is not None
 
 
+def _to_float(value, default=0.0):
+    try:
+        return float(value if value is not None else default)
+    except Exception:  # noqa: BLE001
+        return float(default)
+
+
+def _normalize_sub_item_payload(item) -> dict:
+    raw = item.model_dump() if hasattr(item, 'model_dump') else dict(item)
+    title = (raw.get('title') or raw.get('name') or '').strip()
+    if not title:
+        raise HTTPException(status_code=422, detail='Subitem precisa de titulo.')
+
+    pricing_mode = raw.get('pricing_mode') or 'manual'
+    if pricing_mode not in {'manual', 'calculated'}:
+        pricing_mode = 'manual'
+
+    base = {
+        'title': title,
+        'image_url': (raw.get('image_url') or '').strip() or None,
+        'pricing_mode': pricing_mode,
+        'grams_filament': _to_float(raw.get('grams_filament')),
+        'price_kg_filament': _to_float(raw.get('price_kg_filament')),
+        'hours_printing': _to_float(raw.get('hours_printing')),
+        'avg_power_watts': _to_float(raw.get('avg_power_watts')),
+        'price_kwh': _to_float(raw.get('price_kwh')),
+        'total_hours_labor': _to_float(raw.get('total_hours_labor')),
+        'price_hour_labor': _to_float(raw.get('price_hour_labor')),
+        'extra_cost': _to_float(raw.get('extra_cost')),
+        'profit_margin': _to_float(raw.get('profit_margin')),
+        'manual_price': raw.get('manual_price'),
+    }
+
+    legacy_price = raw.get('price')
+    if base['manual_price'] is None and legacy_price is not None:
+        base['manual_price'] = legacy_price
+
+    if pricing_mode == 'calculated':
+        pricing = calculate_product_pricing_from_fields(base)
+        base['cost_total'] = pricing['cost_total']
+        base['calculated_price'] = pricing['calculated_price']
+        base['estimated_profit'] = pricing['estimated_profit']
+        base['final_price'] = pricing['final_price']
+    else:
+        manual_value = _to_float(base['manual_price'])
+        base['manual_price'] = manual_value
+        base['cost_total'] = 0.0
+        base['calculated_price'] = manual_value
+        base['estimated_profit'] = 0.0
+        base['final_price'] = manual_value
+
+    return base
+
+
+def prepare_sub_items_for_storage(sub_items) -> str:
+    normalized = [_normalize_sub_item_payload(item) for item in (sub_items or [])]
+    return json.dumps(normalized, ensure_ascii=False)
+
+
+def parse_sub_items_from_storage(raw_value) -> list[dict]:
+    if not raw_value:
+        return []
+
+    try:
+        data = json.loads(raw_value) if isinstance(raw_value, str) else raw_value
+    except Exception:  # noqa: BLE001
+        return []
+
+    if not isinstance(data, list):
+        return []
+
+    parsed = []
+    for item in data:
+        try:
+            parsed.append(_normalize_sub_item_payload(item))
+        except Exception:  # noqa: BLE001
+            continue
+    return parsed
+
+
 def _apply_pricing(product: Product, payload) -> None:
     pricing = calculate_product_pricing(payload)
     product.cost_total = pricing['cost_total']
@@ -62,6 +145,7 @@ def admin_create_product(db: Session, payload):
         full_description=payload.full_description,
         cover_image=payload.cover_image,
         images=','.join(payload.images),
+        sub_items=prepare_sub_items_for_storage(payload.sub_items),
         is_active=payload.is_active,
         rating_average=5.0,
         rating_count=0,
@@ -95,6 +179,7 @@ def admin_update_product(db: Session, product: Product, payload):
     product.full_description = payload.full_description
     product.cover_image = payload.cover_image
     product.images = ','.join(payload.images)
+    product.sub_items = prepare_sub_items_for_storage(payload.sub_items)
     product.is_active = payload.is_active
     product.category_id = payload.category_id
 

@@ -169,6 +169,36 @@ export function fetchAdminOrders() {
   return adminRequest('/admin/orders');
 }
 
+export function fetchAdminCoupons() {
+  return adminRequest('/admin/coupons');
+}
+
+export function createAdminCoupon(payload) {
+  return adminRequest('/admin/coupons', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export function updateAdminCoupon(couponId, payload) {
+  return adminRequest(`/admin/coupons/${couponId}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  });
+}
+
+export function setAdminCouponStatus(couponId, isActive) {
+  return adminRequest(`/admin/coupons/${couponId}/status?is_active=${isActive}`, {
+    method: 'PATCH',
+  });
+}
+
+export function deleteAdminCoupon(couponId) {
+  return adminRequest(`/admin/coupons/${couponId}`, {
+    method: 'DELETE',
+  });
+}
+
 export function fetchAdminBanners() {
   return adminRequest('/admin/banners');
 }

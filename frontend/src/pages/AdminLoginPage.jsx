@@ -35,13 +35,15 @@ function AdminLoginPage() {
   };
 
   return (
-    <section className="admin-login-wrap">
-      <Card className="admin-login-card-pro">
-        <span className="eyebrow">Area administrativa</span>
-        <h1>Acesso ao painel</h1>
-        <p>Gerencie produtos, pedidos e banners em uma interface moderna.</p>
+    <section className="flex min-h-screen items-center justify-center bg-slate-50 px-4 py-8">
+      <Card className="w-full max-w-md space-y-5 rounded-2xl p-6 sm:p-7">
+        <div className="space-y-2">
+          <span className="text-xs font-semibold uppercase tracking-[0.16em] text-violet-600">Area administrativa</span>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Acesso ao painel</h1>
+          <p className="text-sm text-slate-500">Gerencie produtos, pedidos e banners em uma interface moderna.</p>
+        </div>
 
-        <form className="form-stack" onSubmit={handleSubmit}>
+        <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
           <Input label="E-mail" type="email" value={email} onChange={(event) => setEmail(event.target.value)} required />
           <Input
             label="Senha"
@@ -50,7 +52,7 @@ function AdminLoginPage() {
             onChange={(event) => setPassword(event.target.value)}
             required
           />
-          {error ? <p className="form-error">{error}</p> : null}
+          {error ? <p className="text-sm text-rose-600">{error}</p> : null}
           <Button loading={loading} type="submit">
             Entrar
           </Button>

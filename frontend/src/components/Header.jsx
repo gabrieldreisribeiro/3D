@@ -1,13 +1,15 @@
-﻿import { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, NavLink, useNavigate, useSearchParams } from 'react-router-dom';
 import { fetchPublicLogo, resolveAssetUrl } from '../services/api';
 import { useCart } from '../services/cart';
+import { getLogoSizeConfig, getLogoSizeKey } from '../services/logoSettings';
 
 function Header() {
   const { items } = useCart();
   const [searchParams] = useSearchParams();
   const [query, setQuery] = useState(searchParams.get('q') || '');
   const [logoUrl, setLogoUrl] = useState(null);
+  const [logoSizeKey, setLogoSizePreference] = useState(getLogoSizeKey());
   const navigate = useNavigate();
 
   const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
@@ -18,18 +20,35 @@ function Header() {
       .catch(() => setLogoUrl(null));
   }, []);
 
+  useEffect(() => {
+    const syncLogoSize = () => setLogoSizePreference(getLogoSizeKey());
+    window.addEventListener('storage', syncLogoSize);
+    window.addEventListener('logo-size-change', syncLogoSize);
+    return () => {
+      window.removeEventListener('storage', syncLogoSize);
+      window.removeEventListener('logo-size-change', syncLogoSize);
+    };
+  }, []);
+
   const onSearch = (event) => {
     event.preventDefault();
     const value = query.trim();
     navigate(value ? `/?q=${encodeURIComponent(value)}` : '/');
   };
 
+  const logoSize = getLogoSizeConfig(logoSizeKey);
+
   return (
     <header className="sticky top-0 z-50 border-b border-slate-200/80 bg-white/90 backdrop-blur-md">
       <div className="mx-auto flex h-[70px] w-full max-w-7xl items-center gap-4 px-4 sm:px-6 lg:px-8">
         <Link to="/" className="flex min-w-[160px] items-center gap-2">
           {logoUrl ? (
-            <img src={logoUrl} alt="Logo da loja" className="h-9 w-auto object-contain" />
+            <img
+              src={logoUrl}
+              alt="Logo da loja"
+              className="w-auto object-contain"
+              style={{ height: `${logoSize.headerHeight}px`, maxWidth: `${logoSize.headerMaxWidth}px` }}
+            />
           ) : (
             <span className="text-sm font-semibold tracking-tight text-slate-900">PLA Studio</span>
           )}
@@ -69,7 +88,20 @@ function Header() {
               }`
             }
           >
-            <span className="text-sm leading-none">🛒</span>
+            <svg
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+              className="h-4 w-4 text-current"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <circle cx="9" cy="20" r="1.5" />
+              <circle cx="18" cy="20" r="1.5" />
+              <path d="M3 4h2l2.2 10.2a1 1 0 0 0 1 .8h8.9a1 1 0 0 0 1-.8L20 7H7.2" />
+            </svg>
             <span>Carrinho</span>
             <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-violet-500 px-1 text-[10px] font-semibold text-white">
               {itemCount}

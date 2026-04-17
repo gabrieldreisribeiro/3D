@@ -1,9 +1,15 @@
-﻿import { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import Button from '../components/ui/Button';
 import DataCard from '../components/ui/DataCard';
 import SectionHeader from '../components/ui/SectionHeader';
 import { resolveAssetUrl, uploadAdminLogo } from '../services/api';
+import {
+  getLogoSizeConfig,
+  getLogoSizeKey,
+  LOGO_SIZE_OPTIONS,
+  setLogoSizeKey as persistLogoSizeKey,
+} from '../services/logoSettings';
 
 function AdminSettingsPage() {
   const context = useOutletContext();
@@ -14,6 +20,13 @@ function AdminSettingsPage() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+
+  const [localLogoSizeKey, setLocalLogoSizeKey] = useState(getLogoSizeKey());
+  const logoSizeKey = context?.logoSizeKey || localLogoSizeKey;
+  const setLogoSizeKey = context?.setLogoSizeKey || ((next) => {
+    persistLogoSizeKey(next);
+    setLocalLogoSizeKey(getLogoSizeKey());
+  });
 
   useEffect(() => {
     if (!selectedFile) {
@@ -26,6 +39,7 @@ function AdminSettingsPage() {
   }, [selectedFile]);
 
   const previewUrl = localPreview || logoUrl;
+  const logoSize = getLogoSizeConfig(logoSizeKey);
 
   const handleUpload = async (event) => {
     event.preventDefault();
@@ -51,18 +65,53 @@ function AdminSettingsPage() {
     }
   };
 
+  const handleChangeLogoSize = (nextSize) => {
+    setLogoSizeKey(nextSize);
+    setMessage('Tamanho da logo atualizado.');
+  };
+
   return (
-    <section className="admin-page-pro">
+    <section className="space-y-6">
       <SectionHeader eyebrow="Configuracoes" title="Identidade visual" subtitle="Gerencie a logo principal da loja" />
 
       <DataCard title="Logo do site">
-        <form className="form-stack" onSubmit={handleUpload}>
-          <div className="logo-preview-box">
-            {previewUrl ? <img src={previewUrl} alt="Preview" className="logo-preview-image" /> : <span>Sem logo</span>}
+        <form className="flex max-w-lg flex-col gap-4" onSubmit={handleUpload}>
+          <div className="flex h-44 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 p-4">
+            {previewUrl ? (
+              <img
+                src={previewUrl}
+                alt="Preview"
+                className="w-auto object-contain"
+                style={{ height: `${logoSize.previewHeight}px`, maxWidth: `${logoSize.previewMaxWidth}px` }}
+              />
+            ) : (
+              <span className="text-sm text-slate-500">Sem logo</span>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <span className="text-xs font-medium uppercase tracking-wide text-slate-500">Tamanho da logo</span>
+            <div className="flex flex-wrap gap-2">
+              {LOGO_SIZE_OPTIONS.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => handleChangeLogoSize(option.value)}
+                  className={`h-10 rounded-[10px] border px-4 text-sm font-medium transition ${
+                    logoSizeKey === option.value
+                      ? 'border-violet-600 bg-violet-600 text-white'
+                      : 'border-slate-200 bg-white text-slate-600 hover:border-violet-200 hover:text-violet-700'
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+            <p className="text-xs text-slate-500">Tamanhos fixos para melhorar logos pequenas sem quebrar layout.</p>
           </div>
 
           <input
-            className="field-control"
+            className="h-11 rounded-[10px] border border-slate-200 bg-white px-3 text-sm text-slate-700"
             type="file"
             accept="image/png,image/jpeg,image/webp"
             onChange={(event) => setSelectedFile(event.target.files?.[0] || null)}
@@ -72,8 +121,8 @@ function AdminSettingsPage() {
             Atualizar logo
           </Button>
 
-          {message ? <p className="form-success">{message}</p> : null}
-          {error ? <p className="form-error">{error}</p> : null}
+          {message ? <p className="text-sm text-emerald-600">{message}</p> : null}
+          {error ? <p className="text-sm text-rose-600">{error}</p> : null}
         </form>
       </DataCard>
     </section>

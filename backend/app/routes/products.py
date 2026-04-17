@@ -3,7 +3,12 @@ from sqlalchemy.orm import Session
 
 from app.db.session import SessionLocal
 from app.schemas import CategoryResponse, ProductResponse
-from app.services.product_service import get_product_by_slug, list_categories, list_products
+from app.services.product_service import (
+    get_product_by_slug,
+    list_categories,
+    list_products,
+    parse_sub_items_from_storage,
+)
 
 router = APIRouter()
 
@@ -26,6 +31,7 @@ def read_products(category: str | None = Query(default=None), db: Session = Depe
     products = list_products(db, category_slug=category)
     for product in products:
         product.images = product.images.split(',') if product.images else []
+        product.sub_items = parse_sub_items_from_storage(product.sub_items)
     return products
 
 
@@ -35,4 +41,5 @@ def read_product(slug: str, db: Session = Depends(get_db)):
     if not product:
         raise HTTPException(status_code=404, detail='Produto nao encontrado')
     product.images = product.images.split(',') if product.images else []
+    product.sub_items = parse_sub_items_from_storage(product.sub_items)
     return product

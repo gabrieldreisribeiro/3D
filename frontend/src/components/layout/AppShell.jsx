@@ -1,8 +1,8 @@
-﻿function AppShell({ header, footer, children }) {
+function AppShell({ header, footer, children }) {
   return (
-    <div className="app-shell-pro">
+    <div className="min-h-screen bg-slate-50 text-slate-900">
       {header}
-      <main className="app-content-pro">{children}</main>
+      <main>{children}</main>
       {footer}
     </div>
   );

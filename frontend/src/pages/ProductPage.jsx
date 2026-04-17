@@ -42,6 +42,7 @@ function ProductPage() {
 
   const galleryImages = [product.cover_image, ...(product.images || [])];
   const finalPrice = Number(product.final_price ?? product.price ?? 0);
+  const hasSubItems = (product.sub_items || []).length > 0;
 
   return (
     <section className="container product-page-pro">
@@ -52,19 +53,43 @@ function ProductPage() {
           <span className="eyebrow">Produto</span>
           <h1>{product.title}</h1>
           <p>{product.short_description}</p>
-          <PriceBlock price={finalPrice} helper="Preco unitario" />
+          <PriceBlock
+            price={finalPrice}
+            personalized={hasSubItems}
+            helper={hasSubItems ? 'Produto com composicao personalizada' : 'Preco unitario'}
+          />
 
-          <div className="product-buy-actions">
-            <QuantitySelector value={quantity} onChange={setQuantity} />
-            <Button onClick={() => addToCart(product, quantity)}>Adicionar ao carrinho</Button>
-            <Button variant="secondary" onClick={() => navigate('/cart')}>
-              Comprar agora
-            </Button>
-          </div>
+          {hasSubItems ? (
+            <div className="detail-card">
+              <h3>Subitens disponiveis</h3>
+              <ul className="space-y-2 text-sm text-slate-600">
+                {product.sub_items.map((item, index) => (
+                  <li key={`${item.title}-${index}`} className="flex items-center justify-between rounded-[10px] border border-slate-100 bg-slate-50 px-3 py-2">
+                    <div className="flex items-center gap-2">
+                      {item.image_url ? (
+                        <img src={item.image_url} alt={item.title} className="h-8 w-8 rounded-md object-cover" />
+                      ) : null}
+                      <span>{item.title}</span>
+                    </div>
+                    <strong>R$ {Number(item.final_price || 0).toFixed(2)}</strong>
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-3 text-xs text-slate-500">Escolha os subitens desejados para montar seu pedido personalizado.</p>
+            </div>
+          ) : (
+            <div className="product-buy-actions">
+              <QuantitySelector value={quantity} onChange={setQuantity} />
+              <Button onClick={() => addToCart(product, quantity)}>Adicionar ao carrinho</Button>
+              <Button variant="secondary" onClick={() => navigate('/cart')}>
+                Comprar agora
+              </Button>
+            </div>
+          )}
 
           <div className="detail-card">
             <h3>Descricao completa</h3>
-            <p>{product.full_description}</p>
+            <p className="whitespace-pre-line leading-8 text-slate-600">{product.full_description}</p>
           </div>
         </div>
       </div>

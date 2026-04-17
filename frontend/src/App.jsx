@@ -13,6 +13,7 @@ import AdminProductsPage from './pages/AdminProductsPage';
 import AdminOrdersPage from './pages/AdminOrdersPage';
 import AdminSettingsPage from './pages/AdminSettingsPage';
 import AdminBannersPage from './pages/AdminBannersPage';
+import AdminCouponsPage from './pages/AdminCouponsPage';
 
 function AppContent() {
   const location = useLocation();
@@ -20,13 +21,14 @@ function AppContent() {
 
   if (isAdminRoute) {
     return (
-      <main className="admin-route-flow">
+      <main className="min-h-screen bg-slate-50 text-slate-900">
         <Routes>
           <Route path="/painel-interno/login" element={<AdminLoginPage />} />
           <Route path="/painel-interno" element={<AdminLayout />}>
             <Route index element={<AdminDashboardPage />} />
             <Route path="produtos" element={<AdminProductsPage />} />
             <Route path="pedidos" element={<AdminOrdersPage />} />
+            <Route path="cupons" element={<AdminCouponsPage />} />
             <Route path="banners" element={<AdminBannersPage />} />
             <Route path="configuracoes" element={<AdminSettingsPage />} />
           </Route>

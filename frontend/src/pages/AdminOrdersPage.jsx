@@ -5,13 +5,14 @@ import Modal from '../components/ui/Modal';
 import SectionHeader from '../components/ui/SectionHeader';
 import StatusBadge from '../components/ui/StatusBadge';
 import Table from '../components/ui/Table';
+import usePersistentState from '../hooks/usePersistentState';
 import { fetchAdminOrders } from '../services/api';
 
 function AdminOrdersPage() {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [selectedOrder, setSelectedOrder] = useState(null);
+  const [selectedOrder, setSelectedOrder] = usePersistentState('modal:admin-orders:selected-order', null);
 
   useEffect(() => {
     fetchAdminOrders()
@@ -21,17 +22,17 @@ function AdminOrdersPage() {
   }, []);
 
   return (
-    <section className="admin-page-pro">
+    <section className="space-y-6">
       <SectionHeader eyebrow="Operacao" title="Pedidos" subtitle="Acompanhe detalhes e totais" />
 
       <DataCard title="Lista de pedidos">
-        {loading ? <div className="loading-state-pro">Carregando pedidos...</div> : null}
-        {error ? <div className="empty-state-pro">{error}</div> : null}
+        {loading ? <div className="rounded-xl border border-slate-200 bg-slate-50 p-6 text-sm text-slate-500">Carregando pedidos...</div> : null}
+        {error ? <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">{error}</div> : null}
         {!loading && !error ? (
           <Table
             columns={['Pedido', 'Data', 'Total', 'Status', 'Acoes']}
             rows={orders}
-            empty={<div className="empty-state-pro">Nenhum pedido registrado.</div>}
+            empty={<div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center text-sm text-slate-500">Nenhum pedido registrado.</div>}
             renderRow={(order) => (
               <tr key={order.id}>
                 <td>#{order.id}</td>
@@ -58,15 +59,15 @@ function AdminOrdersPage() {
         footer={<Button onClick={() => setSelectedOrder(null)}>Fechar</Button>}
       >
         {selectedOrder ? (
-          <div className="order-detail-modal">
-            <p>Subtotal: R$ {selectedOrder.subtotal.toFixed(2)}</p>
-            <p>Desconto: R$ {selectedOrder.discount.toFixed(2)}</p>
-            <p>Total: R$ {selectedOrder.total.toFixed(2)}</p>
-            <ul>
+          <div className="space-y-3 text-sm text-slate-600">
+            <p>Subtotal: <strong className="text-slate-900">R$ {selectedOrder.subtotal.toFixed(2)}</strong></p>
+            <p>Desconto: <strong className="text-slate-900">R$ {selectedOrder.discount.toFixed(2)}</strong></p>
+            <p>Total: <strong className="text-slate-900">R$ {selectedOrder.total.toFixed(2)}</strong></p>
+            <ul className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
               {selectedOrder.items.map((item) => (
-                <li key={item.id}>
+                <li key={item.id} className="flex items-center justify-between">
                   <span>{item.quantity}x {item.title}</span>
-                  <strong>R$ {item.unit_price.toFixed(2)}</strong>
+                  <strong className="text-slate-900">R$ {item.unit_price.toFixed(2)}</strong>
                 </li>
               ))}
             </ul>

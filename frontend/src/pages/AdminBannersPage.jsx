@@ -8,6 +8,7 @@ import SectionHeader from '../components/ui/SectionHeader';
 import StatusBadge from '../components/ui/StatusBadge';
 import Table from '../components/ui/Table';
 import TextArea from '../components/ui/TextArea';
+import usePersistentState from '../hooks/usePersistentState';
 import {
   createAdminBanner,
   deleteAdminBanner,
@@ -33,10 +34,11 @@ function AdminBannersPage() {
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
-  const [form, setForm] = useState(initialBannerForm);
-  const [editingId, setEditingId] = useState(null);
-  const [openModal, setOpenModal] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [form, setForm] = usePersistentState('modal:admin-banners:form', initialBannerForm);
+  const [editingId, setEditingId] = usePersistentState('modal:admin-banners:editing-id', null);
+  const [openModal, setOpenModal] = usePersistentState('modal:admin-banners:open', false);
+  const [deleteTarget, setDeleteTarget] = usePersistentState('modal:admin-banners:delete-target', null);
+  const [modalMode, setModalMode] = usePersistentState('modal:admin-banners:mode', 'create');
 
   const previewUrl = useMemo(() => resolveAssetUrl(form.image_url) || form.image_url, [form.image_url]);
 
@@ -53,24 +55,32 @@ function AdminBannersPage() {
   }, []);
 
   const openCreate = () => {
-    setForm(initialBannerForm);
+    const shouldResetForm = editingId !== null || modalMode !== 'create';
+    if (shouldResetForm) {
+      setForm(initialBannerForm);
+    }
     setEditingId(null);
     setError('');
+    setModalMode('create');
     setOpenModal(true);
   };
 
   const openEdit = (banner) => {
+    const sameEditingTarget = editingId === banner.id && modalMode === 'edit';
     setEditingId(banner.id);
-    setForm({
-      title: banner.title || '',
-      subtitle: banner.subtitle || '',
-      image_url: banner.image_url || '',
-      target_url: banner.target_url || '',
-      sort_order: banner.sort_order || 0,
-      is_active: Boolean(banner.is_active),
-      show_in_carousel: Boolean(banner.show_in_carousel),
-    });
+    if (!sameEditingTarget) {
+      setForm({
+        title: banner.title || '',
+        subtitle: banner.subtitle || '',
+        image_url: banner.image_url || '',
+        target_url: banner.target_url || '',
+        sort_order: banner.sort_order || 0,
+        is_active: Boolean(banner.is_active),
+        show_in_carousel: Boolean(banner.show_in_carousel),
+      });
+    }
     setError('');
+    setModalMode('edit');
     setOpenModal(true);
   };
 
@@ -93,6 +103,9 @@ function AdminBannersPage() {
         await createAdminBanner(payload);
       }
       setOpenModal(false);
+      setEditingId(null);
+      setModalMode('create');
+      setForm(initialBannerForm);
       loadBanners();
     } catch (saveError) {
       setError(saveError.message || 'Falha ao salvar banner.');
@@ -130,7 +143,7 @@ function AdminBannersPage() {
   };
 
   return (
-    <section className="admin-page-pro">
+    <section className="space-y-6">
       <SectionHeader
         eyebrow="Marketing"
         title="Banners"
@@ -139,7 +152,7 @@ function AdminBannersPage() {
       />
 
       <DataCard title="Lista de banners">
-        {loading ? <div className="loading-state-pro">Carregando banners...</div> : null}
+        {loading ? <div className="rounded-xl border border-slate-200 bg-slate-50 p-6 text-sm text-slate-500">Carregando banners...</div> : null}
 
         {!loading ? (
           <Table
@@ -149,11 +162,11 @@ function AdminBannersPage() {
             renderRow={(banner) => (
               <tr key={banner.id}>
                 <td>
-                  <div className="banner-cell">
-                    <img src={resolveAssetUrl(banner.image_url) || banner.image_url} alt={banner.title || 'Banner'} />
+                  <div className="flex items-center gap-3">
+                    <img className="h-14 w-24 rounded-[10px] border border-slate-200 object-cover" src={resolveAssetUrl(banner.image_url) || banner.image_url} alt={banner.title || 'Banner'} />
                     <div>
-                      <strong>{banner.title || 'Sem titulo'}</strong>
-                      <small>{banner.subtitle || 'Sem subtitulo'}</small>
+                      <strong className="block font-semibold text-slate-900">{banner.title || 'Sem titulo'}</strong>
+                      <small className="text-xs text-slate-500">{banner.subtitle || 'Sem subtitulo'}</small>
                     </div>
                   </div>
                 </td>
@@ -169,7 +182,7 @@ function AdminBannersPage() {
                   </StatusBadge>
                 </td>
                 <td>
-                  <div className="table-actions-row">
+                  <div className="flex flex-wrap gap-2">
                     <Button variant="secondary" onClick={() => openEdit(banner)}>
                       Editar
                     </Button>
@@ -200,7 +213,7 @@ function AdminBannersPage() {
           </>
         }
       >
-        <form className="form-grid" onSubmit={saveBanner}>
+        <form className="grid grid-cols-1 gap-4 md:grid-cols-2" onSubmit={saveBanner}>
           <Input label="Titulo" value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} />
           <Input
             label="Ordem"
@@ -210,33 +223,33 @@ function AdminBannersPage() {
           />
           <TextArea
             label="Subtitulo"
-            className="span-2"
+            className="md:col-span-2"
             rows="3"
             value={form.subtitle}
             onChange={(event) => setForm({ ...form, subtitle: event.target.value })}
           />
           <Input
             label="URL da imagem"
-            className="span-2"
+            className="md:col-span-2"
             value={form.image_url}
             onChange={(event) => setForm({ ...form, image_url: event.target.value })}
             required
           />
           <Input
             label="Link de destino"
-            className="span-2"
+            className="md:col-span-2"
             value={form.target_url}
             onChange={(event) => setForm({ ...form, target_url: event.target.value })}
             placeholder="/cart ou https://..."
           />
 
-          <label className="field span-2">
-            <span className="field-label">Upload de imagem</span>
-            <input className="field-control" type="file" accept="image/png,image/jpeg,image/webp" onChange={uploadImage} />
-            {uploading ? <small className="helper-text">Enviando imagem...</small> : null}
+          <label className="md:col-span-2 flex flex-col gap-1.5">
+            <span className="text-xs font-medium uppercase tracking-wide text-slate-500">Upload de imagem</span>
+            <input className="h-11 rounded-[10px] border border-slate-200 bg-white px-3 text-sm text-slate-700" type="file" accept="image/png,image/jpeg,image/webp" onChange={uploadImage} />
+            {uploading ? <small className="text-xs text-slate-500">Enviando imagem...</small> : null}
           </label>
 
-          <label className="checkbox-row">
+          <label className="inline-flex items-center gap-2 rounded-[10px] border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
             <input
               type="checkbox"
               checked={form.is_active}
@@ -245,7 +258,7 @@ function AdminBannersPage() {
             <span>Banner ativo</span>
           </label>
 
-          <label className="checkbox-row">
+          <label className="inline-flex items-center gap-2 rounded-[10px] border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
             <input
               type="checkbox"
               checked={form.show_in_carousel}
@@ -254,11 +267,11 @@ function AdminBannersPage() {
             <span>Exibir no carrossel</span>
           </label>
 
-          <div className="span-2 banner-preview-modal">
-            {previewUrl ? <img src={previewUrl} alt="Preview" /> : <span>Preview do banner</span>}
+          <div className="md:col-span-2 flex min-h-[180px] items-center justify-center rounded-xl border border-slate-200 bg-slate-50 p-4">
+            {previewUrl ? <img className="h-full max-h-[240px] w-full rounded-[10px] object-cover" src={previewUrl} alt="Preview" /> : <span className="text-sm text-slate-500">Preview do banner</span>}
           </div>
 
-          {error ? <p className="form-error span-2">{error}</p> : null}
+          {error ? <p className="md:col-span-2 text-sm text-rose-600">{error}</p> : null}
         </form>
       </Modal>
 

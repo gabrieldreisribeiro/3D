@@ -127,6 +127,7 @@ def _ensure_product_pricing_columns(session):
 
     required_columns = {
         'category_id': "INTEGER",
+        'sub_items': "TEXT DEFAULT ''",
         'grams_filament': "REAL DEFAULT 0",
         'price_kg_filament': "REAL DEFAULT 0",
         'hours_printing': "REAL DEFAULT 0",

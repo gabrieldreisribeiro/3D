@@ -24,6 +24,7 @@ class Product(Base):
     price = Column(Float, nullable=False, default=0.0)
     cover_image = Column(String(320), nullable=False)
     images = Column(Text, nullable=False)
+    sub_items = Column(Text, nullable=False, default='')
     is_active = Column(Boolean, default=True)
     rating_average = Column(Float, default=5.0)
     rating_count = Column(Integer, default=0)
