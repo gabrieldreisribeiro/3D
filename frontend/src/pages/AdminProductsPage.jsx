@@ -44,6 +44,11 @@ const createEmptySubItem = () => ({
   ...defaultPricingFields,
 });
 
+const createEmptyPairDraft = () => ({
+  primary: '#FFFFFF',
+  secondary: '#000000',
+});
+
 const initialForm = {
   title: '',
   slug: '',
@@ -252,6 +257,24 @@ function fromProduct(product) {
   };
 }
 
+function ColorPickerField({ label, value, onChange }) {
+  const normalizedValue = normalizeHexColor(value) || '#FFFFFF';
+  return (
+    <div className="space-y-2">
+      <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</p>
+      <div className="inline-flex items-center gap-2 rounded-[10px] border border-slate-200 bg-white px-2 py-2">
+        <input
+          type="color"
+          value={normalizedValue}
+          onChange={(event) => onChange(normalizeHexColor(event.target.value))}
+          className="h-10 w-12 cursor-pointer rounded-md border border-slate-200 bg-white p-1"
+        />
+        <code className="text-xs text-slate-700">{normalizedValue}</code>
+      </div>
+    </div>
+  );
+}
+
 function AdminProductsPage() {
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -267,7 +290,7 @@ function AdminProductsPage() {
   const [selectedProduct, setSelectedProduct] = usePersistentState('modal:admin-products:selected', null);
   const [modalMode, setModalMode] = usePersistentState('modal:admin-products:mode', 'create');
   const [collapsedSubItems, setCollapsedSubItems] = useState({});
-  const [productPairDraft, setProductPairDraft] = useState({ primary: '', secondary: '' });
+  const [productPairDraft, setProductPairDraft] = useState(createEmptyPairDraft());
   const [subItemPairDrafts, setSubItemPairDrafts] = useState({});
 
   const loadProducts = () => {
@@ -290,7 +313,7 @@ function AdminProductsPage() {
     setError('');
     setSelectedProduct(null);
     setCollapsedSubItems({});
-    setProductPairDraft({ primary: '', secondary: '' });
+    setProductPairDraft(createEmptyPairDraft());
     setSubItemPairDrafts({});
     setModalMode('create');
     setIsModalOpen(true);
@@ -306,10 +329,10 @@ function AdminProductsPage() {
         nextCollapsed[index] = index > 0;
       });
       setCollapsedSubItems(nextCollapsed);
-      setProductPairDraft({ primary: '', secondary: '' });
+      setProductPairDraft(createEmptyPairDraft());
       const pairDrafts = {};
       (product.sub_items || []).forEach((_, index) => {
-        pairDrafts[index] = { primary: '', secondary: '' };
+        pairDrafts[index] = createEmptyPairDraft();
       });
       setSubItemPairDrafts(pairDrafts);
     }
@@ -411,7 +434,7 @@ function AdminProductsPage() {
       ...current,
       [nextIndex]: false,
     }));
-    setSubItemPairDrafts((current) => ({ ...current, [nextIndex]: { primary: '', secondary: '' } }));
+    setSubItemPairDrafts((current) => ({ ...current, [nextIndex]: createEmptyPairDraft() }));
   };
 
   const removeSubItem = (index) => {
@@ -448,7 +471,7 @@ function AdminProductsPage() {
       if (exists) return current;
       return { ...current, secondary_color_pairs: [...currentPairs, normalized] };
     });
-    setProductPairDraft({ primary: '', secondary: '' });
+    setProductPairDraft(createEmptyPairDraft());
   };
 
   const removeProductSecondaryPair = (pair) => {
@@ -461,7 +484,7 @@ function AdminProductsPage() {
   };
 
   const addSubItemSecondaryPair = (index) => {
-    const draft = subItemPairDrafts[index] || { primary: '', secondary: '' };
+    const draft = subItemPairDrafts[index] || createEmptyPairDraft();
     const normalized = normalizeSecondaryPair(draft);
     if (!normalized) return;
     setForm((current) => ({
@@ -474,7 +497,7 @@ function AdminProductsPage() {
         return { ...item, secondary_color_pairs: [...currentPairs, normalized] };
       }),
     }));
-    setSubItemPairDrafts((current) => ({ ...current, [index]: { primary: '', secondary: '' } }));
+    setSubItemPairDrafts((current) => ({ ...current, [index]: createEmptyPairDraft() }));
   };
 
   const removeSubItemSecondaryPair = (index, pair) => {
@@ -779,24 +802,22 @@ function AdminProductsPage() {
                 {form.allow_secondary_color ? (
                   <div className="mt-3 space-y-2">
                     <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Combinacoes permitidas (principal + furta cor)</p>
-                    <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
-                      <Select
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                      <ColorPickerField
                         label="Cor principal"
-                        options={[{ value: '', label: 'Selecione' }, ...parseColors(form.available_colors).map((color) => ({ value: color, label: color }))]}
                         value={productPairDraft.primary}
-                        onChange={(event) => setProductPairDraft((current) => ({ ...current, primary: event.target.value }))}
+                        onChange={(color) => setProductPairDraft((current) => ({ ...current, primary: color }))}
                       />
-                      <Select
+                      <ColorPickerField
                         label="Furta cor"
-                        options={[{ value: '', label: 'Selecione' }, ...parseColors(form.available_colors).map((color) => ({ value: color, label: color }))]}
                         value={productPairDraft.secondary}
-                        onChange={(event) => setProductPairDraft((current) => ({ ...current, secondary: event.target.value }))}
+                        onChange={(color) => setProductPairDraft((current) => ({ ...current, secondary: color }))}
                       />
-                      <div className="flex items-end">
-                        <Button type="button" variant="secondary" className="h-11 px-4" onClick={addProductSecondaryPair}>
-                          +
-                        </Button>
-                      </div>
+                    </div>
+                    <div className="flex justify-end">
+                      <Button type="button" variant="secondary" className="h-10 px-4" onClick={addProductSecondaryPair}>
+                        +
+                      </Button>
                     </div>
                     <div className="flex flex-wrap gap-2">
                       {parseSecondaryPairs(form.secondary_color_pairs).length === 0 ? (
@@ -981,34 +1002,32 @@ function AdminProductsPage() {
                           {subItem.allow_secondary_color ? (
                             <div className="mt-3 space-y-2">
                               <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Combinacoes permitidas (principal + furta cor)</p>
-                              <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
-                                <Select
+                              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                                <ColorPickerField
                                   label="Cor principal"
-                                  options={[{ value: '', label: 'Selecione' }, ...parseColors(subItem.available_colors).map((color) => ({ value: color, label: color }))]}
-                                  value={(subItemPairDrafts[index] || { primary: '', secondary: '' }).primary}
-                                  onChange={(event) =>
+                                  value={(subItemPairDrafts[index] || createEmptyPairDraft()).primary}
+                                  onChange={(color) =>
                                     setSubItemPairDrafts((current) => ({
                                       ...current,
-                                      [index]: { ...(current[index] || { primary: '', secondary: '' }), primary: event.target.value },
+                                      [index]: { ...(current[index] || createEmptyPairDraft()), primary: color },
                                     }))
                                   }
                                 />
-                                <Select
+                                <ColorPickerField
                                   label="Furta cor"
-                                  options={[{ value: '', label: 'Selecione' }, ...parseColors(subItem.available_colors).map((color) => ({ value: color, label: color }))]}
-                                  value={(subItemPairDrafts[index] || { primary: '', secondary: '' }).secondary}
-                                  onChange={(event) =>
+                                  value={(subItemPairDrafts[index] || createEmptyPairDraft()).secondary}
+                                  onChange={(color) =>
                                     setSubItemPairDrafts((current) => ({
                                       ...current,
-                                      [index]: { ...(current[index] || { primary: '', secondary: '' }), secondary: event.target.value },
+                                      [index]: { ...(current[index] || createEmptyPairDraft()), secondary: color },
                                     }))
                                   }
                                 />
-                                <div className="flex items-end">
-                                  <Button type="button" variant="secondary" className="h-11 px-4" onClick={() => addSubItemSecondaryPair(index)}>
-                                    +
-                                  </Button>
-                                </div>
+                              </div>
+                              <div className="flex justify-end">
+                                <Button type="button" variant="secondary" className="h-10 px-4" onClick={() => addSubItemSecondaryPair(index)}>
+                                  +
+                                </Button>
                               </div>
                               <div className="flex flex-wrap gap-2">
                                 {parseSecondaryPairs(subItem.secondary_color_pairs).length === 0 ? (

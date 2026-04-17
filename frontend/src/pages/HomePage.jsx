@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import Button from '../components/ui/Button';
+import Modal from '../components/ui/Modal';
 import ProductCard from '../components/ProductCard';
 import { fetchCategories, fetchMostOrderedProducts, fetchProducts, fetchPublicBanners, resolveAssetUrl } from '../services/api';
 import { useCart } from '../services/cart';
@@ -22,6 +24,7 @@ const fallbackSlides = [
 ];
 
 function HomePage() {
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -38,6 +41,8 @@ function HomePage() {
   const [mostOrdered, setMostOrdered] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(12);
+  const [isAddedModalOpen, setIsAddedModalOpen] = useState(false);
+  const [addedProductTitle, setAddedProductTitle] = useState('');
   const [loading, setLoading] = useState(true);
   const { addToCart } = useCart();
   const filterPopoverRef = useRef(null);
@@ -167,8 +172,8 @@ function HomePage() {
   const mostOrderedProducts = useMemo(() => mostOrdered.slice(0, 4), [mostOrdered]);
 
   const chips = [
-    { key: 'main', label: 'Main page' },
-    { key: 'all', label: 'All products' },
+    { key: 'main', label: 'Inicio' },
+    { key: 'all', label: 'Todos os produtos' },
     ...categories.map((category) => ({ key: category.slug, label: category.name })),
   ];
 
@@ -183,10 +188,15 @@ function HomePage() {
   const rangeStart = filteredProducts.length ? (currentPage - 1) * itemsPerPage + 1 : 0;
   const rangeEnd = Math.min(currentPage * itemsPerPage, filteredProducts.length);
   const hasActiveFilters = minPrice !== '' || maxPrice !== '' || sortBy !== 'relevance';
+  const handleAddToCart = (product) => {
+    addToCart(product);
+    setAddedProductTitle(product?.title || 'Produto');
+    setIsAddedModalOpen(true);
+  };
 
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-4 py-6 sm:px-6 lg:gap-10 lg:px-8">
-      <section className="relative left-1/2 right-1/2 -ml-[50vw] -mr-[50vw] w-screen overflow-hidden">
+      <section className="relative overflow-hidden rounded-2xl">
         <img
           src={visibleBanner.image_url}
           alt={visibleBanner.title}
@@ -195,7 +205,7 @@ function HomePage() {
         <div className="absolute inset-0 bg-gradient-to-b from-violet-500/40 via-fuchsia-500/15 to-transparent" />
         <div className="absolute inset-0 bg-gradient-to-r from-slate-950/58 via-slate-900/24 to-transparent" />
 
-        <div className="relative mx-auto flex min-h-[360px] w-full max-w-7xl flex-col justify-between px-4 py-8 sm:min-h-[390px] sm:px-6 lg:px-8">
+        <div className="relative flex min-h-[360px] w-full flex-col justify-between px-4 py-8 sm:min-h-[390px] sm:px-6 lg:px-8">
           <div className="w-full max-w-2xl rounded-2xl border border-white/20 bg-white/10 p-5 backdrop-blur-md sm:p-6">
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-violet-100">PLA Engineering Collection</p>
             <h1 className="mt-2 text-2xl font-bold tracking-tight text-white sm:text-3xl">{visibleBanner.title}</h1>
@@ -258,7 +268,7 @@ function HomePage() {
               <ProductCard
                 key={`most-ordered-${product.id}`}
                 product={product}
-                onAdd={addToCart}
+                onAdd={handleAddToCart}
                 highlightLabel={'\uD83D\uDD25 Mais vendido'}
               />
             ))}
@@ -266,30 +276,29 @@ function HomePage() {
         </section>
       ) : null}
 
-      <section id="produtos" className="space-y-5">
-        <div className="space-y-1">
-          <h2 className="text-2xl font-bold tracking-tight text-slate-900">Catalogo tecnico em PLA</h2>
+      <section id="produtos" className="space-y-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5 lg:p-6">
+        <div className="space-y-2 border-b border-slate-100 pb-4">
+          <h2 className="text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">Catalogo tecnico em PLA</h2>
           <p className="text-sm text-slate-500">Acessorios personalizados para escritorio, setup e decoracao funcional.</p>
+          <div className="flex flex-wrap items-center gap-2 pt-1">
+            {chips.map((chip) => (
+              <button
+                key={chip.key}
+                type="button"
+                onClick={() => onChipClick(chip.key)}
+                className={`h-9 rounded-full border px-3.5 text-xs font-semibold transition-all duration-300 sm:text-sm ${
+                  activeCategory === chip.key
+                    ? 'border-violet-600 bg-violet-600 text-white shadow-sm'
+                    : 'border-slate-200 bg-slate-50 text-slate-600 hover:border-violet-200 hover:bg-white hover:text-violet-700'
+                }`}
+              >
+                {chip.label}
+              </button>
+            ))}
+          </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          {chips.map((chip) => (
-            <button
-              key={chip.key}
-              type="button"
-              onClick={() => onChipClick(chip.key)}
-              className={`h-8 rounded-full border px-3 text-xs font-medium transition-all duration-300 ${
-                activeCategory === chip.key
-                  ? 'border-violet-600 bg-violet-600 text-white shadow-sm'
-                  : 'border-slate-200 bg-white text-slate-600 hover:border-violet-200 hover:text-violet-700'
-              }`}
-            >
-              {chip.label}
-            </button>
-          ))}
-        </div>
-
-        <div className="relative z-[60] flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white p-3">
+        <div className="relative z-[60] flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
           <div ref={filterPopoverRef} className="relative z-[70]">
             <button
               type="button"
@@ -401,7 +410,7 @@ function HomePage() {
             </button>
           ) : null}
 
-          <p className="text-xs text-slate-500">
+              <p className="text-xs text-slate-500">
             {hasActiveFilters ? 'Filtros ativos aplicados' : 'Sem filtros ativos'}
           </p>
         </div>
@@ -414,7 +423,7 @@ function HomePage() {
           </div>
         ) : (
           <div className="space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2">
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
               <p className="text-xs text-slate-600">
                 Mostrando <strong>{rangeStart}</strong> - <strong>{rangeEnd}</strong> de <strong>{filteredProducts.length}</strong> itens
               </p>
@@ -435,7 +444,7 @@ function HomePage() {
 
             <div className="market-products-grid">
               {paginatedProducts.map((product) => (
-                <ProductCard key={product.id} product={product} onAdd={addToCart} />
+                <ProductCard key={product.id} product={product} onAdd={handleAddToCart} />
               ))}
             </div>
 
@@ -478,6 +487,32 @@ function HomePage() {
           </div>
         )}
       </section>
+
+      <Modal
+        open={isAddedModalOpen}
+        title="Item adicionado ao carrinho"
+        onClose={() => setIsAddedModalOpen(false)}
+        size="sm"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setIsAddedModalOpen(false)}>
+              Voltar as compras
+            </Button>
+            <Button
+              onClick={() => {
+                setIsAddedModalOpen(false);
+                navigate('/cart');
+              }}
+            >
+              Finalizar compra
+            </Button>
+          </>
+        }
+      >
+        <p className="text-sm text-slate-600">
+          <strong>{addedProductTitle}</strong> foi adicionado com sucesso. Deseja finalizar agora ou continuar comprando?
+        </p>
+      </Modal>
 
     </div>
   );

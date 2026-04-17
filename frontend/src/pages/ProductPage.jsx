@@ -51,6 +51,14 @@ function getSecondaryOptions(availableColors, pairs, selectedPrimary) {
   return Array.from(new Set(filtered));
 }
 
+function getPrimaryOptions(availableColors, pairs) {
+  const primary = (availableColors || []).map((item) => String(item || '').trim()).filter(Boolean);
+  const pairColors = (Array.isArray(pairs) ? pairs : [])
+    .flatMap((pair) => [String(pair?.primary || '').trim(), String(pair?.secondary || '').trim()])
+    .filter(Boolean);
+  return Array.from(new Set([...primary, ...pairColors]));
+}
+
 function getSecondarySwatches(availableColors, pairs, selectedPrimary) {
   const normalizedPairs = Array.isArray(pairs) ? pairs : [];
   if (normalizedPairs.length) {
@@ -284,7 +292,7 @@ function ProductPage() {
                         <div className="w-full space-y-2 rounded-[10px] border border-slate-200 bg-white p-2">
                           <p className="text-xs font-semibold text-slate-500">Cor principal</p>
                           <div className="flex flex-wrap gap-2">
-                            {(item.available_colors || []).map((color) => (
+                            {getPrimaryOptions(item.available_colors || [], item.secondary_color_pairs || []).map((color) => (
                               <ColorSwatchButton
                                 key={`${getSubItemKey(item, index)}-primary-${color}`}
                                 onClick={() => handleSubItemColor(getSubItemKey(item, index), color)}
@@ -328,7 +336,7 @@ function ProductPage() {
                 <div className="mt-3">
                   <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Cor principal do produto</p>
                   <div className="flex flex-wrap gap-2">
-                    {(product.available_colors || []).map((color) => (
+                    {getPrimaryOptions(product.available_colors || [], product.secondary_color_pairs || []).map((color) => (
                       <ColorSwatchButton
                         key={`product-primary-${color}`}
                         onClick={() => setSelectedColor(color)}

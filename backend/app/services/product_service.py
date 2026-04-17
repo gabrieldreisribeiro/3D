@@ -1,4 +1,5 @@
-﻿import json
+import json
+import re
 
 from datetime import datetime
 
@@ -8,6 +9,7 @@ from sqlalchemy.orm import Session, joinedload
 from app.models import Category, Coupon, Product
 from app.services.product_pricing_service import calculate_product_pricing, calculate_product_pricing_from_fields
 
+HEX_COLOR_PATTERN = re.compile(r'^#[0-9A-F]{6}$')
 
 def list_categories(db: Session):
     return db.query(Category).filter(Category.is_active == True).order_by(Category.name.asc()).all()
@@ -97,7 +99,7 @@ def _normalize_secondary_pairs(raw_pairs, available_colors: list[str]) -> list[d
         secondary = str(raw.get('secondary') or '').strip().upper()
         if not primary or not secondary:
             continue
-        if primary not in available_colors or secondary not in available_colors:
+        if not HEX_COLOR_PATTERN.match(primary) or not HEX_COLOR_PATTERN.match(secondary):
             continue
         key = f'{primary}|{secondary}'
         if any(existing.get('_key') == key for existing in pairs):

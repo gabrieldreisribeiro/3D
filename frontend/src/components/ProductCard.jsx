@@ -35,15 +35,12 @@ function ProductCard({ product, onAdd, highlightLabel = '' }) {
         {/* <p className="product-card-installments">em ate 12x sem juros</p> */}
 
         <div className="product-card-actions">
-          <Link to={`/product/${product.slug}`}>
-            <Button variant="secondary">Detalhes</Button>
-          </Link>
           {hasSubItems ? (
             <Link to={`/product/${product.slug}`}>
               <Button className="product-card-cta">Monte o seu</Button>
             </Link>
           ) : (
-            <Button className="product-card-cta" onClick={() => onAdd(product)}>Adicionar</Button>
+            <Button className="product-card-cta" onClick={() => onAdd(product)}>Adicionar ao carrinho</Button>
           )}
         </div>
       </div>
