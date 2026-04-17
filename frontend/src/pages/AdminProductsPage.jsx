@@ -16,6 +16,7 @@ import {
   fetchCategories,
   setAdminProductStatus,
   updateAdminProduct,
+  uploadAdminProductImage,
 } from '../services/api';
 
 const defaultPricingFields = {
@@ -177,7 +178,9 @@ function AdminProductsPage() {
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = usePersistentState('modal:admin-products:form', initialForm);
+  const [uploadingCover, setUploadingCover] = useState(false);
+  const [uploadingSubItems, setUploadingSubItems] = useState({});
+/*  */  const [form, setForm] = usePersistentState('modal:admin-products:form', initialForm);
   const [error, setError] = useState('');
   const [isModalOpen, setIsModalOpen] = usePersistentState('modal:admin-products:open', false);
   const [editingId, setEditingId] = usePersistentState('modal:admin-products:editing-id', null);
@@ -272,6 +275,63 @@ function AdminProductsPage() {
       ...current,
       sub_items: current.sub_items.filter((_, itemIndex) => itemIndex !== index),
     }));
+  };
+
+  const handleUploadError = (uploadError) => {
+    setError(uploadError.message || 'Falha ao enviar imagem.');
+  };
+
+  const uploadCoverFile = async (file) => {
+    if (!file) return;
+    setUploadingCover(true);
+    setError('');
+    try {
+      const response = await uploadAdminProductImage(file);
+      setForm((current) => ({ ...current, cover_image: response.url || '' }));
+    } catch (uploadError) {
+      handleUploadError(uploadError);
+    } finally {
+      setUploadingCover(false);
+    }
+  };
+
+  const uploadSubItemFile = async (index, file) => {
+    if (!file) return;
+    setUploadingSubItems((current) => ({ ...current, [index]: true }));
+    setError('');
+    try {
+      const response = await uploadAdminProductImage(file);
+      updateSubItem(index, 'image_url', response.url || '');
+    } catch (uploadError) {
+      handleUploadError(uploadError);
+    } finally {
+      setUploadingSubItems((current) => ({ ...current, [index]: false }));
+    }
+  };
+
+  const readClipboardImage = (event) => {
+    const items = event.clipboardData?.items || [];
+    for (const item of items) {
+      if (item.type?.startsWith('image/')) {
+        const file = item.getAsFile();
+        if (file) return file;
+      }
+    }
+    return null;
+  };
+
+  const handleCoverPaste = async (event) => {
+    const file = readClipboardImage(event);
+    if (!file) return;
+    event.preventDefault();
+    await uploadCoverFile(file);
+  };
+
+  const handleSubItemPaste = async (index, event) => {
+    const file = readClipboardImage(event);
+    if (!file) return;
+    event.preventDefault();
+    await uploadSubItemFile(index, file);
   };
 
   return (
@@ -390,8 +450,22 @@ function AdminProductsPage() {
             label="URL da capa"
             value={form.cover_image}
             onChange={(event) => setForm({ ...form, cover_image: event.target.value })}
+            onPaste={(event) => {
+              void handleCoverPaste(event);
+            }}
             required
           />
+          <label className="flex flex-col gap-1.5">
+            <span className="text-xs font-medium uppercase tracking-wide text-slate-500">Upload de capa (opcional)</span>
+            <input
+              className="h-11 rounded-[10px] border border-slate-200 bg-white px-3 text-sm text-slate-700"
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              onChange={(event) => uploadCoverFile(event.target.files?.[0] || null)}
+            />
+            <small className="text-xs text-slate-500">Voce pode colar URL, enviar arquivo ou colar imagem com Ctrl+V no campo URL.</small>
+            {uploadingCover ? <small className="text-xs text-slate-500">Enviando imagem da capa...</small> : null}
+          </label>
 
           <TextArea
             label="Descricao completa"
@@ -480,7 +554,26 @@ function AdminProductsPage() {
                         </button>
                       </div>
                     </div>
-                    <Input label="Imagem (URL)" className="md:col-span-2" value={subItem.image_url} onChange={(event) => updateSubItem(index, 'image_url', event.target.value)} />
+                    <Input
+                      label="Imagem (URL)"
+                      className="md:col-span-2"
+                      value={subItem.image_url}
+                      onChange={(event) => updateSubItem(index, 'image_url', event.target.value)}
+                      onPaste={(event) => {
+                        void handleSubItemPaste(index, event);
+                      }}
+                    />
+                    <label className="md:col-span-2 flex flex-col gap-1.5">
+                      <span className="text-xs font-medium uppercase tracking-wide text-slate-500">Upload de imagem do sub item (opcional)</span>
+                      <input
+                        className="h-11 rounded-[10px] border border-slate-200 bg-white px-3 text-sm text-slate-700"
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp"
+                        onChange={(event) => uploadSubItemFile(index, event.target.files?.[0] || null)}
+                      />
+                      <small className="text-xs text-slate-500">Voce pode colar URL, enviar arquivo ou colar imagem com Ctrl+V no campo URL.</small>
+                      {uploadingSubItems[index] ? <small className="text-xs text-slate-500">Enviando imagem do sub item...</small> : null}
+                    </label>
 
                     {subItem.pricing_mode === 'manual' ? (
                       <Input label="Preco do sub item" type="number" min="0" step="0.01" value={subItem.manual_price} onChange={(event) => updateSubItem(index, 'manual_price', event.target.value)} />

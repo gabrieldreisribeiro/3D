@@ -32,6 +32,7 @@ from app.services.coupon_service import (
 from app.services.banner_service import create_banner, delete_banner, get_banner, list_admin_banners, update_banner
 from app.services.banner_upload_service import save_banner_image
 from app.services.logo_service import save_logo
+from app.services.product_upload_service import save_product_image
 from app.services.order_service import (
     admin_list_orders,
     admin_total_orders,
@@ -81,6 +82,11 @@ def upload_logo(
 @router.post('/banners/upload-image', response_model=LogoResponse)
 def upload_banner_image(file: UploadFile = File(...), _: AdminUser = Depends(require_admin)):
     return LogoResponse(url=save_banner_image(file))
+
+
+@router.post('/products/upload-image', response_model=LogoResponse)
+def upload_product_image(file: UploadFile = File(...), _: AdminUser = Depends(require_admin)):
+    return LogoResponse(url=save_product_image(file))
 
 
 @router.get('/dashboard/summary', response_model=AdminDashboardSummary)

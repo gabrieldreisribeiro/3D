@@ -9,6 +9,7 @@ ADMIN_TOKEN_EXPIRE_HOURS = 12
 UPLOADS_DIR = BASE_DIR / 'uploads'
 LOGO_UPLOADS_DIR = UPLOADS_DIR / 'logo'
 BANNER_UPLOADS_DIR = UPLOADS_DIR / 'banners'
+PRODUCT_UPLOADS_DIR = UPLOADS_DIR / 'products'
 PROJECT_UPLOADS_DIR = BASE_DIR.parent / 'uploads'
 
 
@@ -16,4 +17,5 @@ def ensure_upload_dirs() -> None:
     UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
     LOGO_UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
     BANNER_UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
+    PRODUCT_UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
     PROJECT_UPLOADS_DIR.mkdir(parents=True, exist_ok=True)

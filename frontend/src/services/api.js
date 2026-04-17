@@ -137,6 +137,25 @@ export async function uploadAdminBannerImage(file) {
   return data;
 }
 
+export async function uploadAdminProductImage(file) {
+  const token = localStorage.getItem(ADMIN_TOKEN_KEY);
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const response = await fetch(`${API_BASE}/admin/products/upload-image`, {
+    method: 'POST',
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: formData,
+  });
+
+  const data = await response.json();
+  if (!response.ok) {
+    if (response.status === 401) localStorage.removeItem(ADMIN_TOKEN_KEY);
+    throw new Error(data.detail || data.message || 'Erro no upload da imagem');
+  }
+  return data;
+}
+
 export function fetchAdminSummary() {
   return adminRequest('/admin/dashboard/summary');
 }
