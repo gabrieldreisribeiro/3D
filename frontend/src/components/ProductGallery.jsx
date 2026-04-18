@@ -9,7 +9,8 @@ function ProductGallery({ images, selected, onSelect }) {
   const heroStyle = useMemo(
     () => ({
       backgroundImage: `url(${hero})`,
-      backgroundSize: isZoomed ? '190%' : 'cover',
+      backgroundSize: isZoomed ? '170%' : 'contain',
+      backgroundRepeat: 'no-repeat',
       backgroundPosition: `${zoomPos.x}% ${zoomPos.y}%`,
       cursor: isZoomed ? 'zoom-out' : 'zoom-in',
     }),
@@ -42,12 +43,18 @@ function ProductGallery({ images, selected, onSelect }) {
         {safeImages.map((image, index) => (
           <button
             key={`${image}-${index}`}
-            className={`h-16 overflow-hidden rounded-xl border bg-white shadow-sm transition hover:border-violet-200 sm:h-20 ${
+            className={`aspect-[4/3] overflow-hidden rounded-xl border bg-slate-50 shadow-sm transition hover:border-violet-200 ${
               index === selected ? 'border-violet-500 ring-2 ring-violet-100' : 'border-slate-200'
             }`}
-            style={{ backgroundImage: `url(${image})` }}
             onClick={() => onSelect(index)}
-          />
+          >
+            <img
+              src={image}
+              alt={`Miniatura ${index + 1}`}
+              className="h-full w-full object-contain object-center p-1"
+              loading="lazy"
+            />
+          </button>
         ))}
       </div>
     </div>
