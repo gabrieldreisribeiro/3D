@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Button from '../components/ui/Button';
 import DataCard from '../components/ui/DataCard';
 import EmptyState from '../components/ui/EmptyState';
@@ -80,6 +80,11 @@ function AdminCouponsPage() {
   const [confirmTarget, setConfirmTarget] = usePersistentState('modal:admin-coupons:confirm-target', null);
   const [deleteTarget, setDeleteTarget] = usePersistentState('modal:admin-coupons:delete-target', null);
   const [modalMode, setModalMode] = usePersistentState('modal:admin-coupons:mode', 'create');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [limitFilter, setLimitFilter] = useState('all');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
 
   const loadCoupons = () => {
     setLoading(true);
@@ -157,6 +162,35 @@ function AdminCouponsPage() {
     }
   };
 
+  const filteredCoupons = useMemo(() => {
+    const query = String(searchTerm || '').trim().toLowerCase();
+    return coupons.filter((coupon) => {
+      const matchesQuery = !query || String(coupon.code || '').toLowerCase().includes(query);
+      const matchesStatus = statusFilter === 'all' || (statusFilter === 'active' ? Boolean(coupon.is_active) : !coupon.is_active);
+      const hasDateLimit = Boolean(coupon.expires_at);
+      const hasQuantityLimit = coupon.max_uses != null;
+      const matchesLimit = limitFilter === 'all'
+        || (limitFilter === 'date' && hasDateLimit)
+        || (limitFilter === 'quantity' && hasQuantityLimit)
+        || (limitFilter === 'none' && !hasDateLimit && !hasQuantityLimit);
+      return matchesQuery && matchesStatus && matchesLimit;
+    });
+  }, [coupons, searchTerm, statusFilter, limitFilter]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredCoupons.length / itemsPerPage));
+  const paginatedCoupons = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return filteredCoupons.slice(start, start + itemsPerPage);
+  }, [filteredCoupons, currentPage, itemsPerPage]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, statusFilter, limitFilter, itemsPerPage]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) setCurrentPage(totalPages);
+  }, [currentPage, totalPages]);
+
   const typeOptions = [
     { value: 'percent', label: 'Percentual (%)' },
     { value: 'fixed', label: 'Valor fixo (R$)' },
@@ -175,38 +209,89 @@ function AdminCouponsPage() {
         {loading ? <div className="rounded-xl border border-slate-200 bg-slate-50 p-6 text-sm text-slate-500">Carregando cupons...</div> : null}
 
         {!loading ? (
-          <Table
-            columns={['Codigo', 'Tipo', 'Valor', 'Limite', 'Uso', 'Status', 'Acoes']}
-            rows={coupons}
-            empty={<EmptyState title="Sem cupons" description="Crie seu primeiro cupom para campanhas." />}
-            renderRow={(coupon) => (
-              <tr key={coupon.id}>
-                <td><strong className="font-semibold text-slate-900">{coupon.code}</strong></td>
-                <td>{coupon.type === 'percent' ? 'Percentual' : 'Valor fixo'}</td>
-                <td>{coupon.type === 'percent' ? `${coupon.value}%` : `R$ ${coupon.value.toFixed(2)}`}</td>
-                <td>{coupon.max_uses != null ? `Qtd: ${coupon.max_uses}` : formatDateTime(coupon.expires_at)}</td>
-                <td>
-                  {coupon.max_uses != null
-                    ? `${coupon.uses_count ?? 0}/${coupon.max_uses}`
-                    : `${coupon.uses_count ?? 0}`}
-                </td>
-                <td>
-                  <StatusBadge tone={coupon.is_active ? 'success' : 'danger'}>
-                    {coupon.is_active ? 'Ativo' : 'Inativo'}
-                  </StatusBadge>
-                </td>
-                <td>
-                  <div className="flex flex-wrap gap-2">
-                    <Button variant="secondary" onClick={() => openEdit(coupon)}>Editar</Button>
-                    <Button variant="ghost" onClick={() => setConfirmTarget(coupon)}>
-                      {coupon.is_active ? 'Inativar' : 'Ativar'}
-                    </Button>
-                    <Button variant="danger" onClick={() => setDeleteTarget(coupon)}>Excluir</Button>
-                  </div>
-                </td>
-              </tr>
-            )}
-          />
+          <>
+            <div className="mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(event) => setSearchTerm(event.target.value)}
+                placeholder="Buscar por codigo"
+                className="h-9 min-w-[220px] flex-1 rounded-lg border border-slate-200 bg-white px-3 text-xs text-slate-700 outline-none focus:border-violet-300"
+              />
+              <select
+                value={statusFilter}
+                onChange={(event) => setStatusFilter(event.target.value)}
+                className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-xs text-slate-700 outline-none focus:border-violet-300"
+              >
+                <option value="all">Todos status</option>
+                <option value="active">Ativos</option>
+                <option value="inactive">Inativos</option>
+              </select>
+              <select
+                value={limitFilter}
+                onChange={(event) => setLimitFilter(event.target.value)}
+                className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-xs text-slate-700 outline-none focus:border-violet-300"
+              >
+                <option value="all">Todos limites</option>
+                <option value="date">Por data</option>
+                <option value="quantity">Por quantidade</option>
+                <option value="none">Sem limite</option>
+              </select>
+              <select
+                value={itemsPerPage}
+                onChange={(event) => setItemsPerPage(Number(event.target.value))}
+                className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-xs text-slate-700 outline-none focus:border-violet-300"
+              >
+                <option value={10}>10 / pagina</option>
+                <option value={20}>20 / pagina</option>
+                <option value={50}>50 / pagina</option>
+              </select>
+            </div>
+
+            <Table
+              columns={['Codigo', 'Tipo', 'Valor', 'Limite', 'Uso', 'Status', 'Acoes']}
+              rows={paginatedCoupons}
+              empty={<EmptyState title="Sem cupons" description="Crie seu primeiro cupom para campanhas." />}
+              renderRow={(coupon) => (
+                <tr key={coupon.id}>
+                  <td><strong className="font-semibold text-slate-900">{coupon.code}</strong></td>
+                  <td>{coupon.type === 'percent' ? 'Percentual' : 'Valor fixo'}</td>
+                  <td>{coupon.type === 'percent' ? `${coupon.value}%` : `R$ ${coupon.value.toFixed(2)}`}</td>
+                  <td>{coupon.max_uses != null ? `Qtd: ${coupon.max_uses}` : formatDateTime(coupon.expires_at)}</td>
+                  <td>
+                    {coupon.max_uses != null
+                      ? `${coupon.uses_count ?? 0}/${coupon.max_uses}`
+                      : `${coupon.uses_count ?? 0}`}
+                  </td>
+                  <td>
+                    <StatusBadge tone={coupon.is_active ? 'success' : 'danger'}>
+                      {coupon.is_active ? 'Ativo' : 'Inativo'}
+                    </StatusBadge>
+                  </td>
+                  <td>
+                    <div className="flex flex-wrap gap-2">
+                      <Button variant="secondary" onClick={() => openEdit(coupon)}>Editar</Button>
+                      <Button variant="ghost" onClick={() => setConfirmTarget(coupon)}>
+                        {coupon.is_active ? 'Inativar' : 'Ativar'}
+                      </Button>
+                      <Button variant="danger" onClick={() => setDeleteTarget(coupon)}>Excluir</Button>
+                    </div>
+                  </td>
+                </tr>
+              )}
+            />
+
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+              <p className="text-xs text-slate-600">
+                Mostrando <strong>{filteredCoupons.length ? (currentPage - 1) * itemsPerPage + 1 : 0}</strong> - <strong>{Math.min(currentPage * itemsPerPage, filteredCoupons.length)}</strong> de <strong>{filteredCoupons.length}</strong> cupons
+              </p>
+              <div className="flex items-center gap-2">
+                <Button variant="secondary" className="h-8 px-3 text-xs" disabled={currentPage === 1} onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}>Anterior</Button>
+                <span className="text-xs text-slate-600">Pagina {currentPage} de {totalPages}</span>
+                <Button variant="secondary" className="h-8 px-3 text-xs" disabled={currentPage === totalPages} onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}>Proxima</Button>
+              </div>
+            </div>
+          </>
         ) : null}
       </DataCard>
 

@@ -321,3 +321,8 @@ def admin_set_product_status(db: Session, product: Product, is_active: bool):
     db.commit()
     db.refresh(product)
     return product
+
+
+def admin_delete_product(db: Session, product: Product):
+    db.delete(product)
+    db.commit()

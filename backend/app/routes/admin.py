@@ -47,6 +47,7 @@ from app.services.order_service import (
 )
 from app.services.product_service import (
     admin_create_product,
+    admin_delete_product,
     admin_get_product_by_id,
     admin_list_products,
     admin_set_product_status,
@@ -190,6 +191,14 @@ def set_product_status(
 
     product = admin_set_product_status(db, product, is_active)
     return _serialize_product(product)
+
+
+@router.delete('/products/{product_id}', status_code=204)
+def delete_product(product_id: int, _: AdminUser = Depends(require_admin), db: Session = Depends(get_db)):
+    product = admin_get_product_by_id(db, product_id)
+    if not product:
+        raise HTTPException(status_code=404, detail='Produto nao encontrado')
+    admin_delete_product(db, product)
 
 
 @router.get('/orders', response_model=list[AdminOrderResponse])

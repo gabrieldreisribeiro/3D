@@ -224,6 +224,12 @@ export function setAdminProductStatus(productId, isActive) {
   });
 }
 
+export function deleteAdminProduct(productId) {
+  return adminRequest(`/admin/products/${productId}`, {
+    method: 'DELETE',
+  });
+}
+
 export function fetchAdminOrders() {
   return adminRequest('/admin/orders');
 }

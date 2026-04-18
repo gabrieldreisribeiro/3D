@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Button from '../components/ui/Button';
 import DataCard from '../components/ui/DataCard';
 import EmptyState from '../components/ui/EmptyState';
@@ -12,6 +12,7 @@ import TextArea from '../components/ui/TextArea';
 import usePersistentState from '../hooks/usePersistentState';
 import {
   createAdminProduct,
+  deleteAdminProduct,
   fetchAdminProducts,
   fetchCategories,
   setAdminProductStatus,
@@ -292,6 +293,12 @@ function AdminProductsPage() {
   const [collapsedSubItems, setCollapsedSubItems] = useState({});
   const [productPairDraft, setProductPairDraft] = useState(createEmptyPairDraft());
   const [subItemPairDrafts, setSubItemPairDrafts] = useState({});
+  const [deleteTarget, setDeleteTarget] = usePersistentState('modal:admin-products:delete-target', null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [categoryFilter, setCategoryFilter] = useState('all');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
 
   const loadProducts = () => {
     setLoading(true);
@@ -378,6 +385,45 @@ function AdminProductsPage() {
     }
   };
 
+
+  const confirmDeleteProduct = async () => {
+    if (!deleteTarget) return;
+    try {
+      await deleteAdminProduct(deleteTarget.id);
+      setDeleteTarget(null);
+      loadProducts();
+    } catch (deleteError) {
+      setError(deleteError.message || 'Falha ao excluir produto.');
+    }
+  };
+
+  const filteredProducts = useMemo(() => {
+    const query = String(searchTerm || '').trim().toLowerCase();
+    return products.filter((product) => {
+      const matchesQuery = !query
+        || String(product.title || '').toLowerCase().includes(query)
+        || String(product.slug || '').toLowerCase().includes(query);
+      const matchesStatus = statusFilter === 'all' || (statusFilter === 'active' ? Boolean(product.is_active) : !product.is_active);
+      const matchesCategory = categoryFilter === 'all'
+        || String(product.category_id || '') === categoryFilter
+        || (categoryFilter === 'none' && !product.category_id);
+      return matchesQuery && matchesStatus && matchesCategory;
+    });
+  }, [products, searchTerm, statusFilter, categoryFilter]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredProducts.length / itemsPerPage));
+  const paginatedProducts = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return filteredProducts.slice(start, start + itemsPerPage);
+  }, [filteredProducts, currentPage, itemsPerPage]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, statusFilter, categoryFilter, itemsPerPage]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) setCurrentPage(totalPages);
+  }, [currentPage, totalPages]);
   const categoryOptions = [{ value: '', label: 'Sem categoria' }, ...categories.map((category) => ({ value: String(category.id), label: category.name }))];
 
   const updateSubItem = (index, field, value) => {
@@ -585,46 +631,101 @@ function AdminProductsPage() {
       <DataCard title="Lista de produtos">
         {loading ? <div className="rounded-xl border border-slate-200 bg-slate-50 p-6 text-sm text-slate-500">Carregando produtos...</div> : null}
         {!loading ? (
-          <Table
-            columns={['Produto', 'Categoria', 'Preco final', 'Custo', 'Lucro', 'Status', 'Acoes']}
-            rows={products}
-            empty={<EmptyState title="Sem produtos" description="Comece criando o primeiro produto." />}
-            renderRow={(product) => (
-              <tr key={product.id}>
-                <td>
-                  <div className="flex flex-col">
-                    <strong className="font-semibold text-slate-900">{product.title}</strong>
-                    <small className="text-xs text-slate-500">{product.slug}</small>
-                  </div>
-                </td>
-                <td>
-                  {categories.find((category) => category.id === product.category_id)?.name || 'Sem categoria'}
-                </td>
-                <td>
-                  {(product.sub_items || []).length > 0
-                    ? 'Personalizado'
-                    : `R$ ${(product.final_price ?? product.price ?? 0).toFixed(2)}`}
-                </td>
-                <td>R$ {(product.cost_total ?? 0).toFixed(2)}</td>
-                <td>R$ {(product.estimated_profit ?? 0).toFixed(2)}</td>
-                <td>
-                  <StatusBadge tone={product.is_active ? 'success' : 'danger'}>
-                    {product.is_active ? 'Ativo' : 'Inativo'}
-                  </StatusBadge>
-                </td>
-                <td>
-                  <div className="flex flex-wrap gap-2">
-                    <Button variant="secondary" onClick={() => openEdit(product)}>
-                      Editar
-                    </Button>
-                    <Button variant="ghost" onClick={() => setConfirmTarget(product)}>
-                      {product.is_active ? 'Inativar' : 'Ativar'}
-                    </Button>
-                  </div>
-                </td>
-              </tr>
-            )}
-          />
+          <>
+            <div className="mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(event) => setSearchTerm(event.target.value)}
+                placeholder="Buscar por titulo ou slug"
+                className="h-9 min-w-[220px] flex-1 rounded-lg border border-slate-200 bg-white px-3 text-xs text-slate-700 outline-none focus:border-violet-300"
+              />
+              <select
+                value={statusFilter}
+                onChange={(event) => setStatusFilter(event.target.value)}
+                className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-xs text-slate-700 outline-none focus:border-violet-300"
+              >
+                <option value="all">Todos status</option>
+                <option value="active">Ativos</option>
+                <option value="inactive">Inativos</option>
+              </select>
+              <select
+                value={categoryFilter}
+                onChange={(event) => setCategoryFilter(event.target.value)}
+                className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-xs text-slate-700 outline-none focus:border-violet-300"
+              >
+                <option value="all">Todas categorias</option>
+                <option value="none">Sem categoria</option>
+                {categories.map((category) => (
+                  <option key={`filter-category-${category.id}`} value={String(category.id)}>{category.name}</option>
+                ))}
+              </select>
+              <select
+                value={itemsPerPage}
+                onChange={(event) => setItemsPerPage(Number(event.target.value))}
+                className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-xs text-slate-700 outline-none focus:border-violet-300"
+              >
+                <option value={10}>10 / pagina</option>
+                <option value={20}>20 / pagina</option>
+                <option value={50}>50 / pagina</option>
+              </select>
+            </div>
+
+            <Table
+              columns={['Produto', 'Categoria', 'Preco final', 'Custo', 'Lucro', 'Status', 'Acoes']}
+              rows={paginatedProducts}
+              empty={<EmptyState title="Sem produtos" description="Comece criando o primeiro produto." />}
+              renderRow={(product) => (
+                <tr key={product.id}>
+                  <td>
+                    <div className="flex flex-col">
+                      <strong className="font-semibold text-slate-900">{product.title}</strong>
+                      <small className="text-xs text-slate-500">{product.slug}</small>
+                    </div>
+                  </td>
+                  <td>
+                    {categories.find((category) => category.id === product.category_id)?.name || 'Sem categoria'}
+                  </td>
+                  <td>
+                    {(product.sub_items || []).length > 0
+                      ? 'Personalizado'
+                      : `R$ ${(product.final_price ?? product.price ?? 0).toFixed(2)}`}
+                  </td>
+                  <td>R$ {(product.cost_total ?? 0).toFixed(2)}</td>
+                  <td>R$ {(product.estimated_profit ?? 0).toFixed(2)}</td>
+                  <td>
+                    <StatusBadge tone={product.is_active ? 'success' : 'danger'}>
+                      {product.is_active ? 'Ativo' : 'Inativo'}
+                    </StatusBadge>
+                  </td>
+                  <td>
+                    <div className="flex flex-wrap gap-2">
+                      <Button variant="secondary" onClick={() => openEdit(product)}>
+                        Editar
+                      </Button>
+                      <Button variant="ghost" onClick={() => setConfirmTarget(product)}>
+                        {product.is_active ? 'Inativar' : 'Ativar'}
+                      </Button>
+                      <Button variant="danger" onClick={() => setDeleteTarget(product)}>
+                        Excluir
+                      </Button>
+                    </div>
+                  </td>
+                </tr>
+              )}
+            />
+
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+              <p className="text-xs text-slate-600">
+                Mostrando <strong>{filteredProducts.length ? (currentPage - 1) * itemsPerPage + 1 : 0}</strong> - <strong>{Math.min(currentPage * itemsPerPage, filteredProducts.length)}</strong> de <strong>{filteredProducts.length}</strong> produtos
+              </p>
+              <div className="flex items-center gap-2">
+                <Button variant="secondary" className="h-8 px-3 text-xs" disabled={currentPage === 1} onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}>Anterior</Button>
+                <span className="text-xs text-slate-600">Pagina {currentPage} de {totalPages}</span>
+                <Button variant="secondary" className="h-8 px-3 text-xs" disabled={currentPage === totalPages} onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}>Proxima</Button>
+              </div>
+            </div>
+          </>
         ) : null}
       </DataCard>
 
@@ -1139,8 +1240,33 @@ function AdminProductsPage() {
           Deseja {confirmTarget?.is_active ? 'inativar' : 'ativar'} o produto <strong>{confirmTarget?.title}</strong>?
         </p>
       </Modal>
+
+      <Modal
+        open={Boolean(deleteTarget)}
+        title="Confirmar exclusao"
+        onClose={() => setDeleteTarget(null)}
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setDeleteTarget(null)}>
+              Cancelar
+            </Button>
+            <Button variant="danger" onClick={confirmDeleteProduct}>
+              Excluir
+            </Button>
+          </>
+        }
+      >
+        <p>
+          Deseja excluir o produto <strong>{deleteTarget?.title}</strong>? Essa acao nao pode ser desfeita.
+        </p>
+      </Modal>
     </section>
   );
 }
 
 export default AdminProductsPage;
+
+
+
+
+
