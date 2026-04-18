@@ -141,6 +141,7 @@ class AdminUser(Base):
     password_hash = Column(String(300), nullable=False)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, nullable=False, server_default=func.now())
+    query_logs = relationship('DatabaseQueryLog', back_populates='admin')
 
 
 class StoreSettings(Base):
@@ -187,3 +188,19 @@ class ProductReviewMedia(Base):
     created_at = Column(DateTime, nullable=False, server_default=func.now())
 
     review = relationship('ProductReview', back_populates='media')
+
+
+class DatabaseQueryLog(Base):
+    __tablename__ = 'database_query_logs'
+
+    id = Column(Integer, primary_key=True, index=True)
+    admin_id = Column(Integer, ForeignKey('admin_users.id', ondelete='SET NULL'), nullable=True, index=True)
+    sql_text = Column(Text, nullable=False)
+    mode = Column(String(20), nullable=False, default='read')
+    query_type = Column(String(20), nullable=False)
+    status = Column(String(20), nullable=False, default='success')
+    affected_rows = Column(Integer, nullable=False, default=0)
+    error_message = Column(Text, nullable=True)
+    created_at = Column(DateTime, nullable=False, server_default=func.now())
+
+    admin = relationship('AdminUser', back_populates='query_logs')

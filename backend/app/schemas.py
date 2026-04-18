@@ -459,3 +459,49 @@ class AdminReviewListResponse(BaseModel):
     total: int
     page: int
     page_size: int
+
+
+class DatabaseTableInfo(BaseModel):
+    name: str
+    row_count: int
+    updated_at: Optional[datetime] = None
+
+
+class DatabaseTablesResponse(BaseModel):
+    tables: List[DatabaseTableInfo]
+
+
+class DatabaseQueryRequest(BaseModel):
+    sql: str = Field(..., min_length=1, max_length=20000)
+    mode: Literal['read', 'maintenance'] = 'read'
+    confirm_mutation: bool = False
+
+
+class DatabaseQueryResponse(BaseModel):
+    ok: bool
+    mode: str
+    query_type: str
+    columns: List[str] = Field(default_factory=list)
+    rows: List[dict] = Field(default_factory=list)
+    row_count: int = 0
+    message: Optional[str] = None
+
+
+class DatabaseQueryLogResponse(BaseModel):
+    id: int
+    admin_id: Optional[int] = None
+    admin_email: Optional[str] = None
+    sql_text: str
+    mode: str
+    query_type: str
+    status: str
+    affected_rows: int
+    error_message: Optional[str] = None
+    created_at: Optional[datetime] = None
+
+
+class DatabaseQueryLogsResponse(BaseModel):
+    items: List[DatabaseQueryLogResponse]
+    total: int
+    page: int
+    page_size: int

@@ -1,7 +1,22 @@
-﻿from pathlib import Path
+import os
+from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
-SQLALCHEMY_DATABASE_URL = f"sqlite:///{BASE_DIR / 'app.db'}"
+DEFAULT_SQLITE_URL = f"sqlite:///{BASE_DIR / 'app.db'}"
+
+
+def _normalize_database_url(url: str | None) -> str:
+    value = str(url or '').strip()
+    if not value:
+        return DEFAULT_SQLITE_URL
+    if value.startswith('postgres://'):
+        return f"postgresql+psycopg://{value[len('postgres://'):]}"
+    if value.startswith('postgresql://') and '+psycopg' not in value:
+        return value.replace('postgresql://', 'postgresql+psycopg://', 1)
+    return value
+
+
+SQLALCHEMY_DATABASE_URL = _normalize_database_url(os.getenv('DATABASE_URL'))
 
 ADMIN_TOKEN_SECRET = '3d-marketplace-admin-secret'
 ADMIN_TOKEN_EXPIRE_HOURS = 12

@@ -114,6 +114,8 @@ BANNERS = [
 
 
 def _ensure_orders_created_at_column(session):
+    if session.bind.dialect.name != 'sqlite':
+        return
     columns = session.execute(text("PRAGMA table_info('orders')")).fetchall()
     names = {column[1] for column in columns}
     has_created_at = 'created_at' in names
@@ -128,6 +130,8 @@ def _ensure_orders_created_at_column(session):
 
 
 def _ensure_order_items_columns(session):
+    if session.bind.dialect.name != 'sqlite':
+        return
     columns = session.execute(text("PRAGMA table_info('order_items')")).fetchall()
     names = {column[1] for column in columns}
     required_columns = {
@@ -147,6 +151,8 @@ def _ensure_order_items_columns(session):
 
 
 def _ensure_coupon_columns(session):
+    if session.bind.dialect.name != 'sqlite':
+        return
     columns = session.execute(text("PRAGMA table_info('coupons')")).fetchall()
     names = {column[1] for column in columns}
     if 'expires_at' not in names:
@@ -160,6 +166,8 @@ def _ensure_coupon_columns(session):
 
 
 def _ensure_product_pricing_columns(session):
+    if session.bind.dialect.name != 'sqlite':
+        return
     columns = session.execute(text("PRAGMA table_info('products')")).fetchall()
     names = {column[1] for column in columns}
 
@@ -208,6 +216,8 @@ def _ensure_product_pricing_columns(session):
 
 
 def _ensure_store_settings_columns(session):
+    if session.bind.dialect.name != 'sqlite':
+        return
     columns = session.execute(text("PRAGMA table_info('store_settings')")).fetchall()
     names = {column[1] for column in columns}
     required_columns = {

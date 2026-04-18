@@ -405,3 +405,54 @@ export function deleteAdminBanner(id) {
     method: 'DELETE',
   });
 }
+
+export function fetchAdminDatabaseTables() {
+  return adminRequest('/admin/database/tables');
+}
+
+export function fetchAdminDatabaseQueryLogs(params = {}) {
+  const search = new URLSearchParams();
+  if (params.page) search.set('page', String(params.page));
+  if (params.page_size) search.set('page_size', String(params.page_size));
+  const query = search.toString();
+  return adminRequest(`/admin/database/query/logs${query ? `?${query}` : ''}`);
+}
+
+export function executeAdminDatabaseQuery(payload) {
+  return adminRequest('/admin/database/query', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function downloadAdminDatabaseExport(path, filename) {
+  const token = localStorage.getItem(ADMIN_TOKEN_KEY);
+  const fingerprint = getClientFingerprint();
+  const response = await fetch(buildApiUrl(path), {
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(fingerprint ? { 'X-Client-Fingerprint': fingerprint } : {}),
+    },
+  });
+
+  if (!response.ok) {
+    let detail = 'Erro ao baixar arquivo';
+    try {
+      const body = await response.json();
+      detail = body?.detail || body?.message || detail;
+    } catch {
+      // ignore
+    }
+    throw new Error(detail);
+  }
+
+  const blob = await response.blob();
+  const url = window.URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  window.URL.revokeObjectURL(url);
+}
