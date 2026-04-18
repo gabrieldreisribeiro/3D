@@ -3,6 +3,8 @@ import re
 import unicodedata
 from datetime import datetime
 from decimal import Decimal
+from functools import lru_cache
+from pathlib import Path
 from urllib import error, request
 
 from sqlalchemy import case, func
@@ -15,6 +17,23 @@ DEFAULT_PROVIDER = 'nvidia'
 DEFAULT_BASE_URL = 'https://integrate.api.nvidia.com/v1'
 DEFAULT_MODEL = 'qwen/qwen2.5-coder-7b-instruct'
 DRAFT_PLACEHOLDER_IMAGE = 'https://placehold.co/1200x800/png?text=Produto+em+rascunho'
+DEFAULT_PROMPT_FALLBACK = (
+    'Voce e um estrategista de performance para e-commerce de produtos impressos em 3D. '
+    'Retorne SOMENTE JSON valido no formato: '
+    '{"ads":[{"headline":"","primary_text":"","description":"","cta":"","target_audience":"","creative_idea":"","product_draft":{"title":"","short_description":"","full_description":"","suggested_category":"","highlights":[],"tags":[]}}]}. '
+    'Em product_draft, sempre preencha title, short_description e full_description. '
+    'Nao inclua markdown, comentarios nem texto fora do JSON.'
+)
+DEFAULT_PROMPT_FILE = Path(__file__).resolve().parents[1] / 'prompts' / 'ads_generator_default.md'
+
+
+@lru_cache(maxsize=1)
+def get_default_ads_prompt_markdown() -> str:
+    try:
+        content = DEFAULT_PROMPT_FILE.read_text(encoding='utf-8').strip()
+        return content or DEFAULT_PROMPT_FALLBACK
+    except Exception:  # noqa: BLE001
+        return DEFAULT_PROMPT_FALLBACK
 
 
 def _safe_json_loads(raw: str | None) -> dict:
@@ -139,12 +158,14 @@ def update_ads_provider_config(
     base_url: str,
     api_key: str | None,
     model_name: str,
+    prompt_complement: str | None,
     is_active: bool,
 ) -> AdsProviderConfig:
     config = get_or_create_ads_provider_config(db)
     config.provider_name = str(provider_name or DEFAULT_PROVIDER).strip().lower()
     config.base_url = _normalize_base_url(base_url)
     config.model_name = str(model_name or DEFAULT_MODEL).strip()
+    config.prompt_complement = _normalize_text(prompt_complement) or None
     config.is_active = bool(is_active)
     if api_key is not None:
         api_key_value = str(api_key).strip()
@@ -326,14 +347,15 @@ def build_ads_input_data(db: Session, *, limit_products: int = 5) -> dict:
     }
 
 
-def _build_ads_prompt(input_data: dict, ads_count: int, extra_context: str | None) -> list[dict]:
-    system_prompt = (
-        'Voce e um estrategista de performance para e-commerce de produtos impressos em 3D. '
-        'Retorne SOMENTE JSON valido no formato: '
-        '{"ads":[{"headline":"","primary_text":"","description":"","cta":"","target_audience":"","creative_idea":"","product_draft":{"title":"","short_description":"","full_description":"","suggested_category":"","highlights":[],"tags":[]}}]}. '
-        'Em product_draft, sempre preencha title, short_description e full_description. '
-        'Nao inclua markdown, comentarios nem texto fora do JSON.'
-    )
+def _build_ads_prompt(
+    input_data: dict,
+    ads_count: int,
+    extra_context: str | None,
+    prompt_complement: str | None,
+) -> list[dict]:
+    default_prompt = get_default_ads_prompt_markdown()
+    complement = _normalize_text(prompt_complement)
+    system_prompt = default_prompt if not complement else f'{default_prompt}\n\nComplemento do admin:\n{complement}'
     user_payload = {
         'task': f'Gerar {ads_count} ideias de anuncios para Facebook/Instagram usando os dados reais fornecidos.',
         'constraints': {
@@ -439,7 +461,12 @@ def generate_ads_ideas(
         raise ValueError('API key do provider nao configurada.')
 
     input_data = build_ads_input_data(db, limit_products=5)
-    messages = _build_ads_prompt(input_data, ads_count=ads_count, extra_context=extra_context)
+    messages = _build_ads_prompt(
+        input_data,
+        ads_count=ads_count,
+        extra_context=extra_context,
+        prompt_complement=config.prompt_complement,
+    )
     content = _call_model(config, messages, max_tokens=1500)
     parsed = _parse_llm_json(content)
     output = _normalize_ads_output(parsed)

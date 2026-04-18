@@ -740,6 +740,7 @@ class AdsProviderConfigUpdate(BaseModel):
     base_url: str = Field(..., min_length=8, max_length=400)
     api_key: Optional[str] = Field(default=None, max_length=600)
     model_name: str = Field(..., min_length=3, max_length=200)
+    prompt_complement: Optional[str] = Field(default=None, max_length=4000)
     is_active: bool = False
 
 
@@ -748,6 +749,8 @@ class AdsProviderConfigResponse(BaseModel):
     provider_name: str
     base_url: str
     model_name: str
+    prompt_complement: Optional[str] = None
+    default_prompt_md: str = ''
     is_active: bool
     has_api_key: bool
     created_at: Optional[datetime] = None

@@ -238,6 +238,7 @@ class AdsProviderConfig(Base):
     base_url = Column(String(400), nullable=False, default='https://integrate.api.nvidia.com/v1')
     api_key = Column(String(600), nullable=True)
     model_name = Column(String(200), nullable=False, default='qwen/qwen2.5-coder-7b-instruct')
+    prompt_complement = Column(Text, nullable=True)
     is_active = Column(Boolean, default=False)
     created_at = Column(DateTime, nullable=False, server_default=func.now())
 
