@@ -143,6 +143,7 @@ class AdminUser(Base):
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, nullable=False, server_default=func.now())
     query_logs = relationship('DatabaseQueryLog', back_populates='admin')
+    ads_generation_history = relationship('AdsGenerationHistory', back_populates='admin')
 
 
 class StoreSettings(Base):
@@ -219,3 +220,28 @@ class UserEvent(Base):
     created_at = Column(DateTime, nullable=False, server_default=func.now(), index=True)
 
     product = relationship('Product', back_populates='events')
+
+
+class AdsProviderConfig(Base):
+    __tablename__ = 'ads_provider_config'
+
+    id = Column(Integer, primary_key=True, index=True)
+    provider_name = Column(String(80), nullable=False, default='nvidia')
+    base_url = Column(String(400), nullable=False, default='https://integrate.api.nvidia.com/v1')
+    api_key = Column(String(600), nullable=True)
+    model_name = Column(String(200), nullable=False, default='qwen/qwen2.5-coder-7b-instruct')
+    is_active = Column(Boolean, default=False)
+    created_at = Column(DateTime, nullable=False, server_default=func.now())
+
+
+class AdsGenerationHistory(Base):
+    __tablename__ = 'ads_generation_history'
+
+    id = Column(Integer, primary_key=True, index=True)
+    input_data_json = Column(Text, nullable=False, default='{}')
+    output_data_json = Column(Text, nullable=False, default='{}')
+    model_used = Column(String(200), nullable=False)
+    admin_id = Column(Integer, ForeignKey('admin_users.id', ondelete='SET NULL'), nullable=True, index=True)
+    created_at = Column(DateTime, nullable=False, server_default=func.now(), index=True)
+
+    admin = relationship('AdminUser', back_populates='ads_generation_history')

@@ -590,3 +590,64 @@ class ReportLeadsResponse(BaseModel):
     total_leads: int
     items: List[LeadPoint]
     top_products: List[AnalyticsProductPoint]
+
+
+class AdsProviderConfigUpdate(BaseModel):
+    provider_name: str = Field(default='nvidia', min_length=2, max_length=80)
+    base_url: str = Field(..., min_length=8, max_length=400)
+    api_key: Optional[str] = Field(default=None, max_length=600)
+    model_name: str = Field(..., min_length=3, max_length=200)
+    is_active: bool = False
+
+
+class AdsProviderConfigResponse(BaseModel):
+    id: int
+    provider_name: str
+    base_url: str
+    model_name: str
+    is_active: bool
+    has_api_key: bool
+    created_at: Optional[datetime] = None
+
+
+class AdsConnectionTestResponse(BaseModel):
+    ok: bool
+    message: str
+    model: Optional[str] = None
+
+
+class AdsGenerateRequest(BaseModel):
+    ads_count: int = Field(default=3, ge=1, le=8)
+    extra_context: Optional[str] = Field(default=None, max_length=500)
+
+
+class GeneratedAdItem(BaseModel):
+    headline: str
+    primary_text: str
+    description: str
+    cta: str
+    target_audience: str
+    creative_idea: str
+
+
+class AdsGenerateResponse(BaseModel):
+    history_id: int
+    model_used: str
+    input_data_json: dict = Field(default_factory=dict)
+    ads: List[GeneratedAdItem]
+    created_at: Optional[datetime] = None
+
+
+class AdsGenerationHistoryItem(BaseModel):
+    id: int
+    model_used: str
+    input_data_json: dict = Field(default_factory=dict)
+    output_data_json: dict = Field(default_factory=dict)
+    created_at: Optional[datetime] = None
+
+
+class AdsGenerationHistoryResponse(BaseModel):
+    items: List[AdsGenerationHistoryItem]
+    total: int
+    page: int
+    page_size: int

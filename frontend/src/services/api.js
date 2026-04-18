@@ -330,6 +330,38 @@ export function testAdminInstagramConnection() {
   });
 }
 
+export function fetchAdminAdsConfig() {
+  return adminRequest('/admin/ads/config');
+}
+
+export function saveAdminAdsConfig(payload) {
+  return adminRequest('/admin/ads/config', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export function testAdminAdsConfig() {
+  return adminRequest('/admin/ads/config/test', {
+    method: 'POST',
+  });
+}
+
+export function generateAdminAds(payload = {}) {
+  return adminRequest('/admin/ads/generate', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export function fetchAdminAdsHistory(params = {}) {
+  const search = new URLSearchParams();
+  if (params.page) search.set('page', String(params.page));
+  if (params.page_size) search.set('page_size', String(params.page_size));
+  const query = search.toString();
+  return adminRequest(`/admin/ads/history${query ? `?${query}` : ''}`);
+}
+
 export function fetchAdminProducts() {
   return adminRequest('/admin/products');
 }

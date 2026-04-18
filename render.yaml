@@ -1,9 +1,10 @@
 services:
-  - type: static_site
+  - type: web
     name: 3D-1
+    runtime: static
     rootDir: frontend
     buildCommand: npm install && npm run build
-    staticPublishPath: dist
+    staticPublishPath: frontend/dist
     routes:
       - type: rewrite
         source: /*

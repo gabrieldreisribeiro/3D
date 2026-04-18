@@ -16,6 +16,7 @@ import AdminSettingsPage from './pages/AdminSettingsPage';
 import AdminBannersPage from './pages/AdminBannersPage';
 import AdminCouponsPage from './pages/AdminCouponsPage';
 import AdminInstagramPage from './pages/AdminInstagramPage';
+import AdminAdsPage from './pages/AdminAdsPage';
 import AdminReviewsPage from './pages/AdminReviewsPage';
 import AdminDatabasePage from './pages/AdminDatabasePage';
 import AdminReportsPage from './pages/AdminReportsPage';
@@ -39,6 +40,7 @@ function AppContent() {
             <Route path="banners" element={<AdminBannersPage />} />
             <Route path="configuracoes" element={<AdminSettingsPage />} />
             <Route path="instagram" element={<AdminInstagramPage />} />
+            <Route path="anuncios-ia" element={<AdminAdsPage />} />
             <Route path="banco" element={<AdminDatabasePage />} />
             <Route path="relatorios" element={<AdminReportsPage />} />
           </Route>
