@@ -233,7 +233,7 @@ def build_ads_input_data(db: Session, *, limit_products: int = 5) -> dict:
             func.count(UserEvent.id).label('views'),
         )
         .join(Product, Product.id == UserEvent.product_id)
-        .filter(UserEvent.event_type == 'view_product')
+        .filter(UserEvent.event_type.in_(['product_view', 'view_product']))
         .group_by(Product.id, Product.title)
         .order_by(func.count(UserEvent.id).desc())
         .limit(limit_products)
@@ -247,7 +247,7 @@ def build_ads_input_data(db: Session, *, limit_products: int = 5) -> dict:
             func.count(UserEvent.id).label('whatsapp_hits'),
         )
         .join(Product, Product.id == UserEvent.product_id)
-        .filter(UserEvent.event_type == 'send_whatsapp')
+        .filter(UserEvent.event_type.in_(['whatsapp_click', 'send_whatsapp']))
         .group_by(Product.id, Product.title)
         .order_by(func.count(UserEvent.id).desc())
         .limit(limit_products)

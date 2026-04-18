@@ -243,6 +243,27 @@ def _ensure_store_settings_columns(session):
         session.commit()
 
 
+def _ensure_user_events_columns(session):
+    if session.bind.dialect.name != 'sqlite':
+        return
+    columns = session.execute(text("PRAGMA table_info('user_events')")).fetchall()
+    names = {column[1] for column in columns}
+    required_columns = {
+        'category_id': 'INTEGER',
+        'page_url': 'VARCHAR(500)',
+        'source_channel': 'VARCHAR(80)',
+        'referrer': 'VARCHAR(500)',
+        'cta_name': 'VARCHAR(120)',
+    }
+    changed = False
+    for column_name, column_ddl in required_columns.items():
+        if column_name not in names:
+            session.execute(text(f"ALTER TABLE user_events ADD COLUMN {column_name} {column_ddl}"))
+            changed = True
+    if changed:
+        session.commit()
+
+
 def _seed_categories(session):
     existing = {item.slug: item for item in session.query(Category).all()}
     for category in CATEGORIES:
@@ -306,6 +327,7 @@ def init_db() -> None:
         _ensure_coupon_columns(session)
         _ensure_product_pricing_columns(session)
         _ensure_store_settings_columns(session)
+        _ensure_user_events_columns(session)
         _seed_categories(session)
 
         categories = {item.slug: item.id for item in session.query(Category).all()}

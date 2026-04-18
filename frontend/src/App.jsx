@@ -1,4 +1,5 @@
-﻿import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import { useEffect } from 'react';
+import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import Header from './components/Header';
 import Footer from './components/Footer';
 import AppShell from './components/layout/AppShell';
@@ -20,10 +21,23 @@ import AdminAdsPage from './pages/AdminAdsPage';
 import AdminReviewsPage from './pages/AdminReviewsPage';
 import AdminDatabasePage from './pages/AdminDatabasePage';
 import AdminReportsPage from './pages/AdminReportsPage';
+import AdminLeadsConversionPage from './pages/AdminLeadsConversionPage';
+import { trackEvent } from './services/api';
 
 function AppContent() {
   const location = useLocation();
   const isAdminRoute = location.pathname.startsWith('/painel-interno');
+
+  useEffect(() => {
+    if (isAdminRoute) return;
+    trackEvent({
+      event_type: 'page_view',
+      metadata_json: {
+        pathname: location.pathname,
+        query: location.search || '',
+      },
+    }).catch(() => {});
+  }, [isAdminRoute, location.pathname, location.search]);
 
   if (isAdminRoute) {
     return (
@@ -41,6 +55,7 @@ function AppContent() {
             <Route path="configuracoes" element={<AdminSettingsPage />} />
             <Route path="instagram" element={<AdminInstagramPage />} />
             <Route path="anuncios-ia" element={<AdminAdsPage />} />
+            <Route path="leads-conversao" element={<AdminLeadsConversionPage />} />
             <Route path="banco" element={<AdminDatabasePage />} />
             <Route path="relatorios" element={<AdminReportsPage />} />
           </Route>

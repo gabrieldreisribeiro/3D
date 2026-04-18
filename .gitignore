@@ -1,6 +1,4 @@
 ﻿# Geral
-.env
-.env.*
 *.log
 *.tmp
 *.swp

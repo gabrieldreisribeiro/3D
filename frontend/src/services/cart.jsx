@@ -130,14 +130,16 @@ export function CartProvider({ children }) {
       return [...current, nextItem];
     });
 
-    trackEvent({
-      event_type: 'add_to_cart',
-      product_id: product?.id ?? null,
-      metadata_json: {
-        slug: product?.slug || null,
-        quantity: safeQuantity,
-        has_sub_items: normalizedSubItems.length > 0,
-        selected_color: selectedColor,
+      trackEvent({
+        event_type: 'add_to_cart',
+        product_id: product?.id ?? null,
+        category_id: product?.category_id ?? null,
+        metadata_json: {
+          slug: product?.slug || null,
+          unit_price: unitPrice,
+          quantity: safeQuantity,
+          has_sub_items: normalizedSubItems.length > 0,
+          selected_color: selectedColor,
         selected_secondary_color: selectedSecondaryColor,
       },
     }).catch(() => {});
@@ -155,8 +157,9 @@ export function CartProvider({ children }) {
     );
     if (targetItem) {
       trackEvent({
-        event_type: 'update_cart',
+        event_type: 'update_cart_quantity',
         product_id: targetItem?.id ?? null,
+        category_id: targetItem?.category_id ?? null,
         metadata_json: {
           slug: targetItem?.slug || null,
           quantity: Number(quantity || 0),
@@ -173,6 +176,7 @@ export function CartProvider({ children }) {
       trackEvent({
         event_type: 'remove_from_cart',
         product_id: targetItem?.id ?? null,
+        category_id: targetItem?.category_id ?? null,
         metadata_json: {
           slug: targetItem?.slug || null,
           cart_key: cartKey,
