@@ -206,7 +206,7 @@ function HomePage() {
         <div className="absolute inset-0 bg-gradient-to-r from-slate-950/58 via-slate-900/24 to-transparent" />
 
         <div className="relative mx-auto flex min-h-[360px] w-full max-w-7xl flex-col justify-between px-4 py-8 sm:min-h-[390px] sm:px-6 lg:px-8">
-          <div className="w-full max-w-2xl rounded-2xl border border-white/20 bg-white/10 p-5 backdrop-blur-md sm:p-6">
+          <div className="w-full max-w-2xl p-5 sm:p-6">
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-violet-100">Luma 3D</p>
             <h1 className="mt-2 text-2xl font-bold tracking-tight text-white sm:text-3xl">{visibleBanner.title}</h1>
             <p className="mt-2 text-sm text-slate-100/90 sm:text-base">{visibleBanner.subtitle}</p>
