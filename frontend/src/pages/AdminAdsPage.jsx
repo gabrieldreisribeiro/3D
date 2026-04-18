@@ -376,6 +376,11 @@ function AdminAdsPage() {
                       <strong>Criativo:</strong> {ad.creative_idea}
                     </p>
                   </div>
+                  {ad.existing_product_id ? (
+                    <p className="mt-3 text-sm text-slate-500">
+                      Produto existente encontrado: {ad.existing_product_title || `#${ad.existing_product_id}`}
+                    </p>
+                  ) : null}
                   <div className="mt-3 flex flex-wrap gap-2">
                     <Button className="h-8 px-3 text-xs" variant="secondary" onClick={() => handleCopyAd(ad)}>
                       Copiar
@@ -387,10 +392,10 @@ function AdminAdsPage() {
                       className="h-8 px-3 text-xs"
                       variant="secondary"
                       loading={Boolean(creatingProductByIndex[index])}
-                      loadingText="Criando..."
+                      loadingText={ad.existing_product_id ? 'Abrindo...' : 'Criando...'}
                       onClick={() => handleCreateProductFromAd(index)}
                     >
-                      Criar produto
+                      {ad.existing_product_id ? 'Editar produto' : 'Criar produto'}
                     </Button>
                     <Button className="h-8 px-3 text-xs" onClick={runGenerate} loading={generating}>
                       Regenerar

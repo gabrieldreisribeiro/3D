@@ -418,6 +418,35 @@ def _normalize_ads_output(raw_output: dict) -> dict:
     return {'ads': normalized_ads}
 
 
+def _find_existing_product_for_ad(db: Session, ad_payload: dict) -> Product | None:
+    if not isinstance(ad_payload, dict):
+        return None
+
+    product_draft = ad_payload.get('product_draft') if isinstance(ad_payload.get('product_draft'), dict) else {}
+    title = _normalize_text(product_draft.get('title') or ad_payload.get('headline'))
+    if not title:
+        return None
+
+    normalized_title = title.lower().strip()
+    if not normalized_title:
+        return None
+
+    product = db.query(Product).filter(func.lower(Product.title) == normalized_title).first()
+    if product:
+        return product
+
+    slug = _slugify(title)
+    return db.query(Product).filter(Product.slug == slug).first()
+
+
+def _annotate_ads_with_existing_products(db: Session, ads: list[dict]) -> None:
+    for item in ads:
+        product = _find_existing_product_for_ad(db, item)
+        if product:
+            item['existing_product_id'] = product.id
+            item['existing_product_title'] = product.title
+
+
 def _build_product_descriptions_from_ad(ad_payload: dict) -> dict:
     product_draft = ad_payload.get('product_draft') if isinstance(ad_payload.get('product_draft'), dict) else {}
     headline = _normalize_text(ad_payload.get('headline'))
@@ -470,6 +499,7 @@ def generate_ads_ideas(
     content = _call_model(config, messages, max_tokens=1500)
     parsed = _parse_llm_json(content)
     output = _normalize_ads_output(parsed)
+    _annotate_ads_with_existing_products(db, output['ads'])
 
     history = AdsGenerationHistory(
         input_data_json=json.dumps(input_data, ensure_ascii=False),
@@ -504,10 +534,27 @@ def create_product_draft_from_ad(
     if not isinstance(ad_payload, dict):
         raise ValueError('Anuncio selecionado invalido.')
 
+    existing_product = _find_existing_product_for_ad(db, ad_payload)
     draft_data = _build_product_descriptions_from_ad(ad_payload)
     slug = _unique_slug(db, draft_data['title'])
     category_id = _match_category_id(db, draft_data.get('suggested_category'))
     hashtags = ' '.join(f'#{str(tag).strip().replace(" ", "")}' for tag in draft_data.get('tags') or [])
+
+    if existing_product:
+        existing_product.title = draft_data['title']
+        existing_product.short_description = draft_data['short_description']
+        existing_product.full_description = draft_data['full_description']
+        if category_id is not None:
+            existing_product.category_id = category_id
+        if hashtags:
+            existing_product.instagram_hashtags = hashtags
+        existing_product.generated_by_ai = True
+        existing_product.source_ad_generation_id = history.id
+
+        db.add(existing_product)
+        db.commit()
+        db.refresh(existing_product)
+        return existing_product
 
     pricing = calculate_product_pricing_from_fields(
         {

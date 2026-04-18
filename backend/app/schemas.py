@@ -775,6 +775,8 @@ class GeneratedAdItem(BaseModel):
     target_audience: str
     creative_idea: str
     product_draft: dict = Field(default_factory=dict)
+    existing_product_id: Optional[int] = None
+    existing_product_title: Optional[str] = None
 
 
 class AdsGenerateResponse(BaseModel):
