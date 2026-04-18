@@ -59,6 +59,7 @@ class Product(Base):
     instagram_error_message = Column(Text, nullable=True)
 
     category = relationship('Category', back_populates='products')
+    reviews = relationship('ProductReview', back_populates='product', cascade='all, delete-orphan')
 
 
 class Coupon(Base):
@@ -157,3 +158,32 @@ class StoreSettings(Base):
     instagram_default_caption = Column(Text, nullable=True)
     instagram_default_hashtags = Column(Text, nullable=True)
     instagram_auto_publish_default = Column(Boolean, default=False)
+
+
+class ProductReview(Base):
+    __tablename__ = 'product_reviews'
+
+    id = Column(Integer, primary_key=True, index=True)
+    product_id = Column(Integer, ForeignKey('products.id', ondelete='CASCADE'), nullable=False, index=True)
+    author_name = Column(String(120), nullable=False)
+    rating = Column(Integer, nullable=False)
+    comment = Column(Text, nullable=False)
+    status = Column(String(20), nullable=False, default='pending', index=True)
+    created_at = Column(DateTime, nullable=False, server_default=func.now())
+    updated_at = Column(DateTime, nullable=False, server_default=func.now(), onupdate=func.now())
+
+    product = relationship('Product', back_populates='reviews')
+    media = relationship('ProductReviewMedia', back_populates='review', cascade='all, delete-orphan')
+
+
+class ProductReviewMedia(Base):
+    __tablename__ = 'product_review_media'
+
+    id = Column(Integer, primary_key=True, index=True)
+    review_id = Column(Integer, ForeignKey('product_reviews.id', ondelete='CASCADE'), nullable=False, index=True)
+    media_type = Column(String(20), nullable=False)
+    file_path = Column(String(400), nullable=False)
+    sort_order = Column(Integer, nullable=False, default=0)
+    created_at = Column(DateTime, nullable=False, server_default=func.now())
+
+    review = relationship('ProductReview', back_populates='media')
