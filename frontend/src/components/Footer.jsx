@@ -6,7 +6,7 @@ function Footer() {
   const itemClass = 'transition-colors hover:text-violet-300';
 
   return (
-    <footer className="border-t border-slate-700/60 bg-slate-900">
+    <footer className="mt-8 border-t border-slate-700/60 bg-slate-900 sm:mt-10">
       <div className="mx-auto w-full max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-4">
           <div>
