@@ -8,6 +8,24 @@ import Table from '../components/ui/Table';
 import usePersistentState from '../hooks/usePersistentState';
 import { fetchAdminOrders } from '../services/api';
 
+function ColorPreview({ primary, secondary }) {
+  const normalizedPrimary = String(primary || '').trim();
+  const normalizedSecondary = String(secondary || '').trim();
+  if (!normalizedPrimary && !normalizedSecondary) return null;
+
+  const hasSecondary = Boolean(normalizedSecondary);
+  const style = hasSecondary
+    ? { background: `linear-gradient(90deg, ${normalizedPrimary || '#ffffff'} 0 50%, ${normalizedSecondary} 50% 100%)` }
+    : { backgroundColor: normalizedPrimary || normalizedSecondary };
+
+  return (
+    <span className="inline-flex items-center gap-2 text-xs text-slate-600">
+      <span className="inline-block h-4 w-4 rounded-full border border-slate-300" style={style} />
+      <span>{hasSecondary ? 'Cor + furta cor' : 'Cor principal'}</span>
+    </span>
+  );
+}
+
 function AdminOrdersPage() {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -76,11 +94,36 @@ function AdminOrdersPage() {
             <p>Total: <strong className="text-slate-900">R$ {selectedOrder.total.toFixed(2)}</strong></p>
             <p>Status: <strong className="text-slate-900">{getStatusLabel(selectedOrder.payment_status)}</strong></p>
             <p>Pagamento: <strong className="text-slate-900">{getMethodLabel(selectedOrder.payment_method)}</strong></p>
-            <ul className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
+            <ul className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
               {selectedOrder.items.map((item) => (
-                <li key={item.id} className="flex items-center justify-between">
-                  <span>{item.quantity}x {item.title}</span>
-                  <strong className="text-slate-900">R$ {item.unit_price.toFixed(2)}</strong>
+                <li key={item.id} className="space-y-1 rounded-lg border border-slate-200 bg-white px-3 py-2">
+                  <div className="flex items-center justify-between">
+                    <span>{item.quantity}x {item.title}</span>
+                    <strong className="text-slate-900">
+                      R$ {(Number(item.line_total ?? item.unit_price * item.quantity) || 0).toFixed(2)}
+                    </strong>
+                  </div>
+                  <div className="flex items-center justify-between text-xs text-slate-500">
+                    <span>Unitario: R$ {Number(item.unit_price || 0).toFixed(2)}</span>
+                    {item.selected_color || item.selected_secondary_color ? (
+                      <ColorPreview primary={item.selected_color} secondary={item.selected_secondary_color} />
+                    ) : null}
+                  </div>
+                  {(item.selected_sub_items || []).length ? (
+                    <div className="space-y-1 rounded-md bg-slate-50 px-2 py-1 text-xs text-slate-600">
+                      {(item.selected_sub_items || []).map((subItem, index) => (
+                        <div key={`${item.id}-sub-${index}`} className="flex items-center justify-between gap-2">
+                          <span className="flex items-center gap-2">
+                            <span>{subItem.quantity}x {subItem.title}</span>
+                            {subItem.selected_color || subItem.selected_secondary_color ? (
+                              <ColorPreview primary={subItem.selected_color} secondary={subItem.selected_secondary_color} />
+                            ) : null}
+                          </span>
+                          <strong>R$ {(Number(subItem.unit_price || 0) * Number(subItem.quantity || 0)).toFixed(2)}</strong>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
                 </li>
               ))}
             </ul>

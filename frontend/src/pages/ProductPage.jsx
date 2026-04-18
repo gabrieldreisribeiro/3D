@@ -127,6 +127,10 @@ function ProductPage() {
   const [selectedSubItemColors, setSelectedSubItemColors] = useState({});
   const [selectedSubItemSecondaryColors, setSelectedSubItemSecondaryColors] = useState({});
   const [selectedImage, setSelectedImage] = useState(0);
+  const [isAddingCustom, setIsAddingCustom] = useState(false);
+  const [isBuyingCustom, setIsBuyingCustom] = useState(false);
+  const [isAddingSimple, setIsAddingSimple] = useState(false);
+  const [isBuyingSimple, setIsBuyingSimple] = useState(false);
   const [loading, setLoading] = useState(true);
   const { addToCart } = useCart();
 
@@ -216,7 +220,7 @@ function ProductPage() {
   };
 
   const addCustomizedToCart = (goToCart = false) => {
-    if (!canAddCustomized) return;
+    if (!canAddCustomized) return false;
     addToCart(product, quantity, {
       selectedSubItems: selectedSubItemsList.map((item) => ({
         id: item.id ?? null,
@@ -233,6 +237,20 @@ function ProductPage() {
       selectedSecondaryColor: selectedSecondaryColor || null,
     });
     if (goToCart) navigate('/cart');
+    return true;
+  };
+
+  const runAddAction = async (setLoadingState, action) => {
+    if (loading) return;
+    const startAt = Date.now();
+    setLoadingState(true);
+    try {
+      await Promise.resolve(action());
+    } finally {
+      const elapsed = Date.now() - startAt;
+      const delay = Math.max(0, 380 - elapsed);
+      window.setTimeout(() => setLoadingState(false), delay);
+    }
   };
 
   return (
@@ -375,10 +393,21 @@ function ProductPage() {
               </p>
               <div className="mt-3 product-buy-actions">
                 <QuantitySelector value={quantity} onChange={setQuantity} />
-                <Button disabled={!canAddCustomized} onClick={() => addCustomizedToCart(false)}>
+                <Button
+                  disabled={!canAddCustomized}
+                  loading={isAddingCustom}
+                  loadingText="Adicionando..."
+                  onClick={() => runAddAction(setIsAddingCustom, () => addCustomizedToCart(false))}
+                >
                   Adicionar ao carrinho
                 </Button>
-                <Button variant="secondary" disabled={!canAddCustomized} onClick={() => addCustomizedToCart(true)}>
+                <Button
+                  variant="secondary"
+                  disabled={!canAddCustomized}
+                  loading={isBuyingCustom}
+                  loadingText="Adicionando..."
+                  onClick={() => runAddAction(setIsBuyingCustom, () => addCustomizedToCart(true))}
+                >
                   Comprar agora
                 </Button>
               </div>
@@ -427,25 +456,33 @@ function ProductPage() {
               <div className="product-buy-actions">
                 <QuantitySelector value={quantity} onChange={setQuantity} />
                 <Button
+                  loading={isAddingSimple}
+                  loadingText="Adicionando..."
                   onClick={() =>
-                    addToCart(product, quantity, {
-                      selectedColor: selectedColor || null,
-                      selectedSecondaryColor: selectedSecondaryColor || null,
-                      selectedSubItems: [],
-                    })
+                    runAddAction(setIsAddingSimple, () =>
+                      addToCart(product, quantity, {
+                        selectedColor: selectedColor || null,
+                        selectedSecondaryColor: selectedSecondaryColor || null,
+                        selectedSubItems: [],
+                      })
+                    )
                   }
                 >
                   Adicionar ao carrinho
                 </Button>
                 <Button
                   variant="secondary"
+                  loading={isBuyingSimple}
+                  loadingText="Adicionando..."
                   onClick={() => {
-                    addToCart(product, quantity, {
-                      selectedColor: selectedColor || null,
-                      selectedSecondaryColor: selectedSecondaryColor || null,
-                      selectedSubItems: [],
+                    runAddAction(setIsBuyingSimple, () => {
+                      addToCart(product, quantity, {
+                        selectedColor: selectedColor || null,
+                        selectedSecondaryColor: selectedSecondaryColor || null,
+                        selectedSubItems: [],
+                      });
+                      navigate('/cart');
                     });
-                    navigate('/cart');
                   }}
                 >
                   Comprar agora

@@ -11,6 +11,24 @@ import { createOrder, fetchPublicLogo, fetchPublicSettings, resolveAssetUrl } fr
 import { getLogoSizeConfig, getLogoSizeKey } from '../services/logoSettings';
 import { useCart } from '../services/cart';
 
+function ColorPreview({ primary, secondary, size = 16 }) {
+  const normalizedPrimary = String(primary || '').trim();
+  const normalizedSecondary = String(secondary || '').trim();
+  if (!normalizedPrimary && !normalizedSecondary) return null;
+
+  const hasSecondary = Boolean(normalizedSecondary);
+  const style = hasSecondary
+    ? { background: `linear-gradient(90deg, ${normalizedPrimary || '#ffffff'} 0 50%, ${normalizedSecondary} 50% 100%)` }
+    : { backgroundColor: normalizedPrimary || normalizedSecondary };
+
+  return (
+    <span className="inline-flex items-center gap-2">
+      <span className="inline-block rounded-full border border-slate-300" style={{ width: size, height: size, ...style }} />
+      <span>{hasSecondary ? 'Cor + furta cor' : 'Cor principal'}</span>
+    </span>
+  );
+}
+
 function CartPage() {
   const {
     items,
@@ -294,7 +312,21 @@ function CartPage() {
 
     try {
       const order = await createOrder({
-        items: items.map((item) => ({ slug: item.slug, quantity: item.quantity })),
+        items: items.map((item) => ({
+          slug: item.slug,
+          quantity: item.quantity,
+          unit_price: getItemPrice(item),
+          selected_color: item.selected_color || null,
+          selected_secondary_color: item.selected_secondary_color || null,
+          selected_sub_items: (item.selected_sub_items || []).map((subItem) => ({
+            slug: subItem.slug || null,
+            title: subItem.title,
+            quantity: Number(subItem.quantity || 1),
+            unit_price: Number(subItem.unit_price || 0),
+            selected_color: subItem.selected_color || null,
+            selected_secondary_color: subItem.selected_secondary_color || null,
+          })),
+        })),
         coupon: coupon?.code || null,
         payment_status: isPaid ? 'paid' : 'pending',
         payment_method: isPaid ? 'pix' : 'whatsapp',
@@ -350,18 +382,20 @@ function CartPage() {
                 <div>
                   <h3>{item.title}</h3>
                   <p>{item.short_description}</p>
-                  {formatColors(item.selected_color, item.selected_secondary_color) ? (
-                    <p className="mb-1 text-xs text-slate-600">Cor: {formatColors(item.selected_color, item.selected_secondary_color)}</p>
+                  {item.selected_color || item.selected_secondary_color ? (
+                    <p className="mb-1 text-xs text-slate-600">
+                      <ColorPreview primary={item.selected_color} secondary={item.selected_secondary_color} />
+                    </p>
                   ) : null}
                   {(item.selected_sub_items || []).length > 0 ? (
                     <div className="mb-2 space-y-1 text-xs text-slate-600">
                       {(item.selected_sub_items || []).map((subItem, index) => (
-                        <div key={`${subItem.title}-${index}`} className="flex items-center justify-between">
-                          <span>
-                            {subItem.quantity}x {subItem.title}
-                            {formatColors(subItem.selected_color, subItem.selected_secondary_color)
-                              ? ` - cor: ${formatColors(subItem.selected_color, subItem.selected_secondary_color)}`
-                              : ''}
+                        <div key={`${subItem.title}-${index}`} className="flex items-center justify-between gap-2">
+                          <span className="flex items-center gap-2">
+                            <span>{subItem.quantity}x {subItem.title}</span>
+                            {subItem.selected_color || subItem.selected_secondary_color ? (
+                              <ColorPreview primary={subItem.selected_color} secondary={subItem.selected_secondary_color} size={14} />
+                            ) : null}
                           </span>
                           <strong>R$ {(Number(subItem.unit_price || 0) * Number(subItem.quantity || 0)).toFixed(2)}</strong>
                         </div>

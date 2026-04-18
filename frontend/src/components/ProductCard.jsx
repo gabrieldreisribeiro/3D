@@ -1,13 +1,28 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import RatingPill from './RatingPill';
 import Button from './ui/Button';
 
 function ProductCard({ product, onAdd, highlightLabel = '' }) {
+  const [isAdding, setIsAdding] = useState(false);
   const price = Number(product.final_price ?? product.price ?? 0);
   const hasSubItems = (product.sub_items || []).length > 0;
   const ratingCount = Number(product.rating_count || 0);
   const ratingAverage = ratingCount > 0 ? Number(product.rating_average || 0) : 0;
   const badgeLabel = highlightLabel || (hasSubItems ? 'Personalizado' : '');
+
+  const handleAdd = async () => {
+    if (isAdding) return;
+    const startAt = Date.now();
+    setIsAdding(true);
+    try {
+      await Promise.resolve(onAdd(product));
+    } finally {
+      const elapsed = Date.now() - startAt;
+      const delay = Math.max(0, 380 - elapsed);
+      window.setTimeout(() => setIsAdding(false), delay);
+    }
+  };
 
   return (
     <article className="product-card-pro">
@@ -40,7 +55,9 @@ function ProductCard({ product, onAdd, highlightLabel = '' }) {
               <Button className="product-card-cta">Monte o seu</Button>
             </Link>
           ) : (
-            <Button className="product-card-cta" onClick={() => onAdd(product)}>Adicionar ao carrinho</Button>
+            <Button className="product-card-cta" loading={isAdding} loadingText="Adicionando..." onClick={handleAdd}>
+              Adicionar ao carrinho
+            </Button>
           )}
         </div>
       </div>

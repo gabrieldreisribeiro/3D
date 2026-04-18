@@ -127,6 +127,25 @@ def _ensure_orders_created_at_column(session):
     session.commit()
 
 
+def _ensure_order_items_columns(session):
+    columns = session.execute(text("PRAGMA table_info('order_items')")).fetchall()
+    names = {column[1] for column in columns}
+    required_columns = {
+        'line_total': "REAL DEFAULT 0",
+        'selected_color': "VARCHAR(20)",
+        'selected_secondary_color': "VARCHAR(20)",
+        'selected_sub_items': "TEXT DEFAULT ''",
+    }
+    changed = False
+    for column_name, column_ddl in required_columns.items():
+        if column_name not in names:
+            session.execute(text(f"ALTER TABLE order_items ADD COLUMN {column_name} {column_ddl}"))
+            changed = True
+
+    session.execute(text("UPDATE order_items SET line_total = COALESCE(line_total, unit_price * quantity)"))
+    session.commit()
+
+
 def _ensure_coupon_columns(session):
     columns = session.execute(text("PRAGMA table_info('coupons')")).fetchall()
     names = {column[1] for column in columns}
@@ -229,6 +248,7 @@ def init_db() -> None:
     session = SessionLocal()
     try:
         _ensure_orders_created_at_column(session)
+        _ensure_order_items_columns(session)
         _ensure_coupon_columns(session)
         _ensure_product_pricing_columns(session)
         _seed_categories(session)

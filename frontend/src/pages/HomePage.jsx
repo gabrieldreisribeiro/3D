@@ -196,7 +196,7 @@ function HomePage() {
 
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-4 py-6 sm:px-6 lg:gap-10 lg:px-8">
-      <section className="relative overflow-hidden rounded-2xl">
+      <section className="relative left-1/2 right-1/2 -ml-[50vw] -mr-[50vw] w-screen overflow-hidden">
         <img
           src={visibleBanner.image_url}
           alt={visibleBanner.title}
@@ -205,7 +205,7 @@ function HomePage() {
         <div className="absolute inset-0 bg-gradient-to-b from-violet-500/40 via-fuchsia-500/15 to-transparent" />
         <div className="absolute inset-0 bg-gradient-to-r from-slate-950/58 via-slate-900/24 to-transparent" />
 
-        <div className="relative flex min-h-[360px] w-full flex-col justify-between px-4 py-8 sm:min-h-[390px] sm:px-6 lg:px-8">
+        <div className="relative mx-auto flex min-h-[360px] w-full max-w-7xl flex-col justify-between px-4 py-8 sm:min-h-[390px] sm:px-6 lg:px-8">
           <div className="w-full max-w-2xl rounded-2xl border border-white/20 bg-white/10 p-5 backdrop-blur-md sm:p-6">
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-violet-100">PLA Engineering Collection</p>
             <h1 className="mt-2 text-2xl font-bold tracking-tight text-white sm:text-3xl">{visibleBanner.title}</h1>

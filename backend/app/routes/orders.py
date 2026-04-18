@@ -4,8 +4,8 @@ from sqlalchemy.orm import Session
 from app.db.session import SessionLocal
 from app.schemas import OrderCreate, OrderResponse
 from app.services.coupon_service import build_client_hash, register_coupon_usage, validate_coupon_for_client
-from app.services.order_service import create_order_with_payment
-from app.services.product_service import get_product_by_slug
+from app.services.order_service import create_order_with_payment, serialize_order
+from app.services.product_service import get_product_by_slug, parse_sub_items_from_storage
 
 router = APIRouter()
 
@@ -30,14 +30,44 @@ def create_order_endpoint(payload: OrderCreate, request: Request, db: Session = 
         if not product:
             raise HTTPException(status_code=404, detail=f'Produto nao encontrado: {item.slug}')
 
-        unit_price = float(product.final_price if product.final_price is not None else product.price)
-        subtotal += unit_price * item.quantity
+        quantity = max(1, int(item.quantity))
+        fallback_unit_price = float(product.final_price if product.final_price is not None else product.price)
+        unit_price = float(item.unit_price) if item.unit_price is not None else fallback_unit_price
+        selected_sub_items = []
+        valid_sub_items = parse_sub_items_from_storage(product.sub_items)
+        by_title = {str(sub.get('title') or '').strip().lower(): sub for sub in valid_sub_items}
+        for sub in item.selected_sub_items or []:
+            if not isinstance(sub, dict):
+                continue
+            sub_title = str(sub.get('title') or '').strip()
+            if not sub_title:
+                continue
+            source_sub = by_title.get(sub_title.lower())
+            sub_quantity = max(1, int(sub.get('quantity') or 1))
+            sub_unit_price = float(sub.get('unit_price') or (source_sub.get('final_price') if source_sub else 0) or 0)
+            selected_sub_items.append(
+                {
+                    'slug': sub.get('slug'),
+                    'title': sub_title,
+                    'quantity': sub_quantity,
+                    'unit_price': sub_unit_price,
+                    'selected_color': sub.get('selected_color'),
+                    'selected_secondary_color': sub.get('selected_secondary_color'),
+                }
+            )
+
+        line_total = unit_price * quantity
+        subtotal += unit_price * quantity
         order_items.append(
             {
                 'slug': product.slug,
                 'title': product.title,
-                'quantity': item.quantity,
+                'quantity': quantity,
                 'unit_price': unit_price,
+                'line_total': line_total,
+                'selected_color': item.selected_color,
+                'selected_secondary_color': item.selected_secondary_color,
+                'selected_sub_items': selected_sub_items,
             }
         )
 
@@ -77,4 +107,4 @@ def create_order_endpoint(payload: OrderCreate, request: Request, db: Session = 
     if coupon:
         register_coupon_usage(db, coupon, client_hash, order.id)
         db.commit()
-    return order
+    return serialize_order(order)

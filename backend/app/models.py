@@ -104,6 +104,10 @@ class OrderItem(Base):
     title = Column(String(160), nullable=False)
     quantity = Column(Integer, nullable=False)
     unit_price = Column(Float, nullable=False)
+    line_total = Column(Float, nullable=False, default=0.0)
+    selected_color = Column(String(20), nullable=True)
+    selected_secondary_color = Column(String(20), nullable=True)
+    selected_sub_items = Column(Text, nullable=False, default='')
     order = relationship('Order', back_populates='items')
 
 

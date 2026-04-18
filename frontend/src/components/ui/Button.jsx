@@ -1,4 +1,12 @@
-function Button({ variant = 'primary', loading = false, icon = null, className = '', children, ...props }) {
+function Button({
+  variant = 'primary',
+  loading = false,
+  loadingText = 'Carregando...',
+  icon = null,
+  className = '',
+  children,
+  ...props
+}) {
   const styles = {
     primary:
       'bg-violet-600 text-white shadow-sm hover:bg-violet-700 hover:shadow-glow focus-visible:ring-violet-200',
@@ -15,7 +23,7 @@ function Button({ variant = 'primary', loading = false, icon = null, className =
       {...props}
     >
       {icon ? <span className="inline-flex h-4 w-4 items-center justify-center">{icon}</span> : null}
-      <span>{loading ? 'Carregando...' : children}</span>
+      <span>{loading ? loadingText : children}</span>
     </button>
   );
 }

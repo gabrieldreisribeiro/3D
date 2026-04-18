@@ -43,6 +43,7 @@ from app.services.order_service import (
     dashboard_orders_last_days,
     dashboard_sales_last_days,
     dashboard_top_products,
+    serialize_admin_order,
 )
 from app.services.product_service import (
     admin_create_product,
@@ -193,7 +194,7 @@ def set_product_status(
 
 @router.get('/orders', response_model=list[AdminOrderResponse])
 def list_admin_orders(_: AdminUser = Depends(require_admin), db: Session = Depends(get_db)):
-    return admin_list_orders(db)
+    return [serialize_admin_order(order) for order in admin_list_orders(db)]
 
 
 @router.get('/coupons', response_model=list[AdminCouponResponse])

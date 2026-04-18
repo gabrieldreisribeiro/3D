@@ -222,8 +222,14 @@ class AdminCouponResponse(BaseModel):
     uses_count: int = 0
 
 class OrderItemCreate(BaseModel):
+    model_config = ConfigDict(extra='ignore')
+
     slug: str
-    quantity: int
+    quantity: int = Field(..., gt=0)
+    unit_price: Optional[float] = Field(default=None, ge=0)
+    selected_color: Optional[str] = None
+    selected_secondary_color: Optional[str] = None
+    selected_sub_items: List[dict] = Field(default_factory=list)
 
 
 class OrderCreate(BaseModel):
@@ -240,6 +246,10 @@ class OrderItemResponse(BaseModel):
     title: str
     quantity: int
     unit_price: float
+    line_total: float
+    selected_color: Optional[str] = None
+    selected_secondary_color: Optional[str] = None
+    selected_sub_items: List[dict] = Field(default_factory=list)
 
 class OrderResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -264,11 +274,17 @@ class AdminLoginResponse(BaseModel):
 
 
 class AdminOrderItemResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     product_slug: str
     title: str
     quantity: int
     unit_price: float
+    line_total: float
+    selected_color: Optional[str] = None
+    selected_secondary_color: Optional[str] = None
+    selected_sub_items: List[dict] = Field(default_factory=list)
 
 
 class AdminOrderResponse(BaseModel):

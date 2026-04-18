@@ -1,4 +1,5 @@
-﻿from datetime import datetime, timedelta
+from datetime import datetime, timedelta
+import json
 
 from sqlalchemy import func
 from sqlalchemy.orm import Session, selectinload
@@ -28,6 +29,10 @@ def _create_order(db: Session, items, coupon_code, subtotal, discount, total, pa
             title=item['title'],
             quantity=item['quantity'],
             unit_price=item['unit_price'],
+            line_total=item.get('line_total') or (float(item['unit_price']) * int(item['quantity'])),
+            selected_color=item.get('selected_color'),
+            selected_secondary_color=item.get('selected_secondary_color'),
+            selected_sub_items=json.dumps(item.get('selected_sub_items') or [], ensure_ascii=False),
         )
         db.add(order_item)
     db.commit()
@@ -37,6 +42,75 @@ def _create_order(db: Session, items, coupon_code, subtotal, discount, total, pa
 
 def create_order_with_payment(db: Session, items, coupon_code, subtotal, discount, total, payment_status, payment_method):
     return _create_order(db, items, coupon_code, subtotal, discount, total, payment_status, payment_method)
+
+
+def _safe_parse_selected_sub_items(raw_value):
+    if not raw_value:
+        return []
+    try:
+        data = json.loads(raw_value) if isinstance(raw_value, str) else raw_value
+    except Exception:  # noqa: BLE001
+        return []
+    if not isinstance(data, list):
+        return []
+
+    parsed = []
+    for item in data:
+        if not isinstance(item, dict):
+            continue
+        title = str(item.get('title') or '').strip()
+        if not title:
+            continue
+        quantity = max(1, int(item.get('quantity') or 1))
+        unit_price = float(item.get('unit_price') or 0)
+        parsed.append(
+            {
+                'slug': item.get('slug'),
+                'title': title,
+                'quantity': quantity,
+                'unit_price': unit_price,
+                'selected_color': item.get('selected_color'),
+                'selected_secondary_color': item.get('selected_secondary_color'),
+            }
+        )
+    return parsed
+
+
+def serialize_order_item(item: OrderItem) -> dict:
+    quantity = int(item.quantity or 0)
+    unit_price = float(item.unit_price or 0)
+    line_total = float(item.line_total if item.line_total is not None else unit_price * quantity)
+    return {
+        'id': item.id,
+        'product_slug': item.product_slug,
+        'title': item.title,
+        'quantity': quantity,
+        'unit_price': unit_price,
+        'line_total': line_total,
+        'selected_color': item.selected_color,
+        'selected_secondary_color': item.selected_secondary_color,
+        'selected_sub_items': _safe_parse_selected_sub_items(item.selected_sub_items),
+    }
+
+
+def serialize_order(order: Order) -> dict:
+    return {
+        'id': order.id,
+        'subtotal': float(order.subtotal or 0),
+        'discount': float(order.discount or 0),
+        'total': float(order.total or 0),
+        'coupon_code': order.coupon_code,
+        'payment_status': order.payment_status,
+        'payment_method': order.payment_method,
+        'items': [serialize_order_item(item) for item in (order.items or [])],
+    }
+
+
+def serialize_admin_order(order: Order) -> dict:
+    return {
+        **serialize_order(order),
+        'created_at': order.created_at,
+    }
 
 
 def admin_list_orders(db: Session):
