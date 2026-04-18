@@ -133,14 +133,15 @@ function CartPage() {
       merchantAccountInfo,
       formatPixField('52', '0000'),
       formatPixField('53', '986'),
+      formatPixField('54', total.toFixed(2)),
       formatPixField('58', 'BR'),
-      formatPixField('59', 'PLA STUDIO'),
-      formatPixField('60', 'SAO PAULO'),
+      formatPixField('59', 'LUMA3D'),
+      formatPixField('60', 'BELEM PA'),
       formatPixField('62', formatPixField('05', '***')),
       '6304',
     ].join('');
     return `${payloadWithoutCrc}${crc16(payloadWithoutCrc)}`;
-  }, [pixKey]);
+  }, [pixKey, total]);
 
   const pixQrCodeUrl = useMemo(() => {
     if (!pixPayload) return '';
