@@ -709,34 +709,35 @@ function ProductPage() {
             <div className="space-y-3 rounded-xl border border-slate-100 bg-slate-50 p-3">
               {product.allow_colors && (product.available_colors || []).length > 0 ? (
                 <div className="space-y-2">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Cor do produto</p>
-                  <select
-                    className="h-10 w-full rounded-[10px] border border-slate-200 bg-white px-3 text-sm text-slate-700"
-                    value={selectedColor}
-                    onChange={(event) => setSelectedColor(event.target.value)}
-                  >
-                    <option value="">Selecione uma cor</option>
-                    {(product.available_colors || []).map((color) => (
-                      <option key={color} value={color}>
-                        {color}
-                      </option>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Cor principal do produto</p>
+                  <div className="flex flex-wrap gap-2">
+                    {getPrimaryOptions(product.available_colors || [], product.secondary_color_pairs || []).map((color) => (
+                      <ColorSwatchButton
+                        key={`product-primary-${color}`}
+                        onClick={() => setSelectedColor(color)}
+                        selected={selectedColor === color}
+                        secondaryColor={color}
+                        size={32}
+                        title={color}
+                      />
                     ))}
-                  </select>
+                  </div>
                   {product.allow_secondary_color ? (
                     <>
                       <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Furta cor (segunda cor, opcional)</p>
-                      <select
-                        className="h-10 w-full rounded-[10px] border border-slate-200 bg-white px-3 text-sm text-slate-700"
-                        value={selectedSecondaryColor}
-                        onChange={(event) => setSelectedSecondaryColor(event.target.value)}
-                      >
-                        <option value="">Selecione uma furta cor</option>
-                        {productSecondaryOptions.map((color) => (
-                          <option key={`secondary-${color}`} value={color}>
-                            {color}
-                          </option>
+                      <div className="flex flex-wrap gap-2">
+                        {productSecondarySwatches.map((pair) => (
+                          <ColorSwatchButton
+                            key={`product-secondary-${pair.primary}-${pair.secondary}`}
+                            onClick={() => setSelectedSecondaryColor(pair.secondary)}
+                            selected={selectedSecondaryColor === pair.secondary}
+                            primaryColor={pair.primary || selectedColor}
+                            secondaryColor={pair.secondary}
+                            size={32}
+                            title={`${pair.primary || selectedColor || '-'} + ${pair.secondary}`}
+                          />
                         ))}
-                      </select>
+                      </div>
                     </>
                   ) : null}
                 </div>
