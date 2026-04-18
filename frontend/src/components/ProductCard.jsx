@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import RatingPill from './RatingPill';
 import Button from './ui/Button';
 
-function ProductCard({ product, onAdd, highlightLabel = '' }) {
+function ProductCard({ product, onAdd, highlightLabel = '', compact = false }) {
   const [isAdding, setIsAdding] = useState(false);
   const price = Number(product.final_price ?? product.price ?? 0);
   const hasSubItems = (product.sub_items || []).length > 0;
@@ -25,7 +25,7 @@ function ProductCard({ product, onAdd, highlightLabel = '' }) {
   };
 
   return (
-    <article className="product-card-pro">
+    <article className={`product-card-pro ${compact ? 'product-card-pro-compact' : ''}`}>
       <Link to={`/product/${product.slug}`} className="product-card-image-link">
         <div className="product-card-image-wrap">
           <div className="product-card-image" style={{ backgroundImage: `url(${product.cover_image})` }} />

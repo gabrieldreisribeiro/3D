@@ -1513,6 +1513,36 @@ select {
   box-shadow: 0 10px 20px rgba(15, 23, 42, 0.12);
 }
 
+.product-card-pro.product-card-pro-compact {
+  padding: 8px;
+  gap: 6px;
+}
+
+.product-card-pro.product-card-pro-compact .product-card-image {
+  min-height: 108px;
+  max-height: 124px;
+}
+
+.product-card-pro.product-card-pro-compact .product-card-title-link h3 {
+  font-size: 13px;
+  min-height: 34px;
+}
+
+.product-card-pro.product-card-pro-compact .product-card-desc {
+  font-size: 12px;
+  min-height: 28px;
+  -webkit-line-clamp: 1;
+}
+
+.product-card-pro.product-card-pro-compact .product-card-price-row strong {
+  font-size: 18px;
+}
+
+.product-card-pro.product-card-pro-compact .product-card-actions .btn {
+  height: 32px;
+  font-size: 11px;
+}
+
 .product-card-image-link {
   display: block;
 }

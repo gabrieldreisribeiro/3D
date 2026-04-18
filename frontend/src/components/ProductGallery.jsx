@@ -28,19 +28,23 @@ function ProductGallery({ images, selected, onSelect }) {
   };
 
   return (
-    <div className="product-gallery-pro">
+    <div className="space-y-3">
       <div
-        className={`product-gallery-hero ${isZoomed ? 'is-zoomed' : ''}`}
+        className={`min-h-[320px] rounded-2xl border border-slate-100 bg-slate-50 shadow-sm transition-shadow sm:min-h-[420px] lg:min-h-[560px] ${
+          isZoomed ? 'shadow-md' : ''
+        }`}
         style={heroStyle}
         onMouseEnter={() => setIsZoomed(true)}
         onMouseLeave={() => setIsZoomed(false)}
         onMouseMove={handleMouseMove}
       />
-      <div className="product-gallery-thumbs">
+      <div className="grid grid-cols-4 gap-2 sm:gap-3">
         {safeImages.map((image, index) => (
           <button
             key={`${image}-${index}`}
-            className={index === selected ? 'active' : ''}
+            className={`h-16 overflow-hidden rounded-xl border bg-white shadow-sm transition hover:border-violet-200 sm:h-20 ${
+              index === selected ? 'border-violet-500 ring-2 ring-violet-100' : 'border-slate-200'
+            }`}
             style={{ backgroundImage: `url(${image})` }}
             onClick={() => onSelect(index)}
           />

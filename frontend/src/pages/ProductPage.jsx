@@ -3,7 +3,6 @@ import { useNavigate, useParams } from 'react-router-dom';
 import ProductGallery from '../components/ProductGallery';
 import ProductCard from '../components/ProductCard';
 import QuantitySelector from '../components/QuantitySelector';
-import PriceBlock from '../components/ui/PriceBlock';
 import SectionHeader from '../components/ui/SectionHeader';
 import Button from '../components/ui/Button';
 import { fetchProduct, fetchProducts, resolveAssetUrl } from '../services/api';
@@ -32,12 +31,6 @@ function sanitizeImageList(images = []) {
   return images
     .map((item) => String(item || '').trim())
     .filter(Boolean);
-}
-
-function formatSelectedColors(primary, secondary) {
-  const colors = [primary, secondary].filter(Boolean);
-  if (!colors.length) return null;
-  return colors.join(' + ');
 }
 
 function getSecondaryOptions(availableColors, pairs, selectedPrimary) {
@@ -131,6 +124,7 @@ function ProductPage() {
   const [isBuyingCustom, setIsBuyingCustom] = useState(false);
   const [isAddingSimple, setIsAddingSimple] = useState(false);
   const [isBuyingSimple, setIsBuyingSimple] = useState(false);
+  const [activeDetailTab, setActiveDetailTab] = useState('description');
   const [loading, setLoading] = useState(true);
   const { addToCart } = useCart();
 
@@ -147,6 +141,7 @@ function ProductPage() {
         setSelectedSecondaryColor('');
         setSelectedSubItemColors({});
         setSelectedSubItemSecondaryColors({});
+        setActiveDetailTab('description');
       })
       .catch(() => navigate('/'))
       .finally(() => setLoading(false));
@@ -253,27 +248,72 @@ function ProductPage() {
     }
   };
 
+  const highlightItems = [
+    {
+      id: 'custom',
+      title: hasSubItems ? 'Configuracao personalizada' : 'Produto pronto para uso',
+      description: hasSubItems
+        ? 'Combine subitens e monte o kit conforme sua necessidade.'
+        : 'Design funcional com acabamento premium em impressao 3D.',
+      icon: (
+        <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M12 20l8-4V8l-8-4-8 4v8l8 4z" />
+          <path d="M12 12l8-4M12 12L4 8M12 12v8" />
+        </svg>
+      ),
+    },
+    {
+      id: 'delivery',
+      title: 'Prazo estimado',
+      description: `${hasSubItems ? customizedLeadTimeDays : productLeadTimeDays} dia(s) apos confirmacao do pagamento.`,
+      icon: (
+        <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="9" />
+          <path d="M12 7v5l3 3" />
+        </svg>
+      ),
+    },
+    {
+      id: 'shipping',
+      title: 'Compra segura',
+      description: 'Checkout direto e suporte para acompanhar todo o pedido.',
+      icon: (
+        <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M12 3l8 4v6c0 5-3.4 7.8-8 9-4.6-1.2-8-4-8-9V7l8-4z" />
+          <path d="M9 12l2 2 4-4" />
+        </svg>
+      ),
+    },
+  ];
+
   return (
-    <section className="container product-page-pro">
-      <div className="product-layout-pro">
+    <section className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-4 py-4 sm:px-6 lg:gap-10 lg:px-8">
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1.65fr)_minmax(320px,1fr)]">
         <ProductGallery images={galleryImages} selected={selectedImage} onSelect={setSelectedImage} />
 
-        <div className="product-info-pro">
-          <span className="eyebrow">Produto</span>
-          <h1>{product.title}</h1>
-          <p>{product.short_description}</p>
-          <PriceBlock
-            price={finalPrice}
-            personalized={hasSubItems}
-            helper={hasSubItems ? 'Escolha os itens para ver o valor total da composicao' : 'Preco unitario'}
-          />
+        <aside className="space-y-4 rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
+          <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+            Produto
+          </span>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-[30px]">{product.title}</h1>
+          <p className="text-sm leading-7 text-slate-600">{product.short_description}</p>
+
+          <div className="rounded-xl border border-slate-100 bg-slate-50 px-4 py-3">
+            <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Preco</p>
+            <p className="mt-1 text-3xl font-semibold tracking-tight text-slate-900">
+              {hasSubItems ? `A partir de R$ ${finalPrice.toFixed(2)}` : `R$ ${finalPrice.toFixed(2)}`}
+            </p>
+            <p className="mt-1 text-xs text-slate-500">
+              {hasSubItems ? 'Selecione os itens para calcular o total final.' : 'Valor unitario'}
+            </p>
+          </div>
 
           {hasSubItems ? (
-            <div className="detail-card">
-              <h3>Monte o seu kit</h3>
+            <div className="space-y-3 rounded-xl border border-slate-100 bg-slate-50 p-3">
+              <h3 className="text-sm font-semibold text-slate-900">Monte o seu kit</h3>
               <ul className={`space-y-2 text-sm text-slate-600 ${shouldScrollSubItems ? 'subitems-scroll-wrap' : ''}`}>
                 {product.sub_items.map((item, index) => (
-                  <li key={`${item.title}-${index}`} className="rounded-[10px] border border-slate-100 bg-slate-50 px-3 py-3">
+                  <li key={`${item.title}-${index}`} className="rounded-xl border border-slate-200 bg-white px-3 py-3">
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <div className="flex items-center gap-2">
                         {item.image_url ? (
@@ -349,10 +389,11 @@ function ProductPage() {
                   </li>
                 ))}
               </ul>
-              <p className="mt-3 text-xs text-slate-500">Selecione os itens e ajuste quantidades para montar seu pedido.</p>
+
+              <p className="text-xs text-slate-500">Selecione os itens e ajuste quantidades para montar seu pedido.</p>
               {product.allow_colors && (product.available_colors || []).length > 0 ? (
-                <div className="mt-3">
-                  <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Cor principal do produto</p>
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Cor principal do produto</p>
                   <div className="flex flex-wrap gap-2">
                     {getPrimaryOptions(product.available_colors || [], product.secondary_color_pairs || []).map((color) => (
                       <ColorSwatchButton
@@ -367,7 +408,7 @@ function ProductPage() {
                   </div>
                   {product.allow_secondary_color ? (
                     <>
-                      <p className="mb-1 mt-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Furta cor (segunda cor, opcional)</p>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Furta cor (segunda cor, opcional)</p>
                       <div className="flex flex-wrap gap-2">
                         {productSecondarySwatches.map((pair) => (
                           <ColorSwatchButton
@@ -385,22 +426,27 @@ function ProductPage() {
                   ) : null}
                 </div>
               ) : null}
-              <div className="mt-4 rounded-[10px] border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700">
+
+              <div className="rounded-[10px] border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700">
                 <strong>Total da composicao: R$ {((finalPrice + selectedSubItemsTotal) * quantity).toFixed(2)}</strong>
               </div>
-              <p className="mt-2 text-xs text-slate-500">
+              <p className="text-xs text-slate-500">
                 Prazo estimado: {customizedLeadTimeDays} dia(s) apos confirmacao do pagamento.
               </p>
-              <div className="mt-3 product-buy-actions">
-                <QuantitySelector value={quantity} onChange={setQuantity} />
-                <Button
-                  disabled={!canAddCustomized}
-                  loading={isAddingCustom}
-                  loadingText="Adicionando..."
-                  onClick={() => runAddAction(setIsAddingCustom, () => addCustomizedToCart(false))}
-                >
-                  Adicionar ao carrinho
-                </Button>
+
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center gap-2">
+                  <QuantitySelector value={quantity} onChange={setQuantity} />
+                  <Button
+                    className="h-11 flex-1"
+                    disabled={!canAddCustomized}
+                    loading={isAddingCustom}
+                    loadingText="Adicionando..."
+                    onClick={() => runAddAction(setIsAddingCustom, () => addCustomizedToCart(false))}
+                  >
+                    Adicionar ao carrinho
+                  </Button>
+                </div>
                 <Button
                   variant="secondary"
                   disabled={!canAddCustomized}
@@ -413,10 +459,10 @@ function ProductPage() {
               </div>
             </div>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-3 rounded-xl border border-slate-100 bg-slate-50 p-3">
               {product.allow_colors && (product.available_colors || []).length > 0 ? (
-                <div>
-                  <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Cor do produto</p>
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Cor do produto</p>
                   <select
                     className="h-10 w-full rounded-[10px] border border-slate-200 bg-white px-3 text-sm text-slate-700"
                     value={selectedColor}
@@ -431,7 +477,7 @@ function ProductPage() {
                   </select>
                   {product.allow_secondary_color ? (
                     <>
-                      <p className="mb-1 mt-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Furta cor (segunda cor, opcional)</p>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Furta cor (segunda cor, opcional)</p>
                       <select
                         className="h-10 w-full rounded-[10px] border border-slate-200 bg-white px-3 text-sm text-slate-700"
                         value={selectedSecondaryColor}
@@ -449,27 +495,28 @@ function ProductPage() {
                 </div>
               ) : null}
 
-              <p className="text-xs text-slate-500">
-                Prazo estimado: {productLeadTimeDays} dia(s) apos confirmacao do pagamento.
-              </p>
+              <p className="text-xs text-slate-500">Prazo estimado: {productLeadTimeDays} dia(s) apos confirmacao do pagamento.</p>
 
-              <div className="product-buy-actions">
-                <QuantitySelector value={quantity} onChange={setQuantity} />
-                <Button
-                  loading={isAddingSimple}
-                  loadingText="Adicionando..."
-                  onClick={() =>
-                    runAddAction(setIsAddingSimple, () =>
-                      addToCart(product, quantity, {
-                        selectedColor: selectedColor || null,
-                        selectedSecondaryColor: selectedSecondaryColor || null,
-                        selectedSubItems: [],
-                      })
-                    )
-                  }
-                >
-                  Adicionar ao carrinho
-                </Button>
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center gap-2">
+                  <QuantitySelector value={quantity} onChange={setQuantity} />
+                  <Button
+                    className="h-11 flex-1"
+                    loading={isAddingSimple}
+                    loadingText="Adicionando..."
+                    onClick={() =>
+                      runAddAction(setIsAddingSimple, () =>
+                        addToCart(product, quantity, {
+                          selectedColor: selectedColor || null,
+                          selectedSecondaryColor: selectedSecondaryColor || null,
+                          selectedSubItems: [],
+                        })
+                      )
+                    }
+                  >
+                    Adicionar ao carrinho
+                  </Button>
+                </div>
                 <Button
                   variant="secondary"
                   loading={isBuyingSimple}
@@ -490,19 +537,57 @@ function ProductPage() {
               </div>
             </div>
           )}
-
-          <div className="detail-card">
-            <h3>Descricao completa</h3>
-            <p className="whitespace-pre-line leading-8 text-slate-600">{product.full_description}</p>
-          </div>
-        </div>
+        </aside>
       </div>
 
-      <section className="related-products">
+      <section className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm sm:p-5 lg:p-6">
+        <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 pb-3">
+          <button
+            type="button"
+            onClick={() => setActiveDetailTab('description')}
+            className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+              activeDetailTab === 'description'
+                ? 'border-violet-500 bg-violet-50 text-violet-700'
+                : 'border-slate-200 bg-white text-slate-600 hover:border-violet-200 hover:text-violet-700'
+            }`}
+          >
+            Descricao
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveDetailTab('highlights')}
+            className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+              activeDetailTab === 'highlights'
+                ? 'border-violet-500 bg-violet-50 text-violet-700'
+                : 'border-slate-200 bg-white text-slate-600 hover:border-violet-200 hover:text-violet-700'
+            }`}
+          >
+            Destaques
+          </button>
+        </div>
+
+        {activeDetailTab === 'description' ? (
+          <p className="mt-4 whitespace-pre-line text-sm leading-8 text-slate-600">{product.full_description}</p>
+        ) : (
+          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {highlightItems.map((item) => (
+              <article key={item.id} className="rounded-xl border border-slate-100 bg-slate-50 p-3">
+                <div className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600">
+                  {item.icon}
+                </div>
+                <h3 className="mt-3 text-sm font-semibold text-slate-900">{item.title}</h3>
+                <p className="mt-1 text-xs leading-6 text-slate-600">{item.description}</p>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section className="space-y-3">
         <SectionHeader title="Relacionados" subtitle="Sugestoes para complementar seu pedido" />
-        <div className="product-grid-pro">
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
           {related.map((item) => (
-            <ProductCard key={item.id} product={item} onAdd={addToCart} />
+            <ProductCard key={item.id} product={item} onAdd={addToCart} compact />
           ))}
         </div>
       </section>
