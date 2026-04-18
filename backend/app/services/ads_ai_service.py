@@ -275,17 +275,18 @@ def build_ads_input_data(db: Session, *, limit_products: int = 5) -> dict:
         .all()
     )
 
+    total_qty_expr = func.sum(
+        case((OrderItem.quantity.is_(None), 0), else_=OrderItem.quantity),
+    )
     category_rows = (
         db.query(
             func.coalesce(Category.name, 'Sem categoria').label('category'),
-            func.sum(
-                case((OrderItem.quantity.is_(None), 0), else_=OrderItem.quantity),
-            ).label('total_qty'),
+            total_qty_expr.label('total_qty'),
         )
         .join(Product, Product.slug == OrderItem.product_slug)
         .outerjoin(Category, Category.id == Product.category_id)
-        .group_by(func.coalesce(Category.name, 'Sem categoria'))
-        .order_by(func.sum(OrderItem.quantity).desc())
+        .group_by(Category.name)
+        .order_by(total_qty_expr.desc())
         .limit(5)
         .all()
     )
