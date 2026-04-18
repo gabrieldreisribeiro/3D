@@ -10,6 +10,7 @@ import CartPage from './pages/CartPage';
 import AdminLoginPage from './pages/AdminLoginPage';
 import AdminDashboardPage from './pages/AdminDashboardPage';
 import AdminProductsPage from './pages/AdminProductsPage';
+import AdminCategoriesPage from './pages/AdminCategoriesPage';
 import AdminOrdersPage from './pages/AdminOrdersPage';
 import AdminSettingsPage from './pages/AdminSettingsPage';
 import AdminBannersPage from './pages/AdminBannersPage';
@@ -27,6 +28,7 @@ function AppContent() {
           <Route path="/painel-interno" element={<AdminLayout />}>
             <Route index element={<AdminDashboardPage />} />
             <Route path="produtos" element={<AdminProductsPage />} />
+            <Route path="categorias" element={<AdminCategoriesPage />} />
             <Route path="pedidos" element={<AdminOrdersPage />} />
             <Route path="cupons" element={<AdminCouponsPage />} />
             <Route path="banners" element={<AdminBannersPage />} />

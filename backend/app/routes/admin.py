@@ -5,6 +5,9 @@ from sqlalchemy.orm import Session
 from app.core.security import create_admin_token, get_db, require_admin, verify_password
 from app.models import AdminUser
 from app.schemas import (
+    AdminCategoryCreate,
+    AdminCategoryResponse,
+    AdminCategoryUpdate,
     AdminCouponCreate,
     AdminCouponResponse,
     AdminCouponUpdate,
@@ -46,6 +49,11 @@ from app.services.order_service import (
     serialize_admin_order,
 )
 from app.services.product_service import (
+    admin_category_slug_exists,
+    admin_create_category,
+    admin_delete_category,
+    admin_get_category_by_id,
+    admin_list_categories,
     admin_create_product,
     admin_delete_product,
     admin_get_product_by_id,
@@ -56,6 +64,7 @@ from app.services.product_service import (
     parse_colors_from_storage,
     parse_secondary_pairs_from_storage,
     parse_sub_items_from_storage,
+    admin_update_category,
 )
 from app.services.settings_service import get_or_create_settings, update_store_settings
 
@@ -191,6 +200,45 @@ def set_product_status(
 
     product = admin_set_product_status(db, product, is_active)
     return _serialize_product(product)
+
+
+@router.get('/categories', response_model=list[AdminCategoryResponse])
+def list_admin_categories(_: AdminUser = Depends(require_admin), db: Session = Depends(get_db)):
+    return admin_list_categories(db)
+
+
+@router.post('/categories', response_model=AdminCategoryResponse)
+def create_category(payload: AdminCategoryCreate, _: AdminUser = Depends(require_admin), db: Session = Depends(get_db)):
+    slug = payload.slug.strip().lower()
+    if admin_category_slug_exists(db, slug):
+        raise HTTPException(status_code=400, detail='Slug de categoria ja esta em uso')
+    return admin_create_category(db, payload.name.strip(), slug, bool(payload.is_active))
+
+
+@router.put('/categories/{category_id}', response_model=AdminCategoryResponse)
+def update_category(
+    category_id: int,
+    payload: AdminCategoryUpdate,
+    _: AdminUser = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    category = admin_get_category_by_id(db, category_id)
+    if not category:
+        raise HTTPException(status_code=404, detail='Categoria nao encontrada')
+
+    slug = payload.slug.strip().lower()
+    if admin_category_slug_exists(db, slug, ignore_id=category_id):
+        raise HTTPException(status_code=400, detail='Slug de categoria ja esta em uso')
+
+    return admin_update_category(db, category, payload.name.strip(), slug, bool(payload.is_active))
+
+
+@router.delete('/categories/{category_id}', status_code=204)
+def delete_category(category_id: int, _: AdminUser = Depends(require_admin), db: Session = Depends(get_db)):
+    category = admin_get_category_by_id(db, category_id)
+    if not category:
+        raise HTTPException(status_code=404, detail='Categoria nao encontrada')
+    admin_delete_category(db, category)
 
 
 @router.delete('/products/{product_id}', status_code=204)

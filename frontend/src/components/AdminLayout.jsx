@@ -55,6 +55,9 @@ function AdminLayout() {
       <NavLink to="/painel-interno/produtos" className={navClassName}>
         Produtos
       </NavLink>
+      <NavLink to="/painel-interno/categorias" className={navClassName}>
+        Categorias
+      </NavLink>
       <NavLink to="/painel-interno/pedidos" className={navClassName}>
         Pedidos
       </NavLink>

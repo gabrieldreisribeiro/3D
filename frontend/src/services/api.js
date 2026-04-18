@@ -204,6 +204,30 @@ export function fetchAdminProducts() {
   return adminRequest('/admin/products');
 }
 
+export function fetchAdminCategories() {
+  return adminRequest('/admin/categories');
+}
+
+export function createAdminCategory(payload) {
+  return adminRequest('/admin/categories', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export function updateAdminCategory(categoryId, payload) {
+  return adminRequest(`/admin/categories/${categoryId}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  });
+}
+
+export function deleteAdminCategory(categoryId) {
+  return adminRequest(`/admin/categories/${categoryId}`, {
+    method: 'DELETE',
+  });
+}
+
 export function createAdminProduct(payload) {
   return adminRequest('/admin/products', {
     method: 'POST',

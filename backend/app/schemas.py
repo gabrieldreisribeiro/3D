@@ -12,6 +12,28 @@ class CategoryResponse(BaseModel):
     slug: str
     is_active: bool
 
+class AdminCategoryBase(BaseModel):
+    name: str = Field(..., min_length=2, max_length=120)
+    slug: str = Field(..., min_length=2, max_length=120)
+    is_active: bool = True
+
+
+class AdminCategoryCreate(AdminCategoryBase):
+    pass
+
+
+class AdminCategoryUpdate(AdminCategoryBase):
+    pass
+
+
+class AdminCategoryResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    name: str
+    slug: str
+    is_active: bool
+
 
 class SecondaryColorPair(BaseModel):
     primary: str = Field(..., min_length=4, max_length=7)

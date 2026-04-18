@@ -14,7 +14,7 @@ import {
   createAdminProduct,
   deleteAdminProduct,
   fetchAdminProducts,
-  fetchCategories,
+  fetchAdminCategories,
   setAdminProductStatus,
   updateAdminProduct,
   uploadAdminProductImage,
@@ -310,7 +310,7 @@ function AdminProductsPage() {
 
   useEffect(() => {
     loadProducts();
-    fetchCategories().then(setCategories);
+    fetchAdminCategories().then(setCategories);
   }, []);
 
   const openCreate = () => {
@@ -1265,6 +1265,7 @@ function AdminProductsPage() {
 }
 
 export default AdminProductsPage;
+
 
 
 

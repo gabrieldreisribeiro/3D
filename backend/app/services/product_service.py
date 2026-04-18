@@ -15,8 +15,49 @@ def list_categories(db: Session):
     return db.query(Category).filter(Category.is_active == True).order_by(Category.name.asc()).all()
 
 
-def category_by_id(db: Session, category_id: int):
-    return db.query(Category).filter(Category.id == category_id, Category.is_active == True).first()
+def category_by_id(db: Session, category_id: int, include_inactive: bool = False):
+    query = db.query(Category).filter(Category.id == category_id)
+    if not include_inactive:
+        query = query.filter(Category.is_active == True)
+    return query.first()
+
+
+def admin_list_categories(db: Session):
+    return db.query(Category).order_by(Category.name.asc(), Category.id.asc()).all()
+
+
+def admin_get_category_by_id(db: Session, category_id: int):
+    return db.query(Category).filter(Category.id == category_id).first()
+
+
+def admin_category_slug_exists(db: Session, slug: str, ignore_id: int | None = None):
+    query = db.query(Category).filter(Category.slug == slug)
+    if ignore_id is not None:
+        query = query.filter(Category.id != ignore_id)
+    return query.first() is not None
+
+
+def admin_create_category(db: Session, name: str, slug: str, is_active: bool):
+    category = Category(name=name, slug=slug, is_active=is_active)
+    db.add(category)
+    db.commit()
+    db.refresh(category)
+    return category
+
+
+def admin_update_category(db: Session, category: Category, name: str, slug: str, is_active: bool):
+    category.name = name
+    category.slug = slug
+    category.is_active = is_active
+    db.commit()
+    db.refresh(category)
+    return category
+
+
+def admin_delete_category(db: Session, category: Category):
+    db.query(Product).filter(Product.category_id == category.id).update({Product.category_id: None}, synchronize_session=False)
+    db.delete(category)
+    db.commit()
 
 
 def list_products(db: Session, category_slug: str | None = None):
@@ -234,7 +275,7 @@ def _apply_pricing(product: Product, payload) -> None:
 
 
 def admin_create_product(db: Session, payload):
-    if payload.category_id is not None and not category_by_id(db, payload.category_id):
+    if payload.category_id is not None and not category_by_id(db, payload.category_id, include_inactive=True):
         raise ValueError('Categoria invalida.')
 
     product = Product(
@@ -277,7 +318,7 @@ def admin_create_product(db: Session, payload):
 
 
 def admin_update_product(db: Session, product: Product, payload):
-    if payload.category_id is not None and not category_by_id(db, payload.category_id):
+    if payload.category_id is not None and not category_by_id(db, payload.category_id, include_inactive=True):
         raise ValueError('Categoria invalida.')
 
     product.title = payload.title
