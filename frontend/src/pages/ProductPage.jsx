@@ -182,7 +182,7 @@ function ProductPage() {
   const [reviewModalOpen, setReviewModalOpen] = useState(false);
   const [reviewSubmitting, setReviewSubmitting] = useState(false);
   const [reviewFormError, setReviewFormError] = useState('');
-  const [reviewFormSuccess, setReviewFormSuccess] = useState('');
+  const [reviewSubmitNotice, setReviewSubmitNotice] = useState('');
   const [reviewForm, setReviewForm] = useState({
     author_name: '',
     rating: 0,
@@ -209,6 +209,7 @@ function ProductPage() {
         setActiveDetailTab('description');
         setReviewSort('recent');
         setReviewPage(1);
+        setReviewSubmitNotice('');
       })
       .catch(() => navigate('/'))
       .finally(() => setLoading(false));
@@ -432,7 +433,7 @@ function ProductPage() {
   const handleReviewSubmit = async (event) => {
     event.preventDefault();
     setReviewFormError('');
-    setReviewFormSuccess('');
+    setReviewSubmitNotice('');
 
     if (!productData.id) return;
     if (!reviewForm.author_name.trim()) {
@@ -457,7 +458,8 @@ function ProductPage() {
         images: reviewForm.images || [],
         video: reviewForm.video || null,
       });
-      setReviewFormSuccess(response.message || 'Avaliacao enviada com sucesso.');
+      setReviewModalOpen(false);
+      setReviewSubmitNotice(response.message || 'Comentario submetido com sucesso.');
       clearReviewForm();
       fetchProductReviewSummary(productData.id).then(setReviewsSummary).catch(() => {});
       fetchProductReviews(productData.id, {
@@ -913,6 +915,12 @@ function ProductPage() {
               </button>
             </div>
 
+            {reviewSubmitNotice ? (
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+                {reviewSubmitNotice}
+              </div>
+            ) : null}
+
             {reviewPhotos.length ? (
               <div className="flex flex-wrap gap-2">
                 {reviewPhotos.map((photo, index) => (
@@ -931,7 +939,7 @@ function ProductPage() {
               </p>
             )}
 
-            <div className="rounded-xl border border-slate-200 bg-white">
+            <div className="max-h-[560px] overflow-y-auto rounded-xl border border-slate-200 bg-white">
               {reviewsLoading ? (
                 <div className="px-4 py-8 text-center text-sm text-slate-500">Carregando avaliacoes...</div>
               ) : reviews.length ? (
@@ -1060,7 +1068,6 @@ function ProductPage() {
         onClose={() => {
           setReviewModalOpen(false);
           setReviewFormError('');
-          setReviewFormSuccess('');
         }}
         title="Escrever avaliacao"
         size="md"
@@ -1159,8 +1166,6 @@ function ProductPage() {
           ) : null}
 
           {reviewFormError ? <p className="text-sm text-rose-600">{reviewFormError}</p> : null}
-          {reviewFormSuccess ? <p className="text-sm text-emerald-700">{reviewFormSuccess}</p> : null}
-
           <div className="flex justify-end gap-2 pt-1">
             <Button
               type="button"
@@ -1168,7 +1173,6 @@ function ProductPage() {
               onClick={() => {
                 setReviewModalOpen(false);
                 setReviewFormError('');
-                setReviewFormSuccess('');
               }}
             >
               Fechar
