@@ -2,7 +2,7 @@ import json
 from collections import defaultdict
 from datetime import datetime, timedelta
 
-from sqlalchemy import func, or_
+from sqlalchemy import and_, func, not_, or_
 from sqlalchemy.orm import Session
 
 from app.models import Order, OrderItem, Product, UserEvent
@@ -114,7 +114,43 @@ def _events_query(
         query = query.filter(or_(UserEvent.category_id == category_id, Product.category_id == category_id))
     if source_channel:
         normalized = str(source_channel).strip().lower()
-        query = query.filter(func.lower(func.coalesce(UserEvent.source_channel, '')) == normalized)
+        lower_source = func.lower(func.coalesce(UserEvent.source_channel, ''))
+        lower_ref = func.lower(func.coalesce(UserEvent.referrer, ''))
+        if normalized == 'direto':
+            query = query.filter(
+                or_(
+                    lower_source == 'direto',
+                    and_(
+                        lower_source == '',
+                        lower_ref == '',
+                    ),
+                )
+            )
+        elif normalized == 'instagram':
+            query = query.filter(or_(lower_source == 'instagram', lower_ref.like('%instagram%')))
+        elif normalized == 'facebook':
+            query = query.filter(or_(lower_source == 'facebook', lower_ref.like('%facebook%'), lower_ref.like('%fb.%')))
+        elif normalized == 'google':
+            query = query.filter(or_(lower_source == 'google', lower_ref.like('%google%')))
+        elif normalized == 'whatsapp':
+            query = query.filter(or_(lower_source == 'whatsapp', lower_ref.like('%whatsapp%')))
+        elif normalized == 'referral':
+            query = query.filter(
+                or_(
+                    lower_source == 'referral',
+                    and_(
+                        lower_source == '',
+                        lower_ref != '',
+                        not_(lower_ref.like('%instagram%')),
+                        not_(lower_ref.like('%facebook%')),
+                        not_(lower_ref.like('%fb.%')),
+                        not_(lower_ref.like('%google%')),
+                        not_(lower_ref.like('%whatsapp%')),
+                    ),
+                )
+            )
+        else:
+            query = query.filter(lower_source == normalized)
     if country:
         normalized = str(country).strip().lower()
         query = query.filter(func.lower(func.coalesce(UserEvent.country, '')) == normalized)
