@@ -1,5 +1,5 @@
 ﻿import { createContext, useContext, useEffect, useMemo, useState } from 'react';
-import { validateCoupon } from './api';
+import { trackEvent, validateCoupon } from './api';
 
 const CartContext = createContext();
 
@@ -129,9 +129,22 @@ export function CartProvider({ children }) {
       }
       return [...current, nextItem];
     });
+
+    trackEvent({
+      event_type: 'add_to_cart',
+      product_id: product?.id ?? null,
+      metadata_json: {
+        slug: product?.slug || null,
+        quantity: safeQuantity,
+        has_sub_items: normalizedSubItems.length > 0,
+        selected_color: selectedColor,
+        selected_secondary_color: selectedSecondaryColor,
+      },
+    }).catch(() => {});
   };
 
   const updateQuantity = (cartKey, quantity) => {
+    const targetItem = items.find((item) => (item.cart_key || `${item.slug}::base`) === cartKey);
     setItems((current) =>
       current
         .map((item) => {
@@ -140,10 +153,32 @@ export function CartProvider({ children }) {
         })
         .filter((item) => item.quantity > 0)
     );
+    if (targetItem) {
+      trackEvent({
+        event_type: 'update_cart',
+        product_id: targetItem?.id ?? null,
+        metadata_json: {
+          slug: targetItem?.slug || null,
+          quantity: Number(quantity || 0),
+          cart_key: cartKey,
+        },
+      }).catch(() => {});
+    }
   };
 
   const removeItem = (cartKey) => {
+    const targetItem = items.find((item) => (item.cart_key || `${item.slug}::base`) === cartKey);
     setItems((current) => current.filter((item) => (item.cart_key || `${item.slug}::base`) !== cartKey));
+    if (targetItem) {
+      trackEvent({
+        event_type: 'remove_from_cart',
+        product_id: targetItem?.id ?? null,
+        metadata_json: {
+          slug: targetItem?.slug || null,
+          cart_key: cartKey,
+        },
+      }).catch(() => {});
+    }
   };
 
   const clearCart = () => {

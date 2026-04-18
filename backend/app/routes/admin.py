@@ -43,6 +43,7 @@ from app.services.coupon_service import (
 )
 from app.services.banner_service import create_banner, delete_banner, get_banner, list_admin_banners, update_banner
 from app.services.banner_upload_service import save_banner_image
+from app.services.analytics_service import analytics_funnel, analytics_products, analytics_summary
 from app.services.logo_service import save_logo
 from app.services.product_upload_service import save_product_image
 from app.services.order_service import (
@@ -220,14 +221,28 @@ def upload_product_image(file: UploadFile = File(...), _: AdminUser = Depends(re
 
 @router.get('/dashboard/summary', response_model=AdminDashboardSummary)
 def dashboard_summary(_: AdminUser = Depends(require_admin), db: Session = Depends(get_db)):
+    summary = analytics_summary(db)
+    products_stats = analytics_products(db)
+    funnel_points = analytics_funnel(db)
     return AdminDashboardSummary(
         total_products=len(admin_list_products(db)),
-        total_orders=admin_total_orders(db),
+        total_orders=summary['total_orders'] if summary else admin_total_orders(db),
         total_sold=admin_total_sold(db),
+        total_items_sold=summary.get('total_items_sold', 0),
+        conversion_add_to_whatsapp=summary.get('conversion_add_to_whatsapp', 0),
         sales_series=dashboard_sales_last_days(db),
         orders_series=dashboard_orders_last_days(db),
         top_products=dashboard_top_products(db),
         order_status=dashboard_order_status(db),
+        funnel=[{'label': item['step'], 'value': float(item['value'])} for item in funnel_points],
+        most_viewed_products=[
+            {'title': item['product_title'], 'quantity': int(item['value']), 'total_value': item.get('total_value')}
+            for item in products_stats.get('most_viewed', [])
+        ],
+        most_added_products=[
+            {'title': item['product_title'], 'quantity': int(item['value']), 'total_value': item.get('total_value')}
+            for item in products_stats.get('most_added', [])
+        ],
     )
 
 

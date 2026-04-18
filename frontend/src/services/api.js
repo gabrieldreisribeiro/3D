@@ -3,6 +3,7 @@ import { API_BASE_URL, buildApiUrl } from '../config/endpoints';
 const API_BASE = API_BASE_URL;
 const ADMIN_TOKEN_KEY = 'admin_token';
 const CLIENT_FP_KEY = 'client_fingerprint';
+const SESSION_ID_KEY = 'session_id';
 
 function getClientFingerprint() {
   if (typeof window === 'undefined') return '';
@@ -19,10 +20,29 @@ function getClientFingerprint() {
   }
 }
 
+export function getSessionId() {
+  if (typeof window === 'undefined') return '';
+  try {
+    const existing = localStorage.getItem(SESSION_ID_KEY);
+    if (existing) return existing;
+    const generated = typeof crypto !== 'undefined' && crypto.randomUUID
+      ? crypto.randomUUID()
+      : `sess-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    localStorage.setItem(SESSION_ID_KEY, generated);
+    return generated;
+  } catch {
+    return '';
+  }
+}
 async function request(path, options = {}) {
   const fingerprint = getClientFingerprint();
+  const sessionId = getSessionId();
   const response = await fetch(buildApiUrl(path), {
-    headers: { 'Content-Type': 'application/json', ...(fingerprint ? { 'X-Client-Fingerprint': fingerprint } : {}) },
+    headers: {
+      'Content-Type': 'application/json',
+      ...(fingerprint ? { 'X-Client-Fingerprint': fingerprint } : {}),
+      ...(sessionId ? { 'X-Session-Id': sessionId } : {}),
+    },
     ...options,
   });
 
@@ -36,10 +56,12 @@ async function request(path, options = {}) {
 async function adminRequest(path, options = {}) {
   const token = localStorage.getItem(ADMIN_TOKEN_KEY);
   const fingerprint = getClientFingerprint();
+  const sessionId = getSessionId();
   const headers = {
     'Content-Type': 'application/json',
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...(fingerprint ? { 'X-Client-Fingerprint': fingerprint } : {}),
+    ...(sessionId ? { 'X-Session-Id': sessionId } : {}),
     ...(options.headers || {}),
   };
 
@@ -93,6 +115,19 @@ export function fetchProducts(category = null) {
 
 export function fetchProduct(slug) {
   return request(`/products/${slug}`);
+}
+
+export function trackEvent(payload) {
+  return request('/events', {
+    method: 'POST',
+    body: JSON.stringify({
+      session_id: getSessionId(),
+      event_type: payload?.event_type,
+      product_id: payload?.product_id ?? null,
+      user_identifier: payload?.user_identifier ?? null,
+      metadata_json: payload?.metadata_json || {},
+    }),
+  });
 }
 
 export function fetchProductReviews(productId, params = {}) {
@@ -229,6 +264,42 @@ export async function uploadAdminProductImage(file) {
 
 export function fetchAdminSummary() {
   return adminRequest('/admin/dashboard/summary');
+}
+
+export function fetchAdminAnalyticsSummary() {
+  return adminRequest('/admin/analytics/summary');
+}
+
+export function fetchAdminAnalyticsFunnel() {
+  return adminRequest('/admin/analytics/funnel');
+}
+
+export function fetchAdminAnalyticsProducts() {
+  return adminRequest('/admin/analytics/products');
+}
+
+export function fetchAdminReportSales(params = {}) {
+  const search = new URLSearchParams();
+  if (params.date_from) search.set('date_from', params.date_from);
+  if (params.date_to) search.set('date_to', params.date_to);
+  const query = search.toString();
+  return adminRequest(`/admin/reports/sales${query ? `?${query}` : ''}`);
+}
+
+export function fetchAdminReportTopProducts(params = {}) {
+  const search = new URLSearchParams();
+  if (params.date_from) search.set('date_from', params.date_from);
+  if (params.date_to) search.set('date_to', params.date_to);
+  const query = search.toString();
+  return adminRequest(`/admin/reports/top-products${query ? `?${query}` : ''}`);
+}
+
+export function fetchAdminReportLeads(params = {}) {
+  const search = new URLSearchParams();
+  if (params.date_from) search.set('date_from', params.date_from);
+  if (params.date_to) search.set('date_to', params.date_to);
+  const query = search.toString();
+  return adminRequest(`/admin/reports/leads${query ? `?${query}` : ''}`);
 }
 
 export function fetchAdminSettings() {
@@ -405,3 +476,55 @@ export function deleteAdminBanner(id) {
     method: 'DELETE',
   });
 }
+
+export function fetchAdminDatabaseTables() {
+  return adminRequest('/admin/database/tables');
+}
+
+export function fetchAdminDatabaseQueryLogs(params = {}) {
+  const search = new URLSearchParams();
+  if (params.page) search.set('page', String(params.page));
+  if (params.page_size) search.set('page_size', String(params.page_size));
+  const query = search.toString();
+  return adminRequest(`/admin/database/query/logs${query ? `?${query}` : ''}`);
+}
+
+export function executeAdminDatabaseQuery(payload) {
+  return adminRequest('/admin/database/query', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function downloadAdminDatabaseExport(path, filename) {
+  const token = localStorage.getItem(ADMIN_TOKEN_KEY);
+  const fingerprint = getClientFingerprint();
+  const response = await fetch(buildApiUrl(path), {
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(fingerprint ? { 'X-Client-Fingerprint': fingerprint } : {}),
+    },
+  });
+
+  if (!response.ok) {
+    let detail = 'Erro ao baixar arquivo';
+    try {
+      const body = await response.json();
+      detail = body?.detail || body?.message || detail;
+    } catch {
+      // ignore
+    }
+    throw new Error(detail);
+  }
+
+  const blob = await response.blob();
+  const url = window.URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  window.URL.revokeObjectURL(url);
+}
+

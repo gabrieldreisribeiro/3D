@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import RatingPill from './RatingPill';
 import Button from './ui/Button';
-import { resolveAssetUrl } from '../services/api';
+import { resolveAssetUrl, trackEvent } from '../services/api';
 
 function ProductCard({ product, onAdd, highlightLabel = '', compact = false }) {
   const [isAdding, setIsAdding] = useState(false);
@@ -12,6 +12,16 @@ function ProductCard({ product, onAdd, highlightLabel = '', compact = false }) {
   const ratingCount = Number(product.rating_count || 0);
   const ratingAverage = ratingCount > 0 ? Number(product.rating_average || 0) : 0;
   const badgeLabel = highlightLabel || (hasSubItems ? 'Personalizado' : '');
+  const handleProductClick = () => {
+    trackEvent({
+      event_type: 'click_product',
+      product_id: product?.id ?? null,
+      metadata_json: {
+        slug: product?.slug || null,
+        source: compact ? 'compact_card' : 'product_card',
+      },
+    }).catch(() => {});
+  };
 
   const handleAdd = async () => {
     if (isAdding) return;
@@ -28,7 +38,7 @@ function ProductCard({ product, onAdd, highlightLabel = '', compact = false }) {
 
   return (
     <article className={`product-card-pro ${compact ? 'product-card-pro-compact' : ''}`}>
-      <Link to={`/product/${product.slug}`} className="product-card-image-link">
+      <Link to={`/product/${product.slug}`} className="product-card-image-link" onClick={handleProductClick}>
         <div className="product-card-image-wrap">
           <div className="product-card-image" style={{ backgroundImage: `url(${coverImageUrl})` }} />
           {badgeLabel ? <span className="product-card-badge">{badgeLabel}</span> : null}
@@ -36,7 +46,7 @@ function ProductCard({ product, onAdd, highlightLabel = '', compact = false }) {
       </Link>
 
       <div className="product-card-body">
-        <Link to={`/product/${product.slug}`} className="product-card-title-link">
+        <Link to={`/product/${product.slug}`} className="product-card-title-link" onClick={handleProductClick}>
           <h3>{product.title}</h3>
         </Link>
         <p className="product-card-desc">{product.short_description}</p>

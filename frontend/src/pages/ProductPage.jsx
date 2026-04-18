@@ -13,6 +13,7 @@ import {
   fetchProductReviewSummary,
   fetchProducts,
   resolveAssetUrl,
+  trackEvent,
 } from '../services/api';
 import { useCart } from '../services/cart';
 
@@ -219,6 +220,7 @@ function ProductPage() {
 
   const productData = product || {
     id: 0,
+    slug: '',
     title: '',
     short_description: '',
     full_description: '',
@@ -310,6 +312,17 @@ function ProductPage() {
   useEffect(() => () => {
     reviewImagePreviews.forEach((item) => URL.revokeObjectURL(item.url));
   }, [reviewImagePreviews]);
+
+  useEffect(() => {
+    if (!productData.id) return;
+    trackEvent({
+      event_type: 'view_product',
+      product_id: productData.id,
+      metadata_json: {
+        slug: productData.slug || slug,
+      },
+    }).catch(() => {});
+  }, [productData.id, productData.slug, slug]);
 
   useEffect(() => {
     if (!productData.id) return;
