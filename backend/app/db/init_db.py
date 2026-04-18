@@ -281,6 +281,38 @@ def _ensure_ads_provider_config_columns(session):
         session.commit()
 
 
+def _sync_postgres_sequences(session):
+    if not session.bind.dialect.name.startswith('postgres'):
+        return
+
+    preparer = session.bind.dialect.identifier_preparer
+    for table in Base.metadata.sorted_tables:
+        if 'id' not in table.columns:
+            continue
+
+        table_name = table.name
+        sequence_name = session.execute(
+            text("SELECT pg_get_serial_sequence(:table_name, 'id')"),
+            {'table_name': table_name},
+        ).scalar()
+        if not sequence_name:
+            continue
+
+        quoted_table = preparer.quote(table_name)
+        max_id = session.execute(text(f"SELECT COALESCE(MAX(id), 0) FROM {quoted_table}")).scalar() or 0
+        if int(max_id) > 0:
+            session.execute(
+                text("SELECT setval(:seq_name, :max_id, true)"),
+                {'seq_name': sequence_name, 'max_id': int(max_id)},
+            )
+        else:
+            session.execute(
+                text("SELECT setval(:seq_name, 1, false)"),
+                {'seq_name': sequence_name},
+            )
+    session.commit()
+
+
 def _seed_categories(session):
     existing = {item.slug: item for item in session.query(Category).all()}
     for category in CATEGORIES:
@@ -346,6 +378,7 @@ def init_db() -> None:
         _ensure_store_settings_columns(session)
         _ensure_user_events_columns(session)
         _ensure_ads_provider_config_columns(session)
+        _sync_postgres_sequences(session)
         _seed_categories(session)
 
         categories = {item.slug: item.id for item in session.query(Category).all()}
