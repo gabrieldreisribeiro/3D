@@ -7,6 +7,7 @@ from fastapi import HTTPException
 from sqlalchemy.orm import Session, joinedload
 
 from app.models import Category, Coupon, Product
+from app.services.instagram_service import try_publish_product_to_instagram
 from app.services.product_pricing_service import calculate_product_pricing, calculate_product_pricing_from_fields
 
 HEX_COLOR_PATTERN = re.compile(r'^#[0-9A-F]{6}$')
@@ -308,12 +309,18 @@ def admin_create_product(db: Session, payload):
         extra_cost=payload.extra_cost,
         profit_margin=payload.profit_margin,
         manual_price=payload.manual_price,
+        publish_to_instagram=bool(payload.publish_to_instagram),
+        instagram_caption=(payload.instagram_caption or '').strip() or None,
+        instagram_hashtags=(payload.instagram_hashtags or '').strip() or None,
+        instagram_post_status='not_published',
+        instagram_error_message=None,
     )
     _apply_pricing(product, payload)
 
     db.add(product)
     db.commit()
     db.refresh(product)
+    product = try_publish_product_to_instagram(db, product)
     return product
 
 
@@ -349,11 +356,15 @@ def admin_update_product(db: Session, product: Product, payload):
     product.extra_cost = payload.extra_cost
     product.profit_margin = payload.profit_margin
     product.manual_price = payload.manual_price
+    product.publish_to_instagram = bool(payload.publish_to_instagram)
+    product.instagram_caption = (payload.instagram_caption or '').strip() or None
+    product.instagram_hashtags = (payload.instagram_hashtags or '').strip() or None
 
     _apply_pricing(product, payload)
 
     db.commit()
     db.refresh(product)
+    product = try_publish_product_to_instagram(db, product)
     return product
 
 

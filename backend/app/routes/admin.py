@@ -21,6 +21,9 @@ from app.schemas import (
     BannerCreate,
     BannerResponse,
     BannerUpdate,
+    InstagramConnectionTestResponse,
+    InstagramSettingsResponse,
+    InstagramSettingsUpdate,
     LogoResponse,
     StoreSettingsResponse,
     StoreSettingsUpdate,
@@ -48,6 +51,7 @@ from app.services.order_service import (
     dashboard_top_products,
     serialize_admin_order,
 )
+from app.services.instagram_service import test_instagram_connection, try_publish_product_to_instagram
 from app.services.product_service import (
     admin_category_slug_exists,
     admin_create_category,
@@ -66,7 +70,7 @@ from app.services.product_service import (
     parse_sub_items_from_storage,
     admin_update_category,
 )
-from app.services.settings_service import get_or_create_settings, update_store_settings
+from app.services.settings_service import get_or_create_settings, update_instagram_settings, update_store_settings
 
 router = APIRouter(prefix='/admin', tags=['admin'])
 
@@ -116,6 +120,64 @@ def save_store_settings(
     return StoreSettingsResponse(
         whatsapp_number=settings.whatsapp_number,
         pix_key=settings.pix_key,
+    )
+
+
+@router.get('/integrations/instagram', response_model=InstagramSettingsResponse)
+def read_instagram_settings(_: AdminUser = Depends(require_admin), db: Session = Depends(get_db)):
+    settings = get_or_create_settings(db)
+    return InstagramSettingsResponse(
+        instagram_enabled=bool(settings.instagram_enabled),
+        instagram_app_id=settings.instagram_app_id,
+        instagram_app_secret=settings.instagram_app_secret,
+        instagram_access_token=settings.instagram_access_token,
+        instagram_user_id=settings.instagram_user_id,
+        instagram_page_id=settings.instagram_page_id,
+        instagram_default_caption=settings.instagram_default_caption,
+        instagram_default_hashtags=settings.instagram_default_hashtags,
+        instagram_auto_publish_default=bool(settings.instagram_auto_publish_default),
+    )
+
+
+@router.put('/integrations/instagram', response_model=InstagramSettingsResponse)
+def save_instagram_settings(
+    payload: InstagramSettingsUpdate,
+    _: AdminUser = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    settings = update_instagram_settings(
+        db,
+        payload.instagram_enabled,
+        payload.instagram_app_id,
+        payload.instagram_app_secret,
+        payload.instagram_access_token,
+        payload.instagram_user_id,
+        payload.instagram_page_id,
+        payload.instagram_default_caption,
+        payload.instagram_default_hashtags,
+        payload.instagram_auto_publish_default,
+    )
+    return InstagramSettingsResponse(
+        instagram_enabled=bool(settings.instagram_enabled),
+        instagram_app_id=settings.instagram_app_id,
+        instagram_app_secret=settings.instagram_app_secret,
+        instagram_access_token=settings.instagram_access_token,
+        instagram_user_id=settings.instagram_user_id,
+        instagram_page_id=settings.instagram_page_id,
+        instagram_default_caption=settings.instagram_default_caption,
+        instagram_default_hashtags=settings.instagram_default_hashtags,
+        instagram_auto_publish_default=bool(settings.instagram_auto_publish_default),
+    )
+
+
+@router.post('/integrations/instagram/test', response_model=InstagramConnectionTestResponse)
+def instagram_test_connection(_: AdminUser = Depends(require_admin), db: Session = Depends(get_db)):
+    result = test_instagram_connection(db)
+    return InstagramConnectionTestResponse(
+        ok=bool(result.get('ok')),
+        message=result.get('message') or '',
+        account_id=result.get('account_id'),
+        account_name=result.get('account_name'),
     )
 
 
@@ -199,6 +261,23 @@ def set_product_status(
         raise HTTPException(status_code=404, detail='Produto nao encontrado')
 
     product = admin_set_product_status(db, product, is_active)
+    return _serialize_product(product)
+
+
+@router.post('/products/{product_id}/instagram/publish', response_model=AdminProductResponse)
+def publish_product_on_instagram(
+    product_id: int,
+    _: AdminUser = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    product = admin_get_product_by_id(db, product_id)
+    if not product:
+        raise HTTPException(status_code=404, detail='Produto nao encontrado')
+    product.publish_to_instagram = True
+    db.add(product)
+    db.commit()
+    db.refresh(product)
+    product = try_publish_product_to_instagram(db, product)
     return _serialize_product(product)
 
 

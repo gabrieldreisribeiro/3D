@@ -200,6 +200,23 @@ export function updateAdminSettings(payload) {
   });
 }
 
+export function fetchAdminInstagramSettings() {
+  return adminRequest('/admin/integrations/instagram');
+}
+
+export function updateAdminInstagramSettings(payload) {
+  return adminRequest('/admin/integrations/instagram', {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  });
+}
+
+export function testAdminInstagramConnection() {
+  return adminRequest('/admin/integrations/instagram/test', {
+    method: 'POST',
+  });
+}
+
 export function fetchAdminProducts() {
   return adminRequest('/admin/products');
 }
@@ -239,6 +256,12 @@ export function updateAdminProduct(productId, payload) {
   return adminRequest(`/admin/products/${productId}`, {
     method: 'PUT',
     body: JSON.stringify(payload),
+  });
+}
+
+export function publishAdminProductInstagram(productId) {
+  return adminRequest(`/admin/products/${productId}/instagram/publish`, {
+    method: 'POST',
   });
 }
 

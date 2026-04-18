@@ -15,6 +15,7 @@ import AdminOrdersPage from './pages/AdminOrdersPage';
 import AdminSettingsPage from './pages/AdminSettingsPage';
 import AdminBannersPage from './pages/AdminBannersPage';
 import AdminCouponsPage from './pages/AdminCouponsPage';
+import AdminInstagramPage from './pages/AdminInstagramPage';
 
 function AppContent() {
   const location = useLocation();
@@ -33,6 +34,7 @@ function AppContent() {
             <Route path="cupons" element={<AdminCouponsPage />} />
             <Route path="banners" element={<AdminBannersPage />} />
             <Route path="configuracoes" element={<AdminSettingsPage />} />
+            <Route path="instagram" element={<AdminInstagramPage />} />
           </Route>
           <Route path="*" element={<Navigate to="/painel-interno" replace />} />
         </Routes>

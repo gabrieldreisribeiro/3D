@@ -67,6 +67,9 @@ function AdminLayout() {
       <NavLink to="/painel-interno/banners" className={navClassName}>
         Banners
       </NavLink>
+      <NavLink to="/painel-interno/instagram" className={navClassName}>
+        Instagram
+      </NavLink>
       <NavLink to="/painel-interno/configuracoes" className={navClassName}>
         Configuracoes
       </NavLink>

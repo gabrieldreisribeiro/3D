@@ -155,6 +155,9 @@ class AdminProductBase(BaseModel):
     extra_cost: float = Field(default=0, ge=0)
     profit_margin: float = Field(default=0, ge=0, lt=100)
     manual_price: Optional[float] = Field(default=None, ge=0)
+    publish_to_instagram: bool = False
+    instagram_caption: Optional[str] = None
+    instagram_hashtags: Optional[str] = None
 
 
 class AdminProductCreate(AdminProductBase):
@@ -200,6 +203,13 @@ class AdminProductResponse(BaseModel):
     estimated_profit: float
     final_price: float
     price: float
+    publish_to_instagram: bool
+    instagram_caption: Optional[str]
+    instagram_hashtags: Optional[str]
+    instagram_post_status: str
+    instagram_post_id: Optional[str]
+    instagram_published_at: Optional[datetime]
+    instagram_error_message: Optional[str]
 
 class CouponRequest(BaseModel):
     code: str
@@ -361,3 +371,30 @@ class StoreSettingsUpdate(StoreSettingsBase):
 
 class StoreSettingsResponse(StoreSettingsBase):
     pass
+
+
+class InstagramSettingsBase(BaseModel):
+    instagram_enabled: bool = False
+    instagram_app_id: Optional[str] = None
+    instagram_app_secret: Optional[str] = None
+    instagram_access_token: Optional[str] = None
+    instagram_user_id: Optional[str] = None
+    instagram_page_id: Optional[str] = None
+    instagram_default_caption: Optional[str] = None
+    instagram_default_hashtags: Optional[str] = None
+    instagram_auto_publish_default: bool = False
+
+
+class InstagramSettingsUpdate(InstagramSettingsBase):
+    pass
+
+
+class InstagramSettingsResponse(InstagramSettingsBase):
+    pass
+
+
+class InstagramConnectionTestResponse(BaseModel):
+    ok: bool
+    message: str
+    account_id: Optional[str] = None
+    account_name: Optional[str] = None

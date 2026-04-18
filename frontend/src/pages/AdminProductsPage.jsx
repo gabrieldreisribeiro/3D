@@ -13,8 +13,10 @@ import usePersistentState from '../hooks/usePersistentState';
 import {
   createAdminProduct,
   deleteAdminProduct,
+  fetchAdminInstagramSettings,
   fetchAdminProducts,
   fetchAdminCategories,
+  publishAdminProductInstagram,
   setAdminProductStatus,
   updateAdminProduct,
   uploadAdminProductImage,
@@ -66,6 +68,9 @@ const initialForm = {
   available_colors: [],
   allow_secondary_color: false,
   secondary_color_pairs: [],
+  publish_to_instagram: false,
+  instagram_caption: '',
+  instagram_hashtags: '',
   sub_items: [],
   ...defaultPricingFields,
 };
@@ -175,6 +180,9 @@ function toPayload(form) {
     available_colors: form.allow_colors ? parseColors(form.available_colors) : [],
     allow_secondary_color: Boolean(form.allow_colors) && Boolean(form.allow_secondary_color),
     secondary_color_pairs: form.allow_colors && form.allow_secondary_color ? parseSecondaryPairs(form.secondary_color_pairs) : [],
+    publish_to_instagram: Boolean(form.publish_to_instagram),
+    instagram_caption: String(form.instagram_caption || '').trim() || null,
+    instagram_hashtags: String(form.instagram_hashtags || '').trim() || null,
     manual_price: shouldUseProductPricing && pricingMode === 'manual' ? toNumber(form.manual_price) : null,
     grams_filament: shouldUseProductPricing && pricingMode === 'calculated' ? toNumber(form.grams_filament) : 0,
     price_kg_filament: shouldUseProductPricing && pricingMode === 'calculated' ? toNumber(form.price_kg_filament) : 0,
@@ -246,6 +254,9 @@ function fromProduct(product) {
     available_colors: Array.isArray(product.available_colors) ? product.available_colors : [],
     allow_secondary_color: Boolean(product.allow_secondary_color),
     secondary_color_pairs: parseSecondaryPairs(product.secondary_color_pairs || []),
+    publish_to_instagram: Boolean(product.publish_to_instagram),
+    instagram_caption: product.instagram_caption || '',
+    instagram_hashtags: product.instagram_hashtags || '',
     grams_filament: String(product.grams_filament ?? 0),
     price_kg_filament: String(product.price_kg_filament ?? 0),
     hours_printing: String(product.hours_printing ?? 0),
@@ -276,6 +287,20 @@ function ColorPickerField({ label, value, onChange }) {
   );
 }
 
+function getInstagramStatusTone(status) {
+  if (status === 'published') return 'success';
+  if (status === 'pending') return 'info';
+  if (status === 'error') return 'danger';
+  return 'neutral';
+}
+
+function getInstagramStatusLabel(status) {
+  if (status === 'published') return 'Publicado';
+  if (status === 'pending') return 'Pendente';
+  if (status === 'error') return 'Erro';
+  return 'Nao publicado';
+}
+
 function AdminProductsPage() {
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -299,6 +324,8 @@ function AdminProductsPage() {
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [instagramAutoPublishDefault, setInstagramAutoPublishDefault] = useState(false);
+  const [publishingInstagramById, setPublishingInstagramById] = useState({});
 
   const loadProducts = () => {
     setLoading(true);
@@ -311,12 +338,31 @@ function AdminProductsPage() {
   useEffect(() => {
     loadProducts();
     fetchAdminCategories().then(setCategories);
+    fetchAdminInstagramSettings()
+      .then((settings) => setInstagramAutoPublishDefault(Boolean(settings?.instagram_auto_publish_default)))
+      .catch(() => setInstagramAutoPublishDefault(false));
   }, []);
+
+  useEffect(() => {
+    setForm((current) => ({
+      ...initialForm,
+      ...current,
+      publish_to_instagram:
+        typeof current?.publish_to_instagram === 'boolean' ? current.publish_to_instagram : instagramAutoPublishDefault,
+      instagram_caption: current?.instagram_caption ?? '',
+      instagram_hashtags: current?.instagram_hashtags ?? '',
+    }));
+  }, [instagramAutoPublishDefault, setForm]);
 
   const openCreate = () => {
     const shouldResetForm = editingId !== null || modalMode !== 'create';
     setEditingId(null);
-    if (shouldResetForm) setForm(initialForm);
+    if (shouldResetForm) {
+      setForm({
+        ...initialForm,
+        publish_to_instagram: instagramAutoPublishDefault,
+      });
+    }
     setError('');
     setSelectedProduct(null);
     setCollapsedSubItems({});
@@ -365,7 +411,10 @@ function AdminProductsPage() {
       setEditingId(null);
       setSelectedProduct(null);
       setModalMode('create');
-      setForm(initialForm);
+      setForm({
+        ...initialForm,
+        publish_to_instagram: instagramAutoPublishDefault,
+      });
       loadProducts();
     } catch (submitError) {
       setError(submitError.message || 'Falha ao salvar produto.');
@@ -394,6 +443,19 @@ function AdminProductsPage() {
       loadProducts();
     } catch (deleteError) {
       setError(deleteError.message || 'Falha ao excluir produto.');
+    }
+  };
+
+  const publishOnInstagram = async (productId) => {
+    setPublishingInstagramById((current) => ({ ...current, [productId]: true }));
+    setError('');
+    try {
+      await publishAdminProductInstagram(productId);
+      loadProducts();
+    } catch (publishError) {
+      setError(publishError.message || 'Falha ao publicar no Instagram.');
+    } finally {
+      setPublishingInstagramById((current) => ({ ...current, [productId]: false }));
     }
   };
 
@@ -672,7 +734,7 @@ function AdminProductsPage() {
             </div>
 
             <Table
-              columns={['Produto', 'Categoria', 'Preco final', 'Custo', 'Lucro', 'Status', 'Acoes']}
+              columns={['Produto', 'Categoria', 'Preco final', 'Custo', 'Lucro', 'Status', 'Instagram', 'Acoes']}
               rows={paginatedProducts}
               empty={<EmptyState title="Sem produtos" description="Comece criando o primeiro produto." />}
               renderRow={(product) => (
@@ -699,9 +761,26 @@ function AdminProductsPage() {
                     </StatusBadge>
                   </td>
                   <td>
+                    <div className="space-y-1">
+                      <StatusBadge tone={getInstagramStatusTone(product.instagram_post_status)}>
+                        {getInstagramStatusLabel(product.instagram_post_status)}
+                      </StatusBadge>
+                      {product.instagram_error_message ? (
+                        <p className="max-w-[220px] text-xs text-rose-600">{product.instagram_error_message}</p>
+                      ) : null}
+                    </div>
+                  </td>
+                  <td>
                     <div className="flex flex-wrap gap-2">
                       <Button variant="secondary" onClick={() => openEdit(product)}>
                         Editar
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        loading={Boolean(publishingInstagramById[product.id])}
+                        onClick={() => publishOnInstagram(product.id)}
+                      >
+                        Publicar Insta
                       </Button>
                       <Button variant="ghost" onClick={() => setConfirmTarget(product)}>
                         {product.is_active ? 'Inativar' : 'Ativar'}
@@ -1198,6 +1277,51 @@ function AdminProductsPage() {
               ))}
             </div>
           </div>
+
+          <label className="md:col-span-2 inline-flex items-center gap-2 rounded-[10px] border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+            <input
+              type="checkbox"
+              checked={Boolean(form.publish_to_instagram)}
+              onChange={(event) => setForm({ ...form, publish_to_instagram: event.target.checked })}
+            />
+            <span>Publicar tambem no Instagram</span>
+          </label>
+
+          <TextArea
+            label="Legenda para Instagram (opcional)"
+            className="md:col-span-2"
+            rows="3"
+            value={form.instagram_caption}
+            onChange={(event) => setForm({ ...form, instagram_caption: event.target.value })}
+            placeholder="Se vazio, o sistema usa legenda padrao + dados do produto."
+          />
+
+          <Input
+            label="Hashtags extras para Instagram"
+            className="md:col-span-2"
+            value={form.instagram_hashtags}
+            onChange={(event) => setForm({ ...form, instagram_hashtags: event.target.value })}
+            placeholder="#3d #decoracao #organizacao"
+          />
+
+          {selectedProduct ? (
+            <div className="md:col-span-2 rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <div className="mb-2">
+                <StatusBadge tone={getInstagramStatusTone(selectedProduct.instagram_post_status)}>
+                  Instagram: {getInstagramStatusLabel(selectedProduct.instagram_post_status)}
+                </StatusBadge>
+              </div>
+              {selectedProduct.instagram_post_id ? (
+                <p className="text-sm text-slate-600">Post ID: {selectedProduct.instagram_post_id}</p>
+              ) : null}
+              {selectedProduct.instagram_published_at ? (
+                <p className="text-sm text-slate-600">Publicado em: {selectedProduct.instagram_published_at}</p>
+              ) : null}
+              {selectedProduct.instagram_error_message ? (
+                <p className="text-sm text-rose-600">{selectedProduct.instagram_error_message}</p>
+              ) : null}
+            </div>
+          ) : null}
 
           <label className="md:col-span-2 inline-flex items-center gap-2 rounded-[10px] border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
             <input
