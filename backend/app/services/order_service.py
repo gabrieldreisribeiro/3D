@@ -210,7 +210,7 @@ def list_most_ordered_products(db: Session, limit: int = 4):
     return (
         db.query(Product)
         .filter(Product.is_active == True)
-        .order_by(Product.id.desc())
+        .order_by(Product.created_at.desc())
         .limit(safe_limit)
         .all()
     )
