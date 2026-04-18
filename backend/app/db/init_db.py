@@ -1,5 +1,6 @@
 ﻿from sqlalchemy import text
 
+from app.core.config import SEED_DEFAULT_ADMIN, SEED_SAMPLE_DATA
 from app.core.security import hash_password
 from app.db.session import Base, SessionLocal, engine
 from app.models import AdminUser, Banner, Category, Coupon, Product, ProductReview, StoreSettings
@@ -388,11 +389,12 @@ def init_db() -> None:
         _ensure_user_events_columns(session)
         _ensure_ads_provider_config_columns(session)
         _sync_postgres_sequences(session)
-        _seed_categories(session)
+        if SEED_SAMPLE_DATA:
+            _seed_categories(session)
 
         categories = {item.slug: item.id for item in session.query(Category).all()}
 
-        if session.query(Product).count() == 0:
+        if SEED_SAMPLE_DATA and session.query(Product).count() == 0:
             for item in PRODUCTS:
                 product = Product(
                     title=item['title'],
@@ -414,14 +416,14 @@ def init_db() -> None:
                 )
                 session.add(product)
 
-        if session.query(Coupon).filter_by(code='DESCONTO10').first() is None:
+        if SEED_SAMPLE_DATA and session.query(Coupon).filter_by(code='DESCONTO10').first() is None:
             session.add(Coupon(**COUPONS[0]))
 
-        if session.query(Banner).count() == 0:
+        if SEED_SAMPLE_DATA and session.query(Banner).count() == 0:
             for banner in BANNERS:
                 session.add(Banner(**banner))
 
-        if session.query(AdminUser).filter_by(email='admin@admin.com').first() is None:
+        if SEED_DEFAULT_ADMIN and session.query(AdminUser).filter_by(email='admin@admin.com').first() is None:
             session.add(
                 AdminUser(
                     email='admin@admin.com',
@@ -438,3 +440,5 @@ def init_db() -> None:
         _sync_product_rating_with_reviews(session)
     finally:
         session.close()
+
+

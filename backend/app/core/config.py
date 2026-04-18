@@ -38,8 +38,17 @@ def _normalize_database_url(url: str | None) -> str:
     return value
 
 
+def _env_bool(name: str, default: bool = False) -> bool:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {'1', 'true', 'yes', 'on'}
+
+
 _load_dotenv_file(BASE_DIR / '.env')
 SQLALCHEMY_DATABASE_URL = _normalize_database_url(os.getenv('DATABASE_URL'))
+SEED_SAMPLE_DATA = _env_bool('SEED_SAMPLE_DATA', default=False)
+SEED_DEFAULT_ADMIN = _env_bool('SEED_DEFAULT_ADMIN', default=False)
 
 ADMIN_TOKEN_SECRET = '3d-marketplace-admin-secret'
 ADMIN_TOKEN_EXPIRE_HOURS = 12
