@@ -255,3 +255,17 @@ class AdsGenerationHistory(Base):
 
     admin = relationship('AdminUser', back_populates='ads_generation_history')
     products = relationship('Product')
+
+
+class UploadedImage(Base):
+    __tablename__ = 'uploaded_images'
+
+    id = Column(Integer, primary_key=True, index=True)
+    file_url = Column(String(500), unique=True, nullable=False, index=True)
+    file_name = Column(String(255), nullable=False)
+    mime_type = Column(String(120), nullable=True)
+    source = Column(String(60), nullable=False, default='unknown', index=True)
+    size_bytes = Column(Integer, nullable=False, default=0)
+    base64_data = Column(Text, nullable=False)
+    created_at = Column(DateTime, nullable=False, server_default=func.now())
+    updated_at = Column(DateTime, nullable=False, server_default=func.now(), onupdate=func.now())

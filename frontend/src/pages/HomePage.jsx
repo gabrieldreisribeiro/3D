@@ -348,10 +348,10 @@ function HomePage() {
             </button>
 
             {isFiltersModalOpen ? (
-              <div className="absolute left-0 top-[calc(100%+8px)] z-[90] w-[320px] rounded-xl border border-slate-200 bg-white p-3 shadow-xl">
+              <div className="absolute left-0 top-[calc(100%+8px)] z-[90] w-[min(92vw,360px)] rounded-xl border border-slate-200 bg-white p-3 shadow-xl">
                 <div className="grid gap-3">
-                  <div className="grid grid-cols-2 gap-2">
-                    <label className="grid gap-1 text-xs text-slate-600">
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    <label className="flex min-w-0 flex-col gap-1 text-xs text-slate-600">
                       Preco minimo
                       <input
                         type="number"
@@ -359,12 +359,12 @@ function HomePage() {
                         step="0.01"
                         value={draftMinPrice}
                         onChange={(event) => setDraftMinPrice(event.target.value)}
-                        className="h-9 rounded-lg border border-slate-200 px-2 text-xs outline-none focus:border-violet-300"
+                        className="h-9 w-full min-w-0 rounded-lg border border-slate-200 px-2 text-xs outline-none focus:border-violet-300"
                         placeholder="0.00"
                       />
                     </label>
 
-                    <label className="grid gap-1 text-xs text-slate-600">
+                    <label className="flex min-w-0 flex-col gap-1 text-xs text-slate-600">
                       Preco maximo
                       <input
                         type="number"
@@ -372,7 +372,7 @@ function HomePage() {
                         step="0.01"
                         value={draftMaxPrice}
                         onChange={(event) => setDraftMaxPrice(event.target.value)}
-                        className="h-9 rounded-lg border border-slate-200 px-2 text-xs outline-none focus:border-violet-300"
+                        className="h-9 w-full min-w-0 rounded-lg border border-slate-200 px-2 text-xs outline-none focus:border-violet-300"
                         placeholder="999.99"
                       />
                     </label>

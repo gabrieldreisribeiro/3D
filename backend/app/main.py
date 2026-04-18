@@ -8,6 +8,7 @@ from fastapi.staticfiles import StaticFiles
 from app.core.config import UPLOADS_DIR, ensure_upload_dirs
 from app.db.init_db import init_db
 from app.routes import admin, admin_ads, admin_analytics, admin_database, admin_leads_conversion, coupons, events, orders, products, public
+from app.services.image_storage_service import sync_existing_upload_images_to_db
 
 ensure_upload_dirs()
 
@@ -49,6 +50,8 @@ def healthz():
 def startup_event():
     ensure_upload_dirs()
     init_db()
+    sync_result = sync_existing_upload_images_to_db()
+    print(f"[startup] uploaded_images sync -> scanned={sync_result['scanned']} synced={sync_result['synced']}")
 
 
 if __name__ == '__main__':

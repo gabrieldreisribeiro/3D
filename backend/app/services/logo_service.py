@@ -4,6 +4,7 @@ from pathlib import Path
 from fastapi import HTTPException, UploadFile
 
 from app.core.config import LOGO_UPLOADS_DIR
+from app.services.image_storage_service import delete_image_file_base64, persist_image_file_base64
 
 ALLOWED_CONTENT_TYPES = {
     'image/jpeg': 'jpg',
@@ -32,7 +33,9 @@ def save_logo(file: UploadFile) -> str:
 
     for old_file in LOGO_UPLOADS_DIR.glob('site-logo.*'):
         if old_file.is_file():
+            old_url = f"/uploads/logo/{old_file.name}"
             old_file.unlink(missing_ok=True)
+            delete_image_file_base64(old_url)
 
     filename = f'site-logo.{extension}'
     destination = LOGO_UPLOADS_DIR / filename
@@ -40,4 +43,10 @@ def save_logo(file: UploadFile) -> str:
     with destination.open('wb') as output:
         shutil.copyfileobj(file.file, output)
 
+    persist_image_file_base64(
+        file_url=f"/uploads/logo/{filename}",
+        file_path=destination,
+        source='logo',
+        mime_type=file.content_type,
+    )
     return _logo_url_from_path(destination)

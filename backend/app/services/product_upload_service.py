@@ -5,6 +5,7 @@ from uuid import uuid4
 from fastapi import HTTPException, UploadFile
 
 from app.core.config import PRODUCT_UPLOADS_DIR
+from app.services.image_storage_service import persist_image_file_base64
 
 ALLOWED_CONTENT_TYPES = {
     'image/jpeg': 'jpg',
@@ -28,4 +29,11 @@ def save_product_image(file: UploadFile) -> str:
     with destination.open('wb') as output:
         shutil.copyfileobj(file.file, output)
 
-    return _product_image_url(destination)
+    file_url = _product_image_url(destination)
+    persist_image_file_base64(
+        file_url=file_url,
+        file_path=destination,
+        source='product',
+        mime_type=file.content_type,
+    )
+    return file_url

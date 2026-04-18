@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.core.config import REVIEW_IMAGE_UPLOADS_DIR, REVIEW_VIDEO_UPLOADS_DIR, UPLOADS_DIR
 from app.models import Product, ProductReview, ProductReviewMedia
+from app.services.image_storage_service import persist_image_file_base64
 
 MAX_REVIEW_IMAGES = 5
 MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024
@@ -65,7 +66,14 @@ def _save_review_image(file: UploadFile) -> str:
     filename = f'review-image-{uuid4().hex}.{extension}'
     destination = REVIEW_IMAGE_UPLOADS_DIR / filename
     _write_upload(file, destination, MAX_IMAGE_SIZE_BYTES)
-    return f'/uploads/reviews/images/{filename}'
+    file_url = f'/uploads/reviews/images/{filename}'
+    persist_image_file_base64(
+        file_url=file_url,
+        file_path=destination,
+        source='review',
+        mime_type=file.content_type,
+    )
+    return file_url
 
 
 def _save_review_video(file: UploadFile) -> str:
