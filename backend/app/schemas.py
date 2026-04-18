@@ -791,7 +791,7 @@ class AdsConnectionTestResponse(BaseModel):
 
 class AdsGenerateRequest(BaseModel):
     ads_count: int = Field(default=3, ge=1, le=8)
-    extra_context: Optional[str] = Field(default=None, max_length=500)
+    extra_context: Optional[str] = Field(default=None, max_length=10000)
 
 
 class GeneratedAdItem(BaseModel):
