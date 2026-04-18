@@ -316,8 +316,9 @@ function ProductPage() {
   useEffect(() => {
     if (!productData.id) return;
     trackEvent({
-      event_type: 'view_product',
+      event_type: 'product_view',
       product_id: productData.id,
+      category_id: productData.category_id ?? null,
       metadata_json: {
         slug: productData.slug || slug,
       },

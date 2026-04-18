@@ -314,6 +314,7 @@ function CartPage() {
     trackEvent({
       event_type: 'start_checkout',
       product_id: null,
+      cta_name: isPaid ? 'checkout_pix' : 'checkout_whatsapp_pending',
       metadata_json: {
         payment_status: paymentStatus,
         items_count: items.length,
@@ -342,6 +343,18 @@ function CartPage() {
         payment_status: isPaid ? 'paid' : 'pending',
         payment_method: isPaid ? 'pix' : 'whatsapp',
       });
+
+      trackEvent({
+        event_type: 'order_created',
+        product_id: null,
+        cta_name: 'order_created_checkout',
+        metadata_json: {
+          order_id: order.id,
+          payment_status: paymentStatus,
+          total,
+          items_count: items.length,
+        },
+      }).catch(() => {});
 
       const lines = items
         .map((item) => {
@@ -402,8 +415,9 @@ function CartPage() {
       ].filter(Boolean).join('\n');
       clearCart();
       trackEvent({
-        event_type: 'send_whatsapp',
+        event_type: 'whatsapp_click',
         product_id: null,
+        cta_name: 'checkout_send_whatsapp',
         metadata_json: {
           order_id: order.id,
           payment_status: paymentStatus,

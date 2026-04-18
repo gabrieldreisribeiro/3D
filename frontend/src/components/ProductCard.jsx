@@ -14,8 +14,10 @@ function ProductCard({ product, onAdd, highlightLabel = '', compact = false }) {
   const badgeLabel = highlightLabel || (hasSubItems ? 'Personalizado' : '');
   const handleProductClick = () => {
     trackEvent({
-      event_type: 'click_product',
+      event_type: 'product_click',
       product_id: product?.id ?? null,
+      category_id: product?.category_id ?? null,
+      cta_name: 'product_card_click',
       metadata_json: {
         slug: product?.slug || null,
         source: compact ? 'compact_card' : 'product_card',
@@ -28,6 +30,13 @@ function ProductCard({ product, onAdd, highlightLabel = '', compact = false }) {
     const startAt = Date.now();
     setIsAdding(true);
     try {
+      trackEvent({
+        event_type: 'cta_click',
+        product_id: product?.id ?? null,
+        category_id: product?.category_id ?? null,
+        cta_name: 'add_to_cart_button',
+        metadata_json: { slug: product?.slug || null, source: 'product_card' },
+      }).catch(() => {});
       await Promise.resolve(onAdd(product));
     } finally {
       const elapsed = Date.now() - startAt;

@@ -1,8 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
+from types import SimpleNamespace
 
 from app.db.session import SessionLocal
 from app.schemas import OrderCreate, OrderResponse
+from app.services.analytics_service import create_user_event
 from app.services.coupon_service import build_client_hash, register_coupon_usage, validate_coupon_for_client
 from app.services.order_service import create_order_with_payment, serialize_order
 from app.services.product_service import get_product_by_slug, parse_sub_items_from_storage
@@ -107,4 +109,30 @@ def create_order_endpoint(payload: OrderCreate, request: Request, db: Session = 
     if coupon:
         register_coupon_usage(db, coupon, client_hash, order.id)
         db.commit()
+
+    session_id = (request.headers.get('x-session-id') or '').strip()
+    if session_id:
+        try:
+            create_user_event(
+                db,
+                SimpleNamespace(
+                    event_type='order_created',
+                    product_id=None,
+                    category_id=None,
+                    session_id=session_id,
+                    user_identifier=None,
+                    page_url=str(request.url.path),
+                    source_channel=None,
+                    referrer=request.headers.get('referer'),
+                    cta_name='order_create_api',
+                    metadata_json={
+                        'order_id': order.id,
+                        'total': float(total),
+                        'items_count': len(order_items),
+                        'payment_status': payment_status,
+                    },
+                ),
+            )
+        except Exception:
+            pass
     return serialize_order(order)

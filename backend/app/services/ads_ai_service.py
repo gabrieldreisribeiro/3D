@@ -3,6 +3,8 @@ import re
 import unicodedata
 from datetime import datetime
 from decimal import Decimal
+from functools import lru_cache
+from pathlib import Path
 from urllib import error, request
 
 from sqlalchemy import case, func
@@ -15,6 +17,23 @@ DEFAULT_PROVIDER = 'nvidia'
 DEFAULT_BASE_URL = 'https://integrate.api.nvidia.com/v1'
 DEFAULT_MODEL = 'qwen/qwen2.5-coder-7b-instruct'
 DRAFT_PLACEHOLDER_IMAGE = 'https://placehold.co/1200x800/png?text=Produto+em+rascunho'
+DEFAULT_PROMPT_FALLBACK = (
+    'Voce e um estrategista de performance para e-commerce de produtos impressos em 3D. '
+    'Retorne SOMENTE JSON valido no formato: '
+    '{"ads":[{"headline":"","primary_text":"","description":"","cta":"","target_audience":"","creative_idea":"","product_draft":{"title":"","short_description":"","full_description":"","suggested_category":"","highlights":[],"tags":[]}}]}. '
+    'Em product_draft, sempre preencha title, short_description e full_description. '
+    'Nao inclua markdown, comentarios nem texto fora do JSON.'
+)
+DEFAULT_PROMPT_FILE = Path(__file__).resolve().parents[1] / 'prompts' / 'ads_generator_default.md'
+
+
+@lru_cache(maxsize=1)
+def get_default_ads_prompt_markdown() -> str:
+    try:
+        content = DEFAULT_PROMPT_FILE.read_text(encoding='utf-8').strip()
+        return content or DEFAULT_PROMPT_FALLBACK
+    except Exception:  # noqa: BLE001
+        return DEFAULT_PROMPT_FALLBACK
 
 
 def _safe_json_loads(raw: str | None) -> dict:
@@ -139,12 +158,14 @@ def update_ads_provider_config(
     base_url: str,
     api_key: str | None,
     model_name: str,
+    prompt_complement: str | None,
     is_active: bool,
 ) -> AdsProviderConfig:
     config = get_or_create_ads_provider_config(db)
     config.provider_name = str(provider_name or DEFAULT_PROVIDER).strip().lower()
     config.base_url = _normalize_base_url(base_url)
     config.model_name = str(model_name or DEFAULT_MODEL).strip()
+    config.prompt_complement = _normalize_text(prompt_complement) or None
     config.is_active = bool(is_active)
     if api_key is not None:
         api_key_value = str(api_key).strip()
@@ -233,7 +254,7 @@ def build_ads_input_data(db: Session, *, limit_products: int = 5) -> dict:
             func.count(UserEvent.id).label('views'),
         )
         .join(Product, Product.id == UserEvent.product_id)
-        .filter(UserEvent.event_type == 'view_product')
+        .filter(UserEvent.event_type.in_(['product_view', 'view_product']))
         .group_by(Product.id, Product.title)
         .order_by(func.count(UserEvent.id).desc())
         .limit(limit_products)
@@ -247,7 +268,7 @@ def build_ads_input_data(db: Session, *, limit_products: int = 5) -> dict:
             func.count(UserEvent.id).label('whatsapp_hits'),
         )
         .join(Product, Product.id == UserEvent.product_id)
-        .filter(UserEvent.event_type == 'send_whatsapp')
+        .filter(UserEvent.event_type.in_(['whatsapp_click', 'send_whatsapp']))
         .group_by(Product.id, Product.title)
         .order_by(func.count(UserEvent.id).desc())
         .limit(limit_products)
@@ -326,14 +347,15 @@ def build_ads_input_data(db: Session, *, limit_products: int = 5) -> dict:
     }
 
 
-def _build_ads_prompt(input_data: dict, ads_count: int, extra_context: str | None) -> list[dict]:
-    system_prompt = (
-        'Voce e um estrategista de performance para e-commerce de produtos impressos em 3D. '
-        'Retorne SOMENTE JSON valido no formato: '
-        '{"ads":[{"headline":"","primary_text":"","description":"","cta":"","target_audience":"","creative_idea":"","product_draft":{"title":"","short_description":"","full_description":"","suggested_category":"","highlights":[],"tags":[]}}]}. '
-        'Em product_draft, sempre preencha title, short_description e full_description. '
-        'Nao inclua markdown, comentarios nem texto fora do JSON.'
-    )
+def _build_ads_prompt(
+    input_data: dict,
+    ads_count: int,
+    extra_context: str | None,
+    prompt_complement: str | None,
+) -> list[dict]:
+    default_prompt = get_default_ads_prompt_markdown()
+    complement = _normalize_text(prompt_complement)
+    system_prompt = default_prompt if not complement else f'{default_prompt}\n\nComplemento do admin:\n{complement}'
     user_payload = {
         'task': f'Gerar {ads_count} ideias de anuncios para Facebook/Instagram usando os dados reais fornecidos.',
         'constraints': {
@@ -396,6 +418,35 @@ def _normalize_ads_output(raw_output: dict) -> dict:
     return {'ads': normalized_ads}
 
 
+def _find_existing_product_for_ad(db: Session, ad_payload: dict) -> Product | None:
+    if not isinstance(ad_payload, dict):
+        return None
+
+    product_draft = ad_payload.get('product_draft') if isinstance(ad_payload.get('product_draft'), dict) else {}
+    title = _normalize_text(product_draft.get('title') or ad_payload.get('headline'))
+    if not title:
+        return None
+
+    normalized_title = title.lower().strip()
+    if not normalized_title:
+        return None
+
+    product = db.query(Product).filter(func.lower(Product.title) == normalized_title).first()
+    if product:
+        return product
+
+    slug = _slugify(title)
+    return db.query(Product).filter(Product.slug == slug).first()
+
+
+def _annotate_ads_with_existing_products(db: Session, ads: list[dict]) -> None:
+    for item in ads:
+        product = _find_existing_product_for_ad(db, item)
+        if product:
+            item['existing_product_id'] = product.id
+            item['existing_product_title'] = product.title
+
+
 def _build_product_descriptions_from_ad(ad_payload: dict) -> dict:
     product_draft = ad_payload.get('product_draft') if isinstance(ad_payload.get('product_draft'), dict) else {}
     headline = _normalize_text(ad_payload.get('headline'))
@@ -439,10 +490,16 @@ def generate_ads_ideas(
         raise ValueError('API key do provider nao configurada.')
 
     input_data = build_ads_input_data(db, limit_products=5)
-    messages = _build_ads_prompt(input_data, ads_count=ads_count, extra_context=extra_context)
+    messages = _build_ads_prompt(
+        input_data,
+        ads_count=ads_count,
+        extra_context=extra_context,
+        prompt_complement=config.prompt_complement,
+    )
     content = _call_model(config, messages, max_tokens=1500)
     parsed = _parse_llm_json(content)
     output = _normalize_ads_output(parsed)
+    _annotate_ads_with_existing_products(db, output['ads'])
 
     history = AdsGenerationHistory(
         input_data_json=json.dumps(input_data, ensure_ascii=False),
@@ -477,10 +534,27 @@ def create_product_draft_from_ad(
     if not isinstance(ad_payload, dict):
         raise ValueError('Anuncio selecionado invalido.')
 
+    existing_product = _find_existing_product_for_ad(db, ad_payload)
     draft_data = _build_product_descriptions_from_ad(ad_payload)
     slug = _unique_slug(db, draft_data['title'])
     category_id = _match_category_id(db, draft_data.get('suggested_category'))
     hashtags = ' '.join(f'#{str(tag).strip().replace(" ", "")}' for tag in draft_data.get('tags') or [])
+
+    if existing_product:
+        existing_product.title = draft_data['title']
+        existing_product.short_description = draft_data['short_description']
+        existing_product.full_description = draft_data['full_description']
+        if category_id is not None:
+            existing_product.category_id = category_id
+        if hashtags:
+            existing_product.instagram_hashtags = hashtags
+        existing_product.generated_by_ai = True
+        existing_product.source_ad_generation_id = history.id
+
+        db.add(existing_product)
+        db.commit()
+        db.refresh(existing_product)
+        return existing_product
 
     pricing = calculate_product_pricing_from_fields(
         {

@@ -118,13 +118,33 @@ export function fetchProduct(slug) {
 }
 
 export function trackEvent(payload) {
+  const referrer = typeof document !== 'undefined' ? document.referrer || null : null;
+  const pageUrl = typeof window !== 'undefined' ? `${window.location.pathname}${window.location.search}` : null;
+  const sourceFromUrl = (() => {
+    if (typeof window === 'undefined') return null;
+    const params = new URLSearchParams(window.location.search);
+    return params.get('utm_source') || params.get('source') || null;
+  })();
+  const normalizedEventType = (() => {
+    const type = String(payload?.event_type || '').trim();
+    if (type === 'view_product') return 'product_view';
+    if (type === 'click_product') return 'product_click';
+    if (type === 'update_cart') return 'update_cart_quantity';
+    if (type === 'send_whatsapp') return 'whatsapp_click';
+    return type;
+  })();
   return request('/events', {
     method: 'POST',
     body: JSON.stringify({
       session_id: getSessionId(),
-      event_type: payload?.event_type,
+      event_type: normalizedEventType,
       product_id: payload?.product_id ?? null,
+      category_id: payload?.category_id ?? null,
       user_identifier: payload?.user_identifier ?? null,
+      page_url: payload?.page_url ?? pageUrl,
+      source_channel: payload?.source_channel ?? sourceFromUrl,
+      referrer: payload?.referrer ?? referrer,
+      cta_name: payload?.cta_name ?? null,
       metadata_json: payload?.metadata_json || {},
     }),
   });
@@ -300,6 +320,85 @@ export function fetchAdminReportLeads(params = {}) {
   if (params.date_to) search.set('date_to', params.date_to);
   const query = search.toString();
   return adminRequest(`/admin/reports/leads${query ? `?${query}` : ''}`);
+}
+
+export function fetchAdminLeadsConversionSummary(params = {}) {
+  const search = new URLSearchParams();
+  if (params.date_from) search.set('date_from', params.date_from);
+  if (params.date_to) search.set('date_to', params.date_to);
+  if (params.category_id) search.set('category_id', String(params.category_id));
+  if (params.product_id) search.set('product_id', String(params.product_id));
+  if (params.source_channel) search.set('source_channel', params.source_channel);
+  const query = search.toString();
+  return adminRequest(`/admin/leads-conversion/summary${query ? `?${query}` : ''}`);
+}
+
+export function fetchAdminLeadsConversionFunnel(params = {}) {
+  const search = new URLSearchParams();
+  if (params.date_from) search.set('date_from', params.date_from);
+  if (params.date_to) search.set('date_to', params.date_to);
+  if (params.category_id) search.set('category_id', String(params.category_id));
+  if (params.product_id) search.set('product_id', String(params.product_id));
+  if (params.source_channel) search.set('source_channel', params.source_channel);
+  const query = search.toString();
+  return adminRequest(`/admin/leads-conversion/funnel${query ? `?${query}` : ''}`);
+}
+
+export function fetchAdminLeadsConversionProducts(params = {}) {
+  const search = new URLSearchParams();
+  if (params.date_from) search.set('date_from', params.date_from);
+  if (params.date_to) search.set('date_to', params.date_to);
+  if (params.category_id) search.set('category_id', String(params.category_id));
+  if (params.product_id) search.set('product_id', String(params.product_id));
+  if (params.source_channel) search.set('source_channel', params.source_channel);
+  const query = search.toString();
+  return adminRequest(`/admin/leads-conversion/products${query ? `?${query}` : ''}`);
+}
+
+export function fetchAdminLeadsConversionCtas(params = {}) {
+  const search = new URLSearchParams();
+  if (params.date_from) search.set('date_from', params.date_from);
+  if (params.date_to) search.set('date_to', params.date_to);
+  if (params.category_id) search.set('category_id', String(params.category_id));
+  if (params.product_id) search.set('product_id', String(params.product_id));
+  if (params.source_channel) search.set('source_channel', params.source_channel);
+  const query = search.toString();
+  return adminRequest(`/admin/leads-conversion/ctas${query ? `?${query}` : ''}`);
+}
+
+export function fetchAdminLeadsConversionLeads(params = {}) {
+  const search = new URLSearchParams();
+  if (params.date_from) search.set('date_from', params.date_from);
+  if (params.date_to) search.set('date_to', params.date_to);
+  if (params.category_id) search.set('category_id', String(params.category_id));
+  if (params.product_id) search.set('product_id', String(params.product_id));
+  if (params.source_channel) search.set('source_channel', params.source_channel);
+  if (params.lead_level) search.set('lead_level', params.lead_level);
+  if (params.page) search.set('page', String(params.page));
+  if (params.page_size) search.set('page_size', String(params.page_size));
+  const query = search.toString();
+  return adminRequest(`/admin/leads-conversion/leads${query ? `?${query}` : ''}`);
+}
+
+export function fetchAdminLeadsConversionSources(params = {}) {
+  const search = new URLSearchParams();
+  if (params.date_from) search.set('date_from', params.date_from);
+  if (params.date_to) search.set('date_to', params.date_to);
+  if (params.category_id) search.set('category_id', String(params.category_id));
+  if (params.product_id) search.set('product_id', String(params.product_id));
+  const query = search.toString();
+  return adminRequest(`/admin/leads-conversion/sources${query ? `?${query}` : ''}`);
+}
+
+export function fetchAdminLeadsConversionAbandonment(params = {}) {
+  const search = new URLSearchParams();
+  if (params.date_from) search.set('date_from', params.date_from);
+  if (params.date_to) search.set('date_to', params.date_to);
+  if (params.category_id) search.set('category_id', String(params.category_id));
+  if (params.product_id) search.set('product_id', String(params.product_id));
+  if (params.source_channel) search.set('source_channel', params.source_channel);
+  const query = search.toString();
+  return adminRequest(`/admin/leads-conversion/abandonment${query ? `?${query}` : ''}`);
 }
 
 export function fetchAdminSettings() {

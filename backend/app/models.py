@@ -217,8 +217,13 @@ class UserEvent(Base):
     id = Column(Integer, primary_key=True, index=True)
     event_type = Column(String(40), nullable=False, index=True)
     product_id = Column(Integer, ForeignKey('products.id', ondelete='SET NULL'), nullable=True, index=True)
+    category_id = Column(Integer, ForeignKey('categories.id', ondelete='SET NULL'), nullable=True, index=True)
     session_id = Column(String(120), nullable=False, index=True)
     user_identifier = Column(String(160), nullable=True, index=True)
+    page_url = Column(String(500), nullable=True)
+    source_channel = Column(String(80), nullable=True, index=True)
+    referrer = Column(String(500), nullable=True)
+    cta_name = Column(String(120), nullable=True, index=True)
     metadata_json = Column(Text, nullable=False, default='{}')
     created_at = Column(DateTime, nullable=False, server_default=func.now(), index=True)
 
@@ -233,6 +238,7 @@ class AdsProviderConfig(Base):
     base_url = Column(String(400), nullable=False, default='https://integrate.api.nvidia.com/v1')
     api_key = Column(String(600), nullable=True)
     model_name = Column(String(200), nullable=False, default='qwen/qwen2.5-coder-7b-instruct')
+    prompt_complement = Column(Text, nullable=True)
     is_active = Column(Boolean, default=False)
     created_at = Column(DateTime, nullable=False, server_default=func.now())
 

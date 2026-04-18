@@ -16,6 +16,7 @@ from app.schemas import (
 from app.services.ads_ai_service import (
     create_product_draft_from_ad,
     generate_ads_ideas,
+    get_default_ads_prompt_markdown,
     get_or_create_ads_provider_config,
     list_ads_history,
     serialize_history_item,
@@ -34,6 +35,8 @@ def get_ads_config(_: AdminUser = Depends(require_admin), db: Session = Depends(
         provider_name=config.provider_name,
         base_url=config.base_url,
         model_name=config.model_name,
+        prompt_complement=config.prompt_complement,
+        default_prompt_md=get_default_ads_prompt_markdown(),
         is_active=bool(config.is_active),
         has_api_key=bool(config.api_key),
         created_at=config.created_at,
@@ -52,6 +55,7 @@ def save_ads_config(
         base_url=payload.base_url,
         api_key=payload.api_key,
         model_name=payload.model_name,
+        prompt_complement=payload.prompt_complement,
         is_active=payload.is_active,
     )
     return AdsProviderConfigResponse(
@@ -59,6 +63,8 @@ def save_ads_config(
         provider_name=config.provider_name,
         base_url=config.base_url,
         model_name=config.model_name,
+        prompt_complement=config.prompt_complement,
+        default_prompt_md=get_default_ads_prompt_markdown(),
         is_active=bool(config.is_active),
         has_api_key=bool(config.api_key),
         created_at=config.created_at,

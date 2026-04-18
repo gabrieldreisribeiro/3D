@@ -3,7 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import Button from '../components/ui/Button';
 import Modal from '../components/ui/Modal';
 import ProductCard from '../components/ProductCard';
-import { fetchCategories, fetchMostOrderedProducts, fetchProducts, fetchPublicBanners, resolveAssetUrl } from '../services/api';
+import { fetchCategories, fetchMostOrderedProducts, fetchProducts, fetchPublicBanners, resolveAssetUrl, trackEvent } from '../services/api';
 import { useCart } from '../services/cart';
 
 const fallbackSlides = [
@@ -46,6 +46,7 @@ function HomePage() {
   const [loading, setLoading] = useState(true);
   const { addToCart } = useCart();
   const filterPopoverRef = useRef(null);
+  const query = (searchParams.get('q') || '').trim().toLowerCase();
 
   useEffect(() => {
     fetchPublicBanners()
@@ -73,6 +74,15 @@ function HomePage() {
   }, [activeCategory]);
 
   useEffect(() => {
+    if (!query) return;
+    trackEvent({
+      event_type: 'search',
+      cta_name: 'header_search',
+      metadata_json: { query },
+    }).catch(() => {});
+  }, [query]);
+
+  useEffect(() => {
     if (banners.length <= 1) return undefined;
     const timer = setInterval(() => {
       setCurrentBanner((prev) => (prev + 1) % banners.length);
@@ -80,7 +90,6 @@ function HomePage() {
     return () => clearInterval(timer);
   }, [banners]);
 
-  const query = (searchParams.get('q') || '').trim().toLowerCase();
   const getProductPrice = (product) => Number(product.final_price ?? product.price ?? 0);
 
   const filteredProducts = useMemo(() => {
@@ -182,6 +191,13 @@ function HomePage() {
       window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
+    const selectedCategory = categories.find((item) => item.slug === key);
+    trackEvent({
+      event_type: 'category_click',
+      category_id: selectedCategory?.id ?? null,
+      cta_name: 'catalog_category_chip',
+      metadata_json: { category_slug: key },
+    }).catch(() => {});
     setActiveCategory(key);
   };
 
@@ -213,6 +229,17 @@ function HomePage() {
             <div className="pt-4">
               <Link
                 to={visibleBanner.target_url || '/#produtos'}
+                onClick={() => {
+                  trackEvent({
+                    event_type: 'banner_click',
+                    cta_name: 'hero_explorar_catalogo',
+                    metadata_json: {
+                      banner_id: visibleBanner.id || null,
+                      banner_title: visibleBanner.title || null,
+                      target_url: visibleBanner.target_url || '/#produtos',
+                    },
+                  }).catch(() => {});
+                }}
                 className="inline-flex h-10 items-center justify-center rounded-[10px] bg-gradient-to-r from-violet-500 to-fuchsia-500 px-4 text-sm font-semibold text-white shadow-glow transition-all duration-300 hover:brightness-110"
               >
                 Explorar catalogo
@@ -381,6 +408,15 @@ function HomePage() {
                     <button
                       type="button"
                       onClick={() => {
+                        trackEvent({
+                          event_type: 'filter_apply',
+                          cta_name: 'catalog_filters_apply',
+                          metadata_json: {
+                            min_price: draftMinPrice,
+                            max_price: draftMaxPrice,
+                            sort_by: draftSortBy,
+                          },
+                        }).catch(() => {});
                         setMinPrice(draftMinPrice);
                         setMaxPrice(draftMaxPrice);
                         setSortBy(draftSortBy);

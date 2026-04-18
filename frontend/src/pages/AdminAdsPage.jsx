@@ -18,6 +18,7 @@ const initialConfig = {
   base_url: 'https://integrate.api.nvidia.com/v1',
   api_key: '',
   model_name: 'qwen/qwen2.5-coder-7b-instruct',
+  prompt_complement: '',
   is_active: false,
 };
 
@@ -54,6 +55,7 @@ function AdminAdsPage() {
   const [configMessage, setConfigMessage] = useState('');
   const [configError, setConfigError] = useState('');
   const [connectionResult, setConnectionResult] = useState(null);
+  const [defaultPromptMd, setDefaultPromptMd] = useState('');
 
   const [adsCount, setAdsCount] = useState(3);
   const [extraContext, setExtraContext] = useState('');
@@ -84,8 +86,10 @@ function AdminAdsPage() {
           base_url: data?.base_url || 'https://integrate.api.nvidia.com/v1',
           api_key: '',
           model_name: data?.model_name || 'qwen/qwen2.5-coder-7b-instruct',
+          prompt_complement: data?.prompt_complement || '',
           is_active: Boolean(data?.is_active),
         });
+        setDefaultPromptMd(data?.default_prompt_md || '');
         setHasApiKey(Boolean(data?.has_api_key));
       })
       .catch((requestError) => setConfigError(requestError.message || 'Falha ao carregar configuracao.'))
@@ -261,6 +265,26 @@ function AdminAdsPage() {
               {hasApiKey ? <p className="text-xs text-slate-500">API key ja registrada no backend.</p> : null}
             </label>
 
+            <label className="space-y-1 md:col-span-2">
+              <span className="text-xs font-medium uppercase tracking-wide text-slate-500">Complemento de prompt (opcional)</span>
+              <textarea
+                className="min-h-[120px] w-full rounded-[10px] border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-violet-300"
+                value={config.prompt_complement}
+                onChange={(event) => setConfig((current) => ({ ...current, prompt_complement: event.target.value }))}
+                placeholder="Ex.: priorize anuncios para decoracao premium e linguagem mais sofisticada."
+              />
+              <p className="text-xs text-slate-500">
+                Esse texto sera somado ao prompt padrao para ajustar o comportamento da IA sem alterar o padrao do sistema.
+              </p>
+            </label>
+
+            <div className="space-y-2 md:col-span-2">
+              <span className="text-xs font-medium uppercase tracking-wide text-slate-500">Prompt padrao (somente leitura)</span>
+              <pre className="max-h-72 overflow-auto rounded-[10px] border border-slate-200 bg-slate-950 p-3 text-xs leading-relaxed text-slate-200">
+                {defaultPromptMd || 'Prompt padrao indisponivel.'}
+              </pre>
+            </div>
+
             <div className="flex flex-wrap items-center gap-2 md:col-span-2">
               <Button type="button" variant="secondary" loading={testingConfig} onClick={handleTestConfig}>
                 Testar conexao
@@ -352,6 +376,11 @@ function AdminAdsPage() {
                       <strong>Criativo:</strong> {ad.creative_idea}
                     </p>
                   </div>
+                  {ad.existing_product_id ? (
+                    <p className="mt-3 text-sm text-slate-500">
+                      Produto existente encontrado: {ad.existing_product_title || `#${ad.existing_product_id}`}
+                    </p>
+                  ) : null}
                   <div className="mt-3 flex flex-wrap gap-2">
                     <Button className="h-8 px-3 text-xs" variant="secondary" onClick={() => handleCopyAd(ad)}>
                       Copiar
@@ -363,10 +392,10 @@ function AdminAdsPage() {
                       className="h-8 px-3 text-xs"
                       variant="secondary"
                       loading={Boolean(creatingProductByIndex[index])}
-                      loadingText="Criando..."
+                      loadingText={ad.existing_product_id ? 'Abrindo...' : 'Criando...'}
                       onClick={() => handleCreateProductFromAd(index)}
                     >
-                      Criar produto
+                      {ad.existing_product_id ? 'Editar produto' : 'Criar produto'}
                     </Button>
                     <Button className="h-8 px-3 text-xs" onClick={runGenerate} loading={generating}>
                       Regenerar

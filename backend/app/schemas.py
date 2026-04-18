@@ -521,6 +521,18 @@ class DatabaseQueryLogsResponse(BaseModel):
 
 class UserEventCreate(BaseModel):
     event_type: Literal[
+        'page_view',
+        'product_view',
+        'product_click',
+        'update_cart_quantity',
+        'whatsapp_click',
+        'order_created',
+        'category_click',
+        'banner_click',
+        'cta_click',
+        'search',
+        'filter_apply',
+        # legacy aliases
         'view_product',
         'click_product',
         'add_to_cart',
@@ -530,8 +542,13 @@ class UserEventCreate(BaseModel):
         'send_whatsapp',
     ]
     product_id: Optional[int] = None
+    category_id: Optional[int] = None
     session_id: str = Field(..., min_length=8, max_length=120)
     user_identifier: Optional[str] = Field(default=None, max_length=160)
+    page_url: Optional[str] = Field(default=None, max_length=500)
+    source_channel: Optional[str] = Field(default=None, max_length=80)
+    referrer: Optional[str] = Field(default=None, max_length=500)
+    cta_name: Optional[str] = Field(default=None, max_length=120)
     metadata_json: dict = Field(default_factory=dict)
 
 
@@ -539,10 +556,130 @@ class UserEventResponse(BaseModel):
     id: int
     event_type: str
     product_id: Optional[int] = None
+    category_id: Optional[int] = None
     session_id: str
     user_identifier: Optional[str] = None
+    page_url: Optional[str] = None
+    source_channel: Optional[str] = None
+    referrer: Optional[str] = None
+    cta_name: Optional[str] = None
     metadata_json: dict = Field(default_factory=dict)
     created_at: Optional[datetime] = None
+
+
+class LeadsConversionFilters(BaseModel):
+    date_from: Optional[str] = None
+    date_to: Optional[str] = None
+    category_id: Optional[int] = None
+    product_id: Optional[int] = None
+    source_channel: Optional[str] = None
+    lead_level: Optional[str] = None
+
+
+class LeadsConversionSummaryResponse(BaseModel):
+    sessions: int
+    leads_cold: int
+    leads_warm: int
+    leads_hot: int
+    product_views: int
+    product_clicks: int
+    add_to_cart: int
+    checkout_starts: int
+    whatsapp_clicks: int
+    orders_created: int
+    conversion_to_whatsapp: float
+    conversion_add_to_whatsapp: float
+    estimated_ticket: float
+    estimated_whatsapp_value: float
+
+
+class LeadsConversionFunnelStep(BaseModel):
+    key: str
+    label: str
+    value: int
+    step_conversion: float
+    dropoff: int
+
+
+class LeadsConversionFunnelResponse(BaseModel):
+    steps: List[LeadsConversionFunnelStep]
+
+
+class LeadsConversionProductItem(BaseModel):
+    product_id: Optional[int] = None
+    product_title: str
+    product_label: str = ''
+    views: int = 0
+    clicks: int = 0
+    add_to_cart: int = 0
+    whatsapp_click: int = 0
+    orders: int = 0
+    abandoned_sessions: int = 0
+    conversion_rate: float = 0
+    estimated_value: float = 0
+
+
+class LeadsConversionProductsResponse(BaseModel):
+    most_viewed: List[LeadsConversionProductItem]
+    most_clicked: List[LeadsConversionProductItem]
+    most_added: List[LeadsConversionProductItem]
+    most_whatsapp: List[LeadsConversionProductItem]
+    most_purchased: List[LeadsConversionProductItem]
+    most_abandoned: List[LeadsConversionProductItem]
+    best_conversion: List[LeadsConversionProductItem]
+    highest_estimated_value: List[LeadsConversionProductItem]
+
+
+class LeadsConversionCtaItem(BaseModel):
+    cta_name: str
+    clicks: int
+    ctr: float = 0
+
+
+class LeadsConversionCtasResponse(BaseModel):
+    total_cta_clicks: int
+    top_cta: Optional[str] = None
+    items: List[LeadsConversionCtaItem]
+
+
+class LeadSessionItem(BaseModel):
+    session_id: str
+    lead_level: str
+    score: int
+    last_activity: Optional[datetime] = None
+    viewed_products: int = 0
+    clicked_products: int = 0
+    add_to_cart: int = 0
+    checkout_started: bool = False
+    whatsapp_clicked: bool = False
+    estimated_interest_value: float = 0
+    source_channel: Optional[str] = None
+
+
+class LeadsConversionLeadsResponse(BaseModel):
+    items: List[LeadSessionItem]
+    total: int
+    page: int
+    page_size: int
+
+
+class LeadsConversionSourceItem(BaseModel):
+    source_channel: str
+    sessions: int
+    leads: int
+    whatsapp_clicks: int
+    conversion_to_whatsapp: float
+
+
+class LeadsConversionSourcesResponse(BaseModel):
+    items: List[LeadsConversionSourceItem]
+
+
+class LeadsConversionAbandonmentResponse(BaseModel):
+    abandoned_sessions: int
+    high_intent_without_whatsapp: int
+    high_intent_without_order: int
+    abandoned_products: List[LeadsConversionProductItem]
 
 
 class AnalyticsSummaryResponse(BaseModel):
@@ -603,6 +740,7 @@ class AdsProviderConfigUpdate(BaseModel):
     base_url: str = Field(..., min_length=8, max_length=400)
     api_key: Optional[str] = Field(default=None, max_length=600)
     model_name: str = Field(..., min_length=3, max_length=200)
+    prompt_complement: Optional[str] = Field(default=None, max_length=4000)
     is_active: bool = False
 
 
@@ -611,6 +749,8 @@ class AdsProviderConfigResponse(BaseModel):
     provider_name: str
     base_url: str
     model_name: str
+    prompt_complement: Optional[str] = None
+    default_prompt_md: str = ''
     is_active: bool
     has_api_key: bool
     created_at: Optional[datetime] = None
@@ -635,6 +775,8 @@ class GeneratedAdItem(BaseModel):
     target_audience: str
     creative_idea: str
     product_draft: dict = Field(default_factory=dict)
+    existing_product_id: Optional[int] = None
+    existing_product_title: Optional[str] = None
 
 
 class AdsGenerateResponse(BaseModel):

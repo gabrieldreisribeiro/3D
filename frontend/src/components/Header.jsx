@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, NavLink, useNavigate, useSearchParams } from 'react-router-dom';
-import { fetchPublicLogo, resolveAssetUrl } from '../services/api';
+import { fetchPublicLogo, resolveAssetUrl, trackEvent } from '../services/api';
 import { useCart } from '../services/cart';
 import { getLogoSizeConfig, getLogoSizeKey } from '../services/logoSettings';
 
@@ -33,6 +33,11 @@ function Header() {
   const onSearch = (event) => {
     event.preventDefault();
     const value = query.trim();
+    trackEvent({
+      event_type: 'cta_click',
+      cta_name: 'header_search_submit',
+      metadata_json: { query: value },
+    }).catch(() => {});
     navigate(value ? `/?q=${encodeURIComponent(value)}` : '/');
   };
 

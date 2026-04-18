@@ -7,21 +7,41 @@ from sqlalchemy.orm import Session
 from app.models import Order, OrderItem, Product, UserEvent
 
 
+CANONICAL_EVENT = {
+    'view_product': 'product_view',
+    'click_product': 'product_click',
+    'update_cart': 'update_cart_quantity',
+    'send_whatsapp': 'whatsapp_click',
+}
+
 FUNNEL_STEPS = [
-    ('view_product', 'Visualizacoes'),
-    ('click_product', 'Cliques'),
+    ('product_view', 'Visualizacoes'),
+    ('product_click', 'Cliques'),
     ('add_to_cart', 'Carrinho'),
     ('start_checkout', 'Checkout'),
-    ('send_whatsapp', 'WhatsApp'),
+    ('whatsapp_click', 'WhatsApp'),
 ]
 
 
+def _aliases(event_type: str) -> list[str]:
+    canonical = CANONICAL_EVENT.get(event_type, event_type)
+    aliases = [canonical]
+    reverse_aliases = [key for key, value in CANONICAL_EVENT.items() if value == canonical]
+    return list(dict.fromkeys(aliases + reverse_aliases))
+
+
 def create_user_event(db: Session, payload) -> UserEvent:
+    normalized_event_type = CANONICAL_EVENT.get(payload.event_type, payload.event_type)
     event = UserEvent(
-        event_type=payload.event_type,
+        event_type=normalized_event_type,
         product_id=payload.product_id,
+        category_id=payload.category_id,
         session_id=payload.session_id,
         user_identifier=payload.user_identifier,
+        page_url=payload.page_url,
+        source_channel=payload.source_channel,
+        referrer=payload.referrer,
+        cta_name=payload.cta_name,
         metadata_json=json.dumps(payload.metadata_json or {}, ensure_ascii=False),
     )
     db.add(event)
@@ -48,7 +68,7 @@ def analytics_summary(db: Session) -> dict:
     add_sessions = {
         row[0]
         for row in db.query(UserEvent.session_id)
-        .filter(UserEvent.event_type == 'add_to_cart')
+        .filter(UserEvent.event_type.in_(_aliases('add_to_cart')))
         .distinct()
         .all()
         if row[0]
@@ -56,7 +76,7 @@ def analytics_summary(db: Session) -> dict:
     whatsapp_sessions = {
         row[0]
         for row in db.query(UserEvent.session_id)
-        .filter(UserEvent.event_type == 'send_whatsapp')
+        .filter(UserEvent.event_type.in_(_aliases('whatsapp_click')))
         .distinct()
         .all()
         if row[0]
@@ -78,7 +98,7 @@ def analytics_funnel(db: Session) -> list[dict]:
     for event_type, label in FUNNEL_STEPS:
         value = int(
             db.query(func.count(func.distinct(UserEvent.session_id)))
-            .filter(UserEvent.event_type == event_type)
+            .filter(UserEvent.event_type.in_(_aliases(event_type)))
             .scalar()
             or 0
         )
@@ -90,7 +110,7 @@ def _event_product_ranking(db: Session, event_type: str, limit: int = 10) -> lis
     rows = (
         db.query(UserEvent.product_id, Product.title, func.count(UserEvent.id).label('value'))
         .outerjoin(Product, Product.id == UserEvent.product_id)
-        .filter(UserEvent.event_type == event_type)
+        .filter(UserEvent.event_type.in_(_aliases(event_type)))
         .group_by(UserEvent.product_id, Product.title)
         .order_by(func.count(UserEvent.id).desc())
         .limit(limit)
@@ -142,7 +162,7 @@ def _sold_product_ranking(db: Session, limit: int = 10, date_from: datetime | No
 
 def analytics_products(db: Session) -> dict:
     return {
-        'most_viewed': _event_product_ranking(db, 'view_product', limit=10),
+        'most_viewed': _event_product_ranking(db, 'product_view', limit=10),
         'most_added': _event_product_ranking(db, 'add_to_cart', limit=10),
         'most_sold': _sold_product_ranking(db, limit=10),
     }
@@ -181,7 +201,7 @@ def report_top_products(db: Session, date_from: datetime | None = None, date_to:
 
 
 def report_leads(db: Session, date_from: datetime | None = None, date_to: datetime | None = None) -> dict:
-    query = db.query(UserEvent).filter(UserEvent.event_type == 'send_whatsapp')
+    query = db.query(UserEvent).filter(UserEvent.event_type.in_(_aliases('whatsapp_click')))
     if date_from:
         query = query.filter(UserEvent.created_at >= date_from)
     if date_to:
@@ -193,7 +213,7 @@ def report_leads(db: Session, date_from: datetime | None = None, date_to: dateti
     top_products = (
         db.query(UserEvent.product_id, Product.title, func.count(UserEvent.id))
         .outerjoin(Product, Product.id == UserEvent.product_id)
-        .filter(UserEvent.event_type == 'send_whatsapp')
+        .filter(UserEvent.event_type.in_(_aliases('whatsapp_click')))
     )
     if date_from:
         top_products = top_products.filter(UserEvent.created_at >= date_from)
