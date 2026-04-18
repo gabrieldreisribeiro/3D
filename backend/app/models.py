@@ -57,6 +57,9 @@ class Product(Base):
     instagram_post_id = Column(String(120), nullable=True)
     instagram_published_at = Column(DateTime, nullable=True)
     instagram_error_message = Column(Text, nullable=True)
+    is_draft = Column(Boolean, default=False, index=True)
+    generated_by_ai = Column(Boolean, default=False, index=True)
+    source_ad_generation_id = Column(Integer, ForeignKey('ads_generation_history.id', ondelete='SET NULL'), nullable=True, index=True)
 
     category = relationship('Category', back_populates='products')
     reviews = relationship('ProductReview', back_populates='product', cascade='all, delete-orphan')
@@ -245,3 +248,4 @@ class AdsGenerationHistory(Base):
     created_at = Column(DateTime, nullable=False, server_default=func.now(), index=True)
 
     admin = relationship('AdminUser', back_populates='ads_generation_history')
+    products = relationship('Product')

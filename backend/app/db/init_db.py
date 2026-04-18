@@ -200,6 +200,9 @@ def _ensure_product_pricing_columns(session):
         'instagram_post_id': "VARCHAR(120)",
         'instagram_published_at': "DATETIME",
         'instagram_error_message': "TEXT",
+        'is_draft': "BOOLEAN DEFAULT 0",
+        'generated_by_ai': "BOOLEAN DEFAULT 0",
+        'source_ad_generation_id': "INTEGER",
     }
 
     changed = False

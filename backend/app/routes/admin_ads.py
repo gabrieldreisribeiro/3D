@@ -10,8 +10,11 @@ from app.schemas import (
     AdsGenerationHistoryResponse,
     AdsProviderConfigResponse,
     AdsProviderConfigUpdate,
+    CreateProductFromAdRequest,
+    CreateProductFromAdResponse,
 )
 from app.services.ads_ai_service import (
+    create_product_draft_from_ad,
     generate_ads_ideas,
     get_or_create_ads_provider_config,
     list_ads_history,
@@ -110,4 +113,27 @@ def history_ads(
         total=total,
         page=page,
         page_size=page_size,
+    )
+
+
+@router.post('/create-product-from-copy', response_model=CreateProductFromAdResponse)
+def create_product_from_copy(
+    payload: CreateProductFromAdRequest,
+    _: AdminUser = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    try:
+        product = create_product_draft_from_ad(
+            db,
+            ad_generation_id=payload.ad_generation_id,
+            ad_index=payload.ad_index,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=f'Falha ao criar draft de produto: {exc}') from exc
+
+    return CreateProductFromAdResponse(
+        product_id=product.id,
+        edit_url=f'/painel-interno/produtos?edit={product.id}&source=ai',
     )

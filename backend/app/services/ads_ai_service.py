@@ -1,4 +1,6 @@
 import json
+import re
+import unicodedata
 from datetime import datetime
 from decimal import Decimal
 from urllib import error, request
@@ -7,10 +9,12 @@ from sqlalchemy import case, func
 from sqlalchemy.orm import Session
 
 from app.models import AdsGenerationHistory, AdsProviderConfig, Category, OrderItem, Product, UserEvent
+from app.services.product_pricing_service import calculate_product_pricing_from_fields
 
 DEFAULT_PROVIDER = 'nvidia'
 DEFAULT_BASE_URL = 'https://integrate.api.nvidia.com/v1'
 DEFAULT_MODEL = 'qwen/qwen2.5-coder-7b-instruct'
+DRAFT_PLACEHOLDER_IMAGE = 'https://placehold.co/1200x800/png?text=Produto+em+rascunho'
 
 
 def _safe_json_loads(raw: str | None) -> dict:
@@ -26,6 +30,44 @@ def _normalize_base_url(base_url: str) -> str:
     if not value:
         return DEFAULT_BASE_URL
     return value
+
+
+def _normalize_text(value: str | None) -> str:
+    return str(value or '').strip()
+
+
+def _slugify(value: str) -> str:
+    normalized = unicodedata.normalize('NFKD', value or '')
+    ascii_only = normalized.encode('ascii', 'ignore').decode('ascii').lower()
+    slug = re.sub(r'[^a-z0-9]+', '-', ascii_only).strip('-')
+    return slug or 'produto-ia'
+
+
+def _unique_slug(db: Session, base_slug: str) -> str:
+    slug = _slugify(base_slug)
+    candidate = slug
+    counter = 2
+    while db.query(Product.id).filter(Product.slug == candidate).first():
+        candidate = f'{slug}-{counter}'
+        counter += 1
+    return candidate
+
+
+def _match_category_id(db: Session, suggested_category: str | None) -> int | None:
+    suggestion = _normalize_text(suggested_category)
+    if not suggestion:
+        return None
+    normalized = unicodedata.normalize('NFKD', suggestion).encode('ascii', 'ignore').decode('ascii').lower().strip()
+    if not normalized:
+        return None
+    categories = db.query(Category).all()
+    exact = next((item for item in categories if item.slug == normalized or item.name.lower() == normalized), None)
+    if exact:
+        return exact.id
+    partial = next((item for item in categories if normalized in item.slug or normalized in item.name.lower()), None)
+    if partial:
+        return partial.id
+    return None
 
 
 def _parse_llm_json(content: str) -> dict:
@@ -288,7 +330,8 @@ def _build_ads_prompt(input_data: dict, ads_count: int, extra_context: str | Non
     system_prompt = (
         'Voce e um estrategista de performance para e-commerce de produtos impressos em 3D. '
         'Retorne SOMENTE JSON valido no formato: '
-        '{"ads":[{"headline":"","primary_text":"","description":"","cta":"","target_audience":"","creative_idea":""}]}. '
+        '{"ads":[{"headline":"","primary_text":"","description":"","cta":"","target_audience":"","creative_idea":"","product_draft":{"title":"","short_description":"","full_description":"","suggested_category":"","highlights":[],"tags":[]}}]}. '
+        'Em product_draft, sempre preencha title, short_description e full_description. '
         'Nao inclua markdown, comentarios nem texto fora do JSON.'
     )
     user_payload = {
@@ -324,6 +367,26 @@ def _normalize_ads_output(raw_output: dict) -> dict:
                 'cta': str(item.get('cta') or 'Compre agora').strip() or 'Compre agora',
                 'target_audience': str(item.get('target_audience') or '').strip(),
                 'creative_idea': str(item.get('creative_idea') or '').strip(),
+                'product_draft': {
+                    'title': _normalize_text((item.get('product_draft') or {}).get('title') if isinstance(item.get('product_draft'), dict) else item.get('headline')),
+                    'short_description': _normalize_text((item.get('product_draft') or {}).get('short_description') if isinstance(item.get('product_draft'), dict) else item.get('description')),
+                    'full_description': _normalize_text((item.get('product_draft') or {}).get('full_description') if isinstance(item.get('product_draft'), dict) else item.get('primary_text')),
+                    'suggested_category': _normalize_text((item.get('product_draft') or {}).get('suggested_category') if isinstance(item.get('product_draft'), dict) else ''),
+                    'highlights': [
+                        _normalize_text(highlight)
+                        for highlight in ((item.get('product_draft') or {}).get('highlights') or [])
+                        if _normalize_text(highlight)
+                    ][:6]
+                    if isinstance(item.get('product_draft'), dict)
+                    else [],
+                    'tags': [
+                        _normalize_text(tag)
+                        for tag in ((item.get('product_draft') or {}).get('tags') or [])
+                        if _normalize_text(tag)
+                    ][:10]
+                    if isinstance(item.get('product_draft'), dict)
+                    else [],
+                },
             }
         )
 
@@ -331,6 +394,35 @@ def _normalize_ads_output(raw_output: dict) -> dict:
     if not normalized_ads:
         raise ValueError('Modelo retornou anuncios vazios ou invalidos.')
     return {'ads': normalized_ads}
+
+
+def _build_product_descriptions_from_ad(ad_payload: dict) -> dict:
+    product_draft = ad_payload.get('product_draft') if isinstance(ad_payload.get('product_draft'), dict) else {}
+    headline = _normalize_text(ad_payload.get('headline'))
+    primary_text = _normalize_text(ad_payload.get('primary_text'))
+    ad_description = _normalize_text(ad_payload.get('description'))
+
+    title = _normalize_text(product_draft.get('title')) or headline or 'Produto gerado por IA'
+    short_description = _normalize_text(product_draft.get('short_description')) or ad_description or headline
+    full_description = _normalize_text(product_draft.get('full_description')) or primary_text or short_description
+    highlights = [item for item in (product_draft.get('highlights') or []) if _normalize_text(item)]
+    tags = [item for item in (product_draft.get('tags') or []) if _normalize_text(item)]
+
+    full_parts = [full_description]
+    if highlights:
+        highlights_block = '\n'.join(f'- {str(item).strip()}' for item in highlights[:6])
+        full_parts.append(f'Destaques:\n{highlights_block}')
+    if tags:
+        tag_line = ' '.join(f'#{str(item).strip().replace(" ", "")}' for item in tags[:10])
+        full_parts.append(f'Tags sugeridas: {tag_line}')
+
+    return {
+        'title': title[:160],
+        'short_description': short_description[:260],
+        'full_description': '\n\n'.join(part for part in full_parts if part).strip(),
+        'suggested_category': _normalize_text(product_draft.get('suggested_category')),
+        'tags': tags[:10],
+    }
 
 
 def generate_ads_ideas(
@@ -362,6 +454,96 @@ def generate_ads_ideas(
     db.commit()
     db.refresh(history)
     return history
+
+
+def create_product_draft_from_ad(
+    db: Session,
+    *,
+    ad_generation_id: int,
+    ad_index: int = 0,
+) -> Product:
+    history = db.query(AdsGenerationHistory).filter(AdsGenerationHistory.id == ad_generation_id).first()
+    if not history:
+        raise ValueError('Geracao de anuncios nao encontrada.')
+
+    output = _safe_json_loads(history.output_data_json)
+    ads = output.get('ads') if isinstance(output, dict) else None
+    if not isinstance(ads, list) or not ads:
+        raise ValueError('Geracao nao possui anuncios validos.')
+    if ad_index < 0 or ad_index >= len(ads):
+        raise ValueError('Indice do anuncio invalido.')
+
+    ad_payload = ads[ad_index]
+    if not isinstance(ad_payload, dict):
+        raise ValueError('Anuncio selecionado invalido.')
+
+    draft_data = _build_product_descriptions_from_ad(ad_payload)
+    slug = _unique_slug(db, draft_data['title'])
+    category_id = _match_category_id(db, draft_data.get('suggested_category'))
+    hashtags = ' '.join(f'#{str(tag).strip().replace(" ", "")}' for tag in draft_data.get('tags') or [])
+
+    pricing = calculate_product_pricing_from_fields(
+        {
+            'grams_filament': 0,
+            'price_kg_filament': 0,
+            'hours_printing': 0,
+            'avg_power_watts': 0,
+            'price_kwh': 0,
+            'total_hours_labor': 0,
+            'price_hour_labor': 0,
+            'extra_cost': 0,
+            'profit_margin': 0,
+            'manual_price': None,
+        }
+    )
+
+    product = Product(
+        title=draft_data['title'],
+        slug=slug,
+        short_description=draft_data['short_description'],
+        full_description=draft_data['full_description'],
+        price=0.0,
+        cover_image=DRAFT_PLACEHOLDER_IMAGE,
+        images='',
+        sub_items='',
+        is_active=False,
+        rating_average=0.0,
+        rating_count=0,
+        category_id=category_id,
+        lead_time_hours=0.0,
+        allow_colors=False,
+        available_colors='[]',
+        allow_secondary_color=False,
+        secondary_color_pairs='[]',
+        grams_filament=0.0,
+        price_kg_filament=0.0,
+        hours_printing=0.0,
+        avg_power_watts=0.0,
+        price_kwh=0.0,
+        total_hours_labor=0.0,
+        price_hour_labor=0.0,
+        extra_cost=0.0,
+        profit_margin=0.0,
+        cost_total=pricing['cost_total'],
+        calculated_price=pricing['calculated_price'],
+        estimated_profit=pricing['estimated_profit'],
+        manual_price=None,
+        final_price=pricing['final_price'],
+        publish_to_instagram=False,
+        instagram_caption=None,
+        instagram_hashtags=hashtags or None,
+        instagram_post_status='not_published',
+        instagram_post_id=None,
+        instagram_published_at=None,
+        instagram_error_message=None,
+        is_draft=True,
+        generated_by_ai=True,
+        source_ad_generation_id=history.id,
+    )
+    db.add(product)
+    db.commit()
+    db.refresh(product)
+    return product
 
 
 def list_ads_history(db: Session, *, page: int = 1, page_size: int = 20) -> tuple[list[AdsGenerationHistory], int]:
