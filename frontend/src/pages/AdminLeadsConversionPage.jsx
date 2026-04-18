@@ -10,6 +10,7 @@ import {
   fetchAdminLeadsConversionCtas,
   fetchAdminLeadsConversionFunnel,
   fetchAdminLeadsConversionLeads,
+  fetchAdminLeadsConversionLocations,
   fetchAdminLeadsConversionProducts,
   fetchAdminLeadsConversionSources,
   fetchAdminLeadsConversionSummary,
@@ -32,6 +33,7 @@ const initialState = {
   ctas: { total_cta_clicks: 0, top_cta: null, items: [] },
   leads: { items: [], total: 0, page: 1, page_size: 20 },
   sources: { items: [] },
+  locations: { items: [] },
   abandonment: { abandoned_sessions: 0, high_intent_without_whatsapp: 0, high_intent_without_order: 0, abandoned_products: [] },
 };
 const TABLE_PAGE_SIZE = 8;
@@ -54,6 +56,7 @@ function AdminLeadsConversionPage() {
     most_abandoned: 1,
     ctas: 1,
     sources: 1,
+    locations: 1,
   });
   const [filters, setFilters] = useState({
     date_from: '',
@@ -62,6 +65,9 @@ function AdminLeadsConversionPage() {
     product_id: '',
     source_channel: '',
     lead_level: '',
+    country: '',
+    state: '',
+    city: '',
   });
 
   const leadsTotalPages = useMemo(
@@ -76,6 +82,9 @@ function AdminLeadsConversionPage() {
       category_id: filters.category_id ? Number(filters.category_id) : undefined,
       product_id: filters.product_id ? Number(filters.product_id) : undefined,
       source_channel: filters.source_channel || undefined,
+      country: filters.country || undefined,
+      state: filters.state || undefined,
+      city: filters.city || undefined,
     }),
     [filters]
   );
@@ -100,9 +109,10 @@ function AdminLeadsConversionPage() {
         page_size: 20,
       }),
       fetchAdminLeadsConversionSources(queryFilters),
+      fetchAdminLeadsConversionLocations(queryFilters),
       fetchAdminLeadsConversionAbandonment(queryFilters),
     ])
-      .then(([summary, funnel, productsData, ctas, leads, sources, abandonment]) => {
+      .then(([summary, funnel, productsData, ctas, leads, sources, locations, abandonment]) => {
         setData({
           summary,
           funnel,
@@ -110,6 +120,7 @@ function AdminLeadsConversionPage() {
           ctas,
           leads,
           sources,
+          locations,
           abandonment,
         });
       })
@@ -130,8 +141,9 @@ function AdminLeadsConversionPage() {
       most_abandoned: 1,
       ctas: 1,
       sources: 1,
+      locations: 1,
     });
-  }, [filters.date_from, filters.date_to, filters.category_id, filters.product_id, filters.source_channel, filters.lead_level]);
+  }, [filters.date_from, filters.date_to, filters.category_id, filters.product_id, filters.source_channel, filters.lead_level, filters.country, filters.state, filters.city]);
 
   useEffect(() => {
     loadData(leadsPage);
@@ -183,7 +195,7 @@ function AdminLeadsConversionPage() {
       />
 
       <DataCard title="Filtros globais">
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-3 xl:grid-cols-6">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-3 xl:grid-cols-9">
           <label className="grid gap-1 text-xs text-slate-600">
             Data inicial
             <input type="date" value={filters.date_from} onChange={(event) => setFilters((c) => ({ ...c, date_from: event.target.value }))} className="h-9 rounded-lg border border-slate-200 px-3 text-xs outline-none focus:border-violet-300" />
@@ -231,6 +243,18 @@ function AdminLeadsConversionPage() {
               <option value="hot">Lead quente</option>
             </select>
           </label>
+          <label className="grid gap-1 text-xs text-slate-600">
+            Pais
+            <input value={filters.country} onChange={(event) => setFilters((c) => ({ ...c, country: event.target.value }))} className="h-9 rounded-lg border border-slate-200 px-3 text-xs outline-none focus:border-violet-300" placeholder="Brasil" />
+          </label>
+          <label className="grid gap-1 text-xs text-slate-600">
+            Estado
+            <input value={filters.state} onChange={(event) => setFilters((c) => ({ ...c, state: event.target.value }))} className="h-9 rounded-lg border border-slate-200 px-3 text-xs outline-none focus:border-violet-300" placeholder="Sao Paulo" />
+          </label>
+          <label className="grid gap-1 text-xs text-slate-600">
+            Cidade
+            <input value={filters.city} onChange={(event) => setFilters((c) => ({ ...c, city: event.target.value }))} className="h-9 rounded-lg border border-slate-200 px-3 text-xs outline-none focus:border-violet-300" placeholder="Campinas" />
+          </label>
         </div>
         <div className="mt-3 flex justify-end">
           <Button onClick={() => loadData(1)} loading={loading}>Atualizar</Button>
@@ -250,6 +274,7 @@ function AdminLeadsConversionPage() {
             const abandonedPage = getTablePagination('most_abandoned', data.products.most_abandoned || []);
             const ctasPage = getTablePagination('ctas', data.ctas.items || []);
             const sourcesPage = getTablePagination('sources', data.sources.items || []);
+            const locationsPage = getTablePagination('locations', data.locations.items || []);
             return (
               <>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-3 xl:grid-cols-6">
@@ -362,7 +387,7 @@ function AdminLeadsConversionPage() {
           <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
             <DataCard title="Leads por sessao">
               <Table
-                columns={['Sessao', 'Nivel', 'Score', 'Views', 'Add', 'WhatsApp', 'Origem', 'Ultima atividade']}
+                columns={['Sessao', 'Nivel', 'Score', 'Views', 'Add', 'WhatsApp', 'Origem', 'Localidade', 'Ultima atividade']}
                 rows={data.leads.items || []}
                 maxHeightClass="max-h-[380px]"
                 renderRow={(item) => (
@@ -374,6 +399,7 @@ function AdminLeadsConversionPage() {
                     <td>{item.add_to_cart}</td>
                     <td>{item.whatsapp_clicked ? 'Sim' : 'Nao'}</td>
                     <td>{item.source_channel || '-'}</td>
+                    <td>{[item.city, item.state, item.country].filter(Boolean).join(' / ') || '-'}</td>
                     <td>{item.last_activity ? new Date(item.last_activity).toLocaleString('pt-BR') : '-'}</td>
                   </tr>
                 )}
@@ -402,6 +428,24 @@ function AdminLeadsConversionPage() {
                   )}
                 />
                 {renderMiniPager('sources', sourcesPage.currentPage, sourcesPage.totalPages)}
+              </DataCard>
+              <DataCard title="Localidades">
+                <Table
+                  columns={['Pais', 'Estado', 'Cidade', 'Sessoes', 'Leads', 'WhatsApp']}
+                  rows={locationsPage.pagedRows}
+                  maxHeightClass="max-h-[360px]"
+                  renderRow={(item) => (
+                    <tr key={`${item.country}-${item.state}-${item.city}`}>
+                      <td>{item.country}</td>
+                      <td>{item.state}</td>
+                      <td>{item.city}</td>
+                      <td>{item.sessions}</td>
+                      <td>{item.leads}</td>
+                      <td>{item.whatsapp_clicks}</td>
+                    </tr>
+                  )}
+                />
+                {renderMiniPager('locations', locationsPage.currentPage, locationsPage.totalPages)}
               </DataCard>
               <DataCard title="Abandono">
                 <div className="grid grid-cols-1 gap-2 md:grid-cols-3">

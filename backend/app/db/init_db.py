@@ -244,23 +244,32 @@ def _ensure_store_settings_columns(session):
 
 
 def _ensure_user_events_columns(session):
-    if session.bind.dialect.name != 'sqlite':
-        return
-    columns = session.execute(text("PRAGMA table_info('user_events')")).fetchall()
-    names = {column[1] for column in columns}
     required_columns = {
         'category_id': 'INTEGER',
         'page_url': 'VARCHAR(500)',
         'source_channel': 'VARCHAR(80)',
         'referrer': 'VARCHAR(500)',
         'cta_name': 'VARCHAR(120)',
+        'ip_address': 'VARCHAR(120)',
+        'country': 'VARCHAR(120)',
+        'state': 'VARCHAR(120)',
+        'city': 'VARCHAR(120)',
     }
-    changed = False
-    for column_name, column_ddl in required_columns.items():
-        if column_name not in names:
-            session.execute(text(f"ALTER TABLE user_events ADD COLUMN {column_name} {column_ddl}"))
-            changed = True
-    if changed:
+    if session.bind.dialect.name == 'sqlite':
+        columns = session.execute(text("PRAGMA table_info('user_events')")).fetchall()
+        names = {column[1] for column in columns}
+        changed = False
+        for column_name, column_ddl in required_columns.items():
+            if column_name not in names:
+                session.execute(text(f"ALTER TABLE user_events ADD COLUMN {column_name} {column_ddl}"))
+                changed = True
+        if changed:
+            session.commit()
+        return
+
+    if session.bind.dialect.name.startswith('postgres'):
+        for column_name, column_ddl in required_columns.items():
+            session.execute(text(f"ALTER TABLE user_events ADD COLUMN IF NOT EXISTS {column_name} {column_ddl}"))
         session.commit()
 
 

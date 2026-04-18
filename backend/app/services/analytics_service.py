@@ -30,7 +30,15 @@ def _aliases(event_type: str) -> list[str]:
     return list(dict.fromkeys(aliases + reverse_aliases))
 
 
-def create_user_event(db: Session, payload) -> UserEvent:
+def create_user_event(
+    db: Session,
+    payload,
+    *,
+    ip_address: str | None = None,
+    country: str | None = None,
+    state: str | None = None,
+    city: str | None = None,
+) -> UserEvent:
     normalized_event_type = CANONICAL_EVENT.get(payload.event_type, payload.event_type)
     event = UserEvent(
         event_type=normalized_event_type,
@@ -42,6 +50,10 @@ def create_user_event(db: Session, payload) -> UserEvent:
         source_channel=payload.source_channel,
         referrer=payload.referrer,
         cta_name=payload.cta_name,
+        ip_address=ip_address,
+        country=country,
+        state=state,
+        city=city,
         metadata_json=json.dumps(payload.metadata_json or {}, ensure_ascii=False),
     )
     db.add(event)
@@ -85,11 +97,47 @@ def analytics_summary(db: Session) -> dict:
     if add_sessions:
         conversion = (len(add_sessions & whatsapp_sessions) / len(add_sessions)) * 100
 
+    # Localidade por sessao (ultimo evento conhecido da sessao).
+    location_by_session: dict[str, tuple[str, str, str]] = {}
+    session_events = (
+        db.query(UserEvent.session_id, UserEvent.country, UserEvent.state, UserEvent.city, UserEvent.created_at)
+        .filter(UserEvent.session_id.isnot(None))
+        .order_by(UserEvent.created_at.asc())
+        .all()
+    )
+    for session_id, country, state, city, _created_at in session_events:
+        sid = str(session_id or '').strip()
+        if not sid:
+            continue
+        location_by_session[sid] = (
+            str(country or '').strip() or 'Desconhecido',
+            str(state or '').strip() or 'Desconhecido',
+            str(city or '').strip() or 'Desconhecido',
+        )
+
+    country_counts: dict[str, int] = {}
+    state_counts: dict[str, int] = {}
+    city_counts: dict[str, int] = {}
+    for country, state, city in location_by_session.values():
+        country_counts[country] = country_counts.get(country, 0) + 1
+        state_counts[state] = state_counts.get(state, 0) + 1
+        city_counts[city] = city_counts.get(city, 0) + 1
+
+    def _top_map(data: dict[str, int], limit: int = 5) -> list[dict]:
+        return [
+            {'label': label, 'value': value}
+            for label, value in sorted(data.items(), key=lambda item: item[1], reverse=True)[:limit]
+        ]
+
     return {
         'total_orders': total_orders,
         'total_items_sold': total_items_sold,
         'estimated_total_value': estimated_total_value,
         'conversion_add_to_whatsapp': round(conversion, 2),
+        'geolocated_sessions': len(location_by_session),
+        'top_countries': _top_map(country_counts),
+        'top_states': _top_map(state_counts),
+        'top_cities': _top_map(city_counts),
     }
 
 

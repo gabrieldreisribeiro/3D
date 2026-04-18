@@ -42,6 +42,10 @@ function AdminDashboardPage() {
             <MetricCard label="Conversao carrinho → WhatsApp" value={`${Number(summary.conversion_add_to_whatsapp || 0).toFixed(2)}%`} helper="Sessoes com add_to_cart x send_whatsapp" />
           </div>
 
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+            <MetricCard label="Sessoes geolocalizadas" value={summary.geolocated_sessions || 0} helper="Com pais/estado/cidade" />
+          </div>
+
           <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
             <ChartCard title="Vendas por periodo">
               <MiniBarChart points={summary.sales_series || []} money />
@@ -88,6 +92,36 @@ function AdminDashboardPage() {
                   <li key={item.title} className="flex items-center justify-between rounded-[10px] border border-slate-100 px-3 py-2">
                     <span className="text-slate-600">{item.title}</span>
                     <strong className="font-semibold text-slate-900">{item.quantity}</strong>
+                  </li>
+                ))}
+              </ul>
+            </ChartCard>
+            <ChartCard title="Top paises">
+              <ul className="space-y-2 text-sm">
+                {(summary.top_countries || []).map((item) => (
+                  <li key={item.label} className="flex items-center justify-between rounded-[10px] border border-slate-100 px-3 py-2">
+                    <span className="text-slate-600">{item.label}</span>
+                    <strong className="font-semibold text-slate-900">{item.value}</strong>
+                  </li>
+                ))}
+              </ul>
+            </ChartCard>
+            <ChartCard title="Top estados">
+              <ul className="space-y-2 text-sm">
+                {(summary.top_states || []).map((item) => (
+                  <li key={item.label} className="flex items-center justify-between rounded-[10px] border border-slate-100 px-3 py-2">
+                    <span className="text-slate-600">{item.label}</span>
+                    <strong className="font-semibold text-slate-900">{item.value}</strong>
+                  </li>
+                ))}
+              </ul>
+            </ChartCard>
+            <ChartCard title="Top cidades">
+              <ul className="space-y-2 text-sm">
+                {(summary.top_cities || []).map((item) => (
+                  <li key={item.label} className="flex items-center justify-between rounded-[10px] border border-slate-100 px-3 py-2">
+                    <span className="text-slate-600">{item.label}</span>
+                    <strong className="font-semibold text-slate-900">{item.value}</strong>
                   </li>
                 ))}
               </ul>

@@ -224,6 +224,10 @@ class UserEvent(Base):
     source_channel = Column(String(80), nullable=True, index=True)
     referrer = Column(String(500), nullable=True)
     cta_name = Column(String(120), nullable=True, index=True)
+    ip_address = Column(String(120), nullable=True, index=True)
+    country = Column(String(120), nullable=True, index=True)
+    state = Column(String(120), nullable=True, index=True)
+    city = Column(String(120), nullable=True, index=True)
     metadata_json = Column(Text, nullable=False, default='{}')
     created_at = Column(DateTime, nullable=False, server_default=func.now(), index=True)
 

@@ -329,6 +329,9 @@ export function fetchAdminLeadsConversionSummary(params = {}) {
   if (params.category_id) search.set('category_id', String(params.category_id));
   if (params.product_id) search.set('product_id', String(params.product_id));
   if (params.source_channel) search.set('source_channel', params.source_channel);
+  if (params.country) search.set('country', params.country);
+  if (params.state) search.set('state', params.state);
+  if (params.city) search.set('city', params.city);
   const query = search.toString();
   return adminRequest(`/admin/leads-conversion/summary${query ? `?${query}` : ''}`);
 }
@@ -340,6 +343,9 @@ export function fetchAdminLeadsConversionFunnel(params = {}) {
   if (params.category_id) search.set('category_id', String(params.category_id));
   if (params.product_id) search.set('product_id', String(params.product_id));
   if (params.source_channel) search.set('source_channel', params.source_channel);
+  if (params.country) search.set('country', params.country);
+  if (params.state) search.set('state', params.state);
+  if (params.city) search.set('city', params.city);
   const query = search.toString();
   return adminRequest(`/admin/leads-conversion/funnel${query ? `?${query}` : ''}`);
 }
@@ -351,6 +357,9 @@ export function fetchAdminLeadsConversionProducts(params = {}) {
   if (params.category_id) search.set('category_id', String(params.category_id));
   if (params.product_id) search.set('product_id', String(params.product_id));
   if (params.source_channel) search.set('source_channel', params.source_channel);
+  if (params.country) search.set('country', params.country);
+  if (params.state) search.set('state', params.state);
+  if (params.city) search.set('city', params.city);
   const query = search.toString();
   return adminRequest(`/admin/leads-conversion/products${query ? `?${query}` : ''}`);
 }
@@ -362,6 +371,9 @@ export function fetchAdminLeadsConversionCtas(params = {}) {
   if (params.category_id) search.set('category_id', String(params.category_id));
   if (params.product_id) search.set('product_id', String(params.product_id));
   if (params.source_channel) search.set('source_channel', params.source_channel);
+  if (params.country) search.set('country', params.country);
+  if (params.state) search.set('state', params.state);
+  if (params.city) search.set('city', params.city);
   const query = search.toString();
   return adminRequest(`/admin/leads-conversion/ctas${query ? `?${query}` : ''}`);
 }
@@ -373,6 +385,9 @@ export function fetchAdminLeadsConversionLeads(params = {}) {
   if (params.category_id) search.set('category_id', String(params.category_id));
   if (params.product_id) search.set('product_id', String(params.product_id));
   if (params.source_channel) search.set('source_channel', params.source_channel);
+  if (params.country) search.set('country', params.country);
+  if (params.state) search.set('state', params.state);
+  if (params.city) search.set('city', params.city);
   if (params.lead_level) search.set('lead_level', params.lead_level);
   if (params.page) search.set('page', String(params.page));
   if (params.page_size) search.set('page_size', String(params.page_size));
@@ -386,8 +401,26 @@ export function fetchAdminLeadsConversionSources(params = {}) {
   if (params.date_to) search.set('date_to', params.date_to);
   if (params.category_id) search.set('category_id', String(params.category_id));
   if (params.product_id) search.set('product_id', String(params.product_id));
+  if (params.source_channel) search.set('source_channel', params.source_channel);
+  if (params.country) search.set('country', params.country);
+  if (params.state) search.set('state', params.state);
+  if (params.city) search.set('city', params.city);
   const query = search.toString();
   return adminRequest(`/admin/leads-conversion/sources${query ? `?${query}` : ''}`);
+}
+
+export function fetchAdminLeadsConversionLocations(params = {}) {
+  const search = new URLSearchParams();
+  if (params.date_from) search.set('date_from', params.date_from);
+  if (params.date_to) search.set('date_to', params.date_to);
+  if (params.category_id) search.set('category_id', String(params.category_id));
+  if (params.product_id) search.set('product_id', String(params.product_id));
+  if (params.source_channel) search.set('source_channel', params.source_channel);
+  if (params.country) search.set('country', params.country);
+  if (params.state) search.set('state', params.state);
+  if (params.city) search.set('city', params.city);
+  const query = search.toString();
+  return adminRequest(`/admin/leads-conversion/locations${query ? `?${query}` : ''}`);
 }
 
 export function fetchAdminLeadsConversionAbandonment(params = {}) {
@@ -397,6 +430,9 @@ export function fetchAdminLeadsConversionAbandonment(params = {}) {
   if (params.category_id) search.set('category_id', String(params.category_id));
   if (params.product_id) search.set('product_id', String(params.product_id));
   if (params.source_channel) search.set('source_channel', params.source_channel);
+  if (params.country) search.set('country', params.country);
+  if (params.state) search.set('state', params.state);
+  if (params.city) search.set('city', params.city);
   const query = search.toString();
   return adminRequest(`/admin/leads-conversion/abandonment${query ? `?${query}` : ''}`);
 }

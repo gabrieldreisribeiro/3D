@@ -366,6 +366,10 @@ class AdminDashboardSummary(BaseModel):
     funnel: List[DashboardSeriesPoint] = Field(default_factory=list)
     most_viewed_products: List[DashboardTopProduct] = Field(default_factory=list)
     most_added_products: List[DashboardTopProduct] = Field(default_factory=list)
+    geolocated_sessions: int = 0
+    top_countries: List[DashboardSeriesPoint] = Field(default_factory=list)
+    top_states: List[DashboardSeriesPoint] = Field(default_factory=list)
+    top_cities: List[DashboardSeriesPoint] = Field(default_factory=list)
 
 
 class LogoResponse(BaseModel):
@@ -563,6 +567,10 @@ class UserEventResponse(BaseModel):
     source_channel: Optional[str] = None
     referrer: Optional[str] = None
     cta_name: Optional[str] = None
+    ip_address: Optional[str] = None
+    country: Optional[str] = None
+    state: Optional[str] = None
+    city: Optional[str] = None
     metadata_json: dict = Field(default_factory=dict)
     created_at: Optional[datetime] = None
 
@@ -574,6 +582,9 @@ class LeadsConversionFilters(BaseModel):
     product_id: Optional[int] = None
     source_channel: Optional[str] = None
     lead_level: Optional[str] = None
+    country: Optional[str] = None
+    state: Optional[str] = None
+    city: Optional[str] = None
 
 
 class LeadsConversionSummaryResponse(BaseModel):
@@ -654,6 +665,9 @@ class LeadSessionItem(BaseModel):
     whatsapp_clicked: bool = False
     estimated_interest_value: float = 0
     source_channel: Optional[str] = None
+    country: Optional[str] = None
+    state: Optional[str] = None
+    city: Optional[str] = None
 
 
 class LeadsConversionLeadsResponse(BaseModel):
@@ -673,6 +687,19 @@ class LeadsConversionSourceItem(BaseModel):
 
 class LeadsConversionSourcesResponse(BaseModel):
     items: List[LeadsConversionSourceItem]
+
+
+class LeadsConversionLocationItem(BaseModel):
+    country: str
+    state: str
+    city: str
+    sessions: int
+    leads: int
+    whatsapp_clicks: int
+
+
+class LeadsConversionLocationsResponse(BaseModel):
+    items: List[LeadsConversionLocationItem]
 
 
 class LeadsConversionAbandonmentResponse(BaseModel):

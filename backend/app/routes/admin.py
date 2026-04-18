@@ -243,6 +243,10 @@ def dashboard_summary(_: AdminUser = Depends(require_admin), db: Session = Depen
             {'title': item['product_title'], 'quantity': int(item['value']), 'total_value': item.get('total_value')}
             for item in products_stats.get('most_added', [])
         ],
+        geolocated_sessions=int(summary.get('geolocated_sessions', 0) or 0),
+        top_countries=summary.get('top_countries', []),
+        top_states=summary.get('top_states', []),
+        top_cities=summary.get('top_cities', []),
     )
 
 

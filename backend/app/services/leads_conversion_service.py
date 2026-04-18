@@ -99,6 +99,9 @@ def _events_query(
     category_id: int | None = None,
     product_id: int | None = None,
     source_channel: str | None = None,
+    country: str | None = None,
+    state: str | None = None,
+    city: str | None = None,
 ):
     query = db.query(UserEvent).outerjoin(Product, Product.id == UserEvent.product_id)
     if date_from:
@@ -112,6 +115,15 @@ def _events_query(
     if source_channel:
         normalized = str(source_channel).strip().lower()
         query = query.filter(func.lower(func.coalesce(UserEvent.source_channel, '')) == normalized)
+    if country:
+        normalized = str(country).strip().lower()
+        query = query.filter(func.lower(func.coalesce(UserEvent.country, '')) == normalized)
+    if state:
+        normalized = str(state).strip().lower()
+        query = query.filter(func.lower(func.coalesce(UserEvent.state, '')) == normalized)
+    if city:
+        normalized = str(city).strip().lower()
+        query = query.filter(func.lower(func.coalesce(UserEvent.city, '')) == normalized)
     return query
 
 
@@ -135,6 +147,9 @@ def _build_session_map(events: list[UserEvent]) -> dict[str, dict]:
                 'whatsapp_clicked': False,
                 'order_created': False,
                 'estimated_interest_value': 0.0,
+                'country': None,
+                'state': None,
+                'city': None,
                 'by_product_add': defaultdict(int),
                 'by_product_whatsapp': defaultdict(int),
                 'by_product_order': defaultdict(int),
@@ -145,6 +160,12 @@ def _build_session_map(events: list[UserEvent]) -> dict[str, dict]:
         source = _normalize_source(event.source_channel, event.referrer)
         if source:
             entry['sources'].append(source)
+        if event.country:
+            entry['country'] = str(event.country).strip()
+        if event.state:
+            entry['state'] = str(event.state).strip()
+        if event.city:
+            entry['city'] = str(event.city).strip()
 
         metadata = _parse_metadata(event.metadata_json)
         event_type = str(event.event_type or '').lower()
@@ -325,6 +346,9 @@ def leads_conversion_summary(
     category_id: int | None = None,
     product_id: int | None = None,
     source_channel: str | None = None,
+    country: str | None = None,
+    state: str | None = None,
+    city: str | None = None,
 ):
     events = _events_query(
         db,
@@ -333,6 +357,9 @@ def leads_conversion_summary(
         category_id=category_id,
         product_id=product_id,
         source_channel=source_channel,
+        country=country,
+        state=state,
+        city=city,
     ).all()
     sessions = _build_session_map(events)
     leads_cold = sum(1 for data in sessions.values() if _lead_level(data['score']) == 'cold')
@@ -390,6 +417,9 @@ def leads_conversion_funnel(
     category_id: int | None = None,
     product_id: int | None = None,
     source_channel: str | None = None,
+    country: str | None = None,
+    state: str | None = None,
+    city: str | None = None,
 ):
     events = _events_query(
         db,
@@ -398,6 +428,9 @@ def leads_conversion_funnel(
         category_id=category_id,
         product_id=product_id,
         source_channel=source_channel,
+        country=country,
+        state=state,
+        city=city,
     ).all()
     by_step: dict[str, set] = {key: set() for key, _ in FUNNEL_STEPS}
     for event in events:
@@ -440,6 +473,9 @@ def leads_conversion_products(
     category_id: int | None = None,
     product_id: int | None = None,
     source_channel: str | None = None,
+    country: str | None = None,
+    state: str | None = None,
+    city: str | None = None,
 ):
     events = _events_query(
         db,
@@ -448,6 +484,9 @@ def leads_conversion_products(
         category_id=category_id,
         product_id=product_id,
         source_channel=source_channel,
+        country=country,
+        state=state,
+        city=city,
     ).all()
     sessions = _build_session_map(events)
     metrics = _base_product_metrics(db, events, sessions, date_from, date_to)
@@ -471,6 +510,9 @@ def leads_conversion_ctas(
     category_id: int | None = None,
     product_id: int | None = None,
     source_channel: str | None = None,
+    country: str | None = None,
+    state: str | None = None,
+    city: str | None = None,
 ):
     events = _events_query(
         db,
@@ -479,6 +521,9 @@ def leads_conversion_ctas(
         category_id=category_id,
         product_id=product_id,
         source_channel=source_channel,
+        country=country,
+        state=state,
+        city=city,
     ).all()
     total_sessions = len({event.session_id for event in events if event.session_id})
     counts = defaultdict(int)
@@ -519,6 +564,9 @@ def leads_conversion_leads(
     category_id: int | None = None,
     product_id: int | None = None,
     source_channel: str | None = None,
+    country: str | None = None,
+    state: str | None = None,
+    city: str | None = None,
     lead_level: str | None = None,
     page: int = 1,
     page_size: int = 20,
@@ -530,6 +578,9 @@ def leads_conversion_leads(
         category_id=category_id,
         product_id=product_id,
         source_channel=source_channel,
+        country=country,
+        state=state,
+        city=city,
     ).all()
     sessions = _build_session_map(events)
     rows = []
@@ -551,6 +602,9 @@ def leads_conversion_leads(
                 'whatsapp_clicked': bool(data['whatsapp_clicked']),
                 'estimated_interest_value': round(float(data['estimated_interest_value']), 2),
                 'source_channel': source,
+                'country': data['country'] or None,
+                'state': data['state'] or None,
+                'city': data['city'] or None,
             }
         )
     rows.sort(key=lambda item: (item['last_activity'] is not None, item['last_activity']), reverse=True)
@@ -568,6 +622,9 @@ def leads_conversion_sources(
     category_id: int | None = None,
     product_id: int | None = None,
     source_channel: str | None = None,
+    country: str | None = None,
+    state: str | None = None,
+    city: str | None = None,
 ):
     events = _events_query(
         db,
@@ -576,6 +633,9 @@ def leads_conversion_sources(
         category_id=category_id,
         product_id=product_id,
         source_channel=source_channel,
+        country=country,
+        state=state,
+        city=city,
     ).all()
     sessions = _build_session_map(events)
     buckets = defaultdict(lambda: {'sessions': 0, 'leads': 0, 'whatsapp_clicks': 0})
@@ -613,6 +673,9 @@ def leads_conversion_abandonment(
     category_id: int | None = None,
     product_id: int | None = None,
     source_channel: str | None = None,
+    country: str | None = None,
+    state: str | None = None,
+    city: str | None = None,
 ):
     events = _events_query(
         db,
@@ -621,6 +684,9 @@ def leads_conversion_abandonment(
         category_id=category_id,
         product_id=product_id,
         source_channel=source_channel,
+        country=country,
+        state=state,
+        city=city,
     ).all()
     sessions = _build_session_map(events)
     abandoned_sessions = 0
@@ -645,6 +711,9 @@ def leads_conversion_abandonment(
         category_id=category_id,
         product_id=product_id,
         source_channel=source_channel,
+        country=country,
+        state=state,
+        city=city,
     )
     return {
         'abandoned_sessions': abandoned_sessions,
@@ -652,3 +721,56 @@ def leads_conversion_abandonment(
         'high_intent_without_order': high_intent_without_order,
         'abandoned_products': product_data['most_abandoned'][:10],
     }
+
+
+def leads_conversion_locations(
+    db: Session,
+    *,
+    date_from: datetime | None = None,
+    date_to: datetime | None = None,
+    category_id: int | None = None,
+    product_id: int | None = None,
+    source_channel: str | None = None,
+    country: str | None = None,
+    state: str | None = None,
+    city: str | None = None,
+):
+    events = _events_query(
+        db,
+        date_from=date_from,
+        date_to=date_to,
+        category_id=category_id,
+        product_id=product_id,
+        source_channel=source_channel,
+        country=country,
+        state=state,
+        city=city,
+    ).all()
+    sessions = _build_session_map(events)
+    buckets = defaultdict(lambda: {'sessions': 0, 'leads': 0, 'whatsapp_clicks': 0})
+    for _sid, data in sessions.items():
+        key = (
+            data['country'] or 'Desconhecido',
+            data['state'] or 'Desconhecido',
+            data['city'] or 'Desconhecido',
+        )
+        bucket = buckets[key]
+        bucket['sessions'] += 1
+        if _lead_level(data['score']) in {'warm', 'hot'}:
+            bucket['leads'] += 1
+        if data['whatsapp_clicked']:
+            bucket['whatsapp_clicks'] += 1
+
+    items = [
+        {
+            'country': location[0],
+            'state': location[1],
+            'city': location[2],
+            'sessions': data['sessions'],
+            'leads': data['leads'],
+            'whatsapp_clicks': data['whatsapp_clicks'],
+        }
+        for location, data in buckets.items()
+    ]
+    items.sort(key=lambda item: item['sessions'], reverse=True)
+    return {'items': items[:100]}
