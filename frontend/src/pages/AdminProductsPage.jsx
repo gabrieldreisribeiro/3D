@@ -309,6 +309,7 @@ function AdminProductsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploadingCover, setUploadingCover] = useState(false);
+  const [uploadingExtraImages, setUploadingExtraImages] = useState(false);
   const [uploadingSubItems, setUploadingSubItems] = useState({});
 /*  */  const [form, setForm] = usePersistentState('modal:admin-products:form', initialForm);
   const [error, setError] = useState('');
@@ -658,6 +659,41 @@ function AdminProductsPage() {
     }
   };
 
+  const appendExtraImageUrl = (url) => {
+    const normalizedUrl = String(url || '').trim();
+    if (!normalizedUrl) return;
+    setForm((current) => {
+      const currentLinks = parseImageLinks(current.images);
+      if (currentLinks.includes(normalizedUrl)) return current;
+      return {
+        ...current,
+        images: [...currentLinks, normalizedUrl].join('\n'),
+      };
+    });
+  };
+
+  const uploadExtraImageFile = async (file) => {
+    if (!file) return;
+    setError('');
+    const response = await uploadAdminProductImage(file);
+    appendExtraImageUrl(response.url || '');
+  };
+
+  const uploadExtraImageFiles = async (files) => {
+    const validFiles = Array.from(files || []).filter(Boolean);
+    if (!validFiles.length) return;
+    setUploadingExtraImages(true);
+    try {
+      for (const file of validFiles) {
+        await uploadExtraImageFile(file);
+      }
+    } catch (uploadError) {
+      handleUploadError(uploadError);
+    } finally {
+      setUploadingExtraImages(false);
+    }
+  };
+
   const uploadSubItemFile = async (index, file) => {
     if (!file) return;
     setUploadingSubItems((current) => ({ ...current, [index]: true }));
@@ -695,6 +731,13 @@ function AdminProductsPage() {
     if (!file) return;
     event.preventDefault();
     await uploadSubItemFile(index, file);
+  };
+
+  const handleExtraImagesPaste = async (event) => {
+    const file = readClipboardImage(event);
+    if (!file) return;
+    event.preventDefault();
+    await uploadExtraImageFiles([file]);
   };
 
   return (
@@ -926,12 +969,30 @@ function AdminProductsPage() {
           />
 
           <TextArea
-            label="Imagens extras (separe por virgula ou quebras de linha)"
+            label="Imagens extras (links, upload ou colar imagem)"
             rows="4"
             value={form.images}
             onChange={(event) => setForm({ ...form, images: event.target.value })}
+            onPaste={(event) => {
+              void handleExtraImagesPaste(event);
+            }}
             className="md:col-span-2"
           />
+          <label className="md:col-span-2 flex flex-col gap-1.5">
+            <span className="text-xs font-medium uppercase tracking-wide text-slate-500">Upload de imagens extras (opcional)</span>
+            <input
+              className="h-11 rounded-[10px] border border-slate-200 bg-white px-3 text-sm text-slate-700"
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              multiple
+              onChange={(event) => {
+                void uploadExtraImageFiles(event.target.files);
+                event.target.value = '';
+              }}
+            />
+            <small className="text-xs text-slate-500">Voce pode misturar links, upload do computador e Ctrl+V no campo acima.</small>
+            {uploadingExtraImages ? <small className="text-xs text-slate-500">Enviando imagens extras...</small> : null}
+          </label>
 
           <Input
             label="Tempo de producao (horas)"

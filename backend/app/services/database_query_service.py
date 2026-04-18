@@ -26,9 +26,41 @@ def _normalize_sql(sql: str) -> str:
     normalized = str(sql or '').strip()
     if not normalized:
         raise ValueError('SQL vazio.')
-    if ';' in normalized.strip().rstrip(';'):
-        raise ValueError('Apenas uma query por execucao e permitida.')
     return normalized.rstrip(';')
+
+
+def _split_sql_statements(sql: str) -> list[str]:
+    statements: list[str] = []
+    current: list[str] = []
+    in_quote = False
+    index = 0
+    while index < len(sql):
+        char = sql[index]
+        if char == "'":
+            current.append(char)
+            if in_quote and index + 1 < len(sql) and sql[index + 1] == "'":
+                current.append("'")
+                index += 1
+            else:
+                in_quote = not in_quote
+            index += 1
+            continue
+
+        if char == ';' and not in_quote:
+            statement = ''.join(current).strip()
+            if statement:
+                statements.append(statement)
+            current = []
+            index += 1
+            continue
+
+        current.append(char)
+        index += 1
+
+    tail = ''.join(current).strip()
+    if tail:
+        statements.append(tail)
+    return statements
 
 
 def _query_type(sql: str) -> str:
@@ -36,9 +68,12 @@ def _query_type(sql: str) -> str:
     return token
 
 
-def _validate_sql(sql: str, mode: str, confirm_mutation: bool) -> str:
+def _validate_sql(sql: str, mode: str, confirm_mutation: bool) -> tuple[list[str], list[str]]:
     normalized = _normalize_sql(sql)
-    query_type = _query_type(normalized)
+    statements = _split_sql_statements(normalized)
+    if not statements:
+        raise ValueError('SQL vazio.')
+    query_types = [_query_type(stmt) for stmt in statements]
     lowered = normalized.lower()
 
     for keyword in BLOCKED_KEYWORDS:
@@ -46,18 +81,42 @@ def _validate_sql(sql: str, mode: str, confirm_mutation: bool) -> str:
             raise ValueError(f'Comando bloqueado por seguranca: {keyword.upper()}')
 
     if mode == 'read':
-        if query_type not in ALLOWED_READ:
+        if len(statements) != 1 or query_types[0] not in ALLOWED_READ:
             raise ValueError('Modo leitura permite apenas SELECT.')
     elif mode == 'maintenance':
-        if query_type in ALLOWED_MAINTENANCE:
+        mutating = any(query_type in ALLOWED_MAINTENANCE for query_type in query_types)
+        if mutating:
             if not confirm_mutation:
                 raise ValueError('Confirme a operacao mutavel para continuar.')
-        elif query_type not in ALLOWED_READ:
-            raise ValueError('Modo manutencao permite apenas SELECT, INSERT, UPDATE e DELETE.')
+        for query_type in query_types:
+            if query_type not in ALLOWED_READ and query_type not in ALLOWED_MAINTENANCE:
+                raise ValueError('Modo manutencao permite apenas SELECT, INSERT, UPDATE e DELETE.')
+
+        # Lote multiplo permitido somente para INSERT.
+        if len(statements) > 1 and any(query_type != 'insert' for query_type in query_types):
+            raise ValueError('Lote multiplo permite apenas INSERT.')
     else:
         raise ValueError('Modo de execucao invalido.')
 
-    return normalized
+    return statements, query_types
+
+
+def _idempotent_insert_sql(statement: str, dialect_name: str) -> str:
+    lowered = statement.lower()
+    if not lowered.startswith('insert'):
+        return statement
+
+    if dialect_name == 'sqlite':
+        if 'insert or ignore into' in lowered:
+            return statement
+        return re.sub(r'^\s*insert\s+into\b', 'INSERT OR IGNORE INTO', statement, flags=re.IGNORECASE)
+
+    if dialect_name.startswith('postgres'):
+        if ' on conflict ' in lowered:
+            return statement
+        return f'{statement} ON CONFLICT DO NOTHING'
+
+    return statement
 
 
 def _create_log(
@@ -94,12 +153,12 @@ def execute_controlled_query(
     mode: str = 'read',
     confirm_mutation: bool = False,
 ) -> dict:
-    normalized = _validate_sql(sql, mode, confirm_mutation)
-    query_type = _query_type(normalized)
+    statements, query_types = _validate_sql(sql, mode, confirm_mutation)
+    dialect_name = db.bind.dialect.name
 
     try:
-        statement = text(normalized)
-        if query_type == 'select':
+        if len(statements) == 1 and query_types[0] == 'select':
+            statement = text(statements[0])
             result = db.execute(statement)
             rows = result.mappings().all()
             columns = list(result.keys())
@@ -107,38 +166,44 @@ def execute_controlled_query(
             _create_log(
                 db,
                 admin=admin,
-                sql_text=normalized,
+                sql_text=statements[0],
                 mode=mode,
-                query_type=query_type,
+                query_type='select',
                 status='success',
                 affected_rows=row_count,
             )
             return {
                 'ok': True,
                 'mode': mode,
-                'query_type': query_type,
+                'query_type': 'select',
                 'columns': columns,
                 'rows': [dict(row) for row in rows],
                 'row_count': row_count,
                 'message': f'{row_count} linha(s) retornadas.',
             }
 
-        result = db.execute(statement)
+        affected_rows = 0
+        for statement_text, query_type in zip(statements, query_types):
+            if query_type == 'insert':
+                statement_text = _idempotent_insert_sql(statement_text, dialect_name)
+            result = db.execute(text(statement_text))
+            affected_rows += int(result.rowcount or 0)
+
         db.commit()
-        affected_rows = int(result.rowcount or 0)
+        response_query_type = query_types[0] if len(set(query_types)) == 1 else 'batch'
         _create_log(
             db,
             admin=admin,
-            sql_text=normalized,
+            sql_text=';\n'.join(statements),
             mode=mode,
-            query_type=query_type,
+            query_type=response_query_type,
             status='success',
             affected_rows=affected_rows,
         )
         return {
             'ok': True,
             'mode': mode,
-            'query_type': query_type,
+            'query_type': response_query_type,
             'columns': [],
             'rows': [],
             'row_count': affected_rows,
@@ -146,10 +211,11 @@ def execute_controlled_query(
         }
     except Exception as exc:  # noqa: BLE001
         db.rollback()
+        query_type = query_types[0] if query_types else 'unknown'
         _create_log(
             db,
             admin=admin,
-            sql_text=normalized,
+            sql_text=';\n'.join(statements),
             mode=mode,
             query_type=query_type,
             status='error',

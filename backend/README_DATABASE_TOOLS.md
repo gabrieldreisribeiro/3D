@@ -77,7 +77,7 @@ Todos protegidos por autenticao admin.
 
 ## 6) Seguranca aplicada no query runner
 
-- Apenas 1 query por execucao
+- Apenas 1 query por execucao, exceto lote de `INSERT` em modo `maintenance`
 - Bloqueio de comandos perigosos:
   - `DROP`, `TRUNCATE`, `ALTER`, `CREATE`, `GRANT`, `REVOKE`, etc.
 - Modo leitura aceita apenas `SELECT`
@@ -86,4 +86,12 @@ Todos protegidos por autenticao admin.
   - confirmacao explicita
 - Todas as execucoes sao logadas na tabela:
   - `database_query_logs`
+
+## 7) Compatibilidade SQLite + PostgreSQL
+
+- A area de banco funciona com os dois bancos via `DATABASE_URL`.
+- O executor controlado aceita lote apenas para `INSERT` no modo `maintenance`.
+- Em lote de `INSERT`, o sistema aplica idempotencia por dialeto:
+  - SQLite: `INSERT OR IGNORE`
+  - PostgreSQL: `ON CONFLICT DO NOTHING`
 
