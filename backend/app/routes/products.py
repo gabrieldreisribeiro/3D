@@ -1,8 +1,15 @@
-﻿from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from sqlalchemy.orm import Session
 
 from app.db.session import SessionLocal
-from app.schemas import CategoryResponse, ProductResponse
+from app.schemas import (
+    CategoryResponse,
+    ProductResponse,
+    ProductReviewCreateResponse,
+    ProductReviewListResponse,
+    ProductReviewResponse,
+    ProductReviewSummaryResponse,
+)
 from app.services.product_service import (
     get_product_by_slug,
     list_categories,
@@ -10,6 +17,12 @@ from app.services.product_service import (
     parse_colors_from_storage,
     parse_secondary_pairs_from_storage,
     parse_sub_items_from_storage,
+)
+from app.services.review_service import (
+    create_review,
+    get_product_by_id,
+    get_public_review_summary,
+    list_public_reviews,
 )
 
 router = APIRouter()
@@ -21,6 +34,26 @@ def get_db():
         yield db
     finally:
         db.close()
+
+
+def _serialize_review(review) -> ProductReviewResponse:
+    media = sorted(review.media or [], key=lambda item: (item.sort_order, item.id))
+    photos = [item.file_path for item in media if item.media_type == 'image']
+    video = next((item.file_path for item in media if item.media_type == 'video'), None)
+    return ProductReviewResponse(
+        id=review.id,
+        product_id=review.product_id,
+        author_name=review.author_name,
+        rating=review.rating,
+        comment=review.comment,
+        status=review.status,
+        created_at=review.created_at,
+        updated_at=review.updated_at,
+        media=media,
+        photos=photos,
+        video=video,
+        has_media=bool(media),
+    )
 
 
 @router.get('/categories', response_model=list[CategoryResponse])
@@ -49,3 +82,69 @@ def read_product(slug: str, db: Session = Depends(get_db)):
     product.available_colors = parse_colors_from_storage(product.available_colors)
     product.secondary_color_pairs = parse_secondary_pairs_from_storage(product.secondary_color_pairs, product.available_colors)
     return product
+
+
+@router.post('/products/{product_id}/reviews', response_model=ProductReviewCreateResponse)
+def create_product_review(
+    product_id: int,
+    author_name: str = Form(...),
+    rating: int = Form(...),
+    comment: str = Form(...),
+    images: list[UploadFile] | None = File(default=None),
+    video: UploadFile | None = File(default=None),
+    db: Session = Depends(get_db),
+):
+    product = get_product_by_id(db, product_id)
+    if not product:
+        raise HTTPException(status_code=404, detail='Produto nao encontrado')
+
+    review = create_review(
+        db,
+        product,
+        author_name=author_name,
+        rating=rating,
+        comment=comment,
+        images=images or [],
+        video=video,
+    )
+    return ProductReviewCreateResponse(
+        message='Sua avaliacao foi enviada e ficara visivel apos aprovacao.',
+        review=_serialize_review(review),
+    )
+
+
+@router.get('/products/{product_id}/reviews', response_model=ProductReviewListResponse)
+def list_product_reviews(
+    product_id: int,
+    sort: str = Query(default='recent'),
+    with_media: bool = Query(default=False),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=10, ge=1, le=50),
+    db: Session = Depends(get_db),
+):
+    product = get_product_by_id(db, product_id)
+    if not product:
+        raise HTTPException(status_code=404, detail='Produto nao encontrado')
+
+    items, total = list_public_reviews(
+        db,
+        product_id,
+        sort=sort,
+        with_media=with_media,
+        page=page,
+        page_size=page_size,
+    )
+    return ProductReviewListResponse(
+        items=[_serialize_review(item) for item in items],
+        total=total,
+        page=page,
+        page_size=page_size,
+    )
+
+
+@router.get('/products/{product_id}/reviews/summary', response_model=ProductReviewSummaryResponse)
+def get_product_reviews_summary(product_id: int, db: Session = Depends(get_db)):
+    product = get_product_by_id(db, product_id)
+    if not product:
+        raise HTTPException(status_code=404, detail='Produto nao encontrado')
+    return ProductReviewSummaryResponse(**get_public_review_summary(db, product_id))

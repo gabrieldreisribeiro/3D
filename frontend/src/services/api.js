@@ -95,6 +95,48 @@ export function fetchProduct(slug) {
   return request(`/products/${slug}`);
 }
 
+export function fetchProductReviews(productId, params = {}) {
+  const search = new URLSearchParams();
+  if (params.sort) search.set('sort', params.sort);
+  if (params.with_media) search.set('with_media', 'true');
+  if (params.page) search.set('page', String(params.page));
+  if (params.page_size) search.set('page_size', String(params.page_size));
+  const query = search.toString();
+  return request(`/products/${productId}/reviews${query ? `?${query}` : ''}`);
+}
+
+export function fetchProductReviewSummary(productId) {
+  return request(`/products/${productId}/reviews/summary`);
+}
+
+export async function createProductReview(productId, payload) {
+  const formData = new FormData();
+  formData.append('author_name', payload.author_name || '');
+  formData.append('rating', String(payload.rating || ''));
+  formData.append('comment', payload.comment || '');
+
+  (payload.images || []).forEach((file) => {
+    formData.append('images', file);
+  });
+
+  if (payload.video) {
+    formData.append('video', payload.video);
+  }
+
+  const fingerprint = getClientFingerprint();
+  const response = await fetch(buildApiUrl(`/products/${productId}/reviews`), {
+    method: 'POST',
+    headers: fingerprint ? { 'X-Client-Fingerprint': fingerprint } : {},
+    body: formData,
+  });
+
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.detail || data.message || 'Erro ao enviar avaliacao');
+  }
+  return data;
+}
+
 export function validateCoupon(code) {
   return request('/coupons/validate', {
     method: 'POST',
@@ -279,6 +321,35 @@ export function deleteAdminProduct(productId) {
 
 export function fetchAdminOrders() {
   return adminRequest('/admin/orders');
+}
+
+export function fetchAdminReviews(params = {}) {
+  const search = new URLSearchParams();
+  if (params.product_id) search.set('product_id', String(params.product_id));
+  if (params.status) search.set('status', params.status);
+  if (params.rating) search.set('rating', String(params.rating));
+  if (params.page) search.set('page', String(params.page));
+  if (params.page_size) search.set('page_size', String(params.page_size));
+  const query = search.toString();
+  return adminRequest(`/admin/reviews${query ? `?${query}` : ''}`);
+}
+
+export function approveAdminReview(reviewId) {
+  return adminRequest(`/admin/reviews/${reviewId}/approve`, {
+    method: 'PATCH',
+  });
+}
+
+export function rejectAdminReview(reviewId) {
+  return adminRequest(`/admin/reviews/${reviewId}/reject`, {
+    method: 'PATCH',
+  });
+}
+
+export function deleteAdminReview(reviewId) {
+  return adminRequest(`/admin/reviews/${reviewId}`, {
+    method: 'DELETE',
+  });
 }
 
 export function fetchAdminCoupons() {

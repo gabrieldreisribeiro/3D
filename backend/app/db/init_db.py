@@ -2,7 +2,7 @@
 
 from app.core.security import hash_password
 from app.db.session import Base, SessionLocal, engine
-from app.models import AdminUser, Banner, Category, Coupon, Product, StoreSettings
+from app.models import AdminUser, Banner, Category, Coupon, Product, ProductReview, StoreSettings
 
 PRODUCTS = [
     {
@@ -276,6 +276,14 @@ def _migrate_existing_product_prices_and_categories(session):
     session.commit()
 
 
+def _sync_product_rating_with_reviews(session):
+    approved_reviews = session.query(ProductReview).filter(ProductReview.status == 'approved').count()
+    if approved_reviews > 0:
+        return
+    session.execute(text('UPDATE products SET rating_average = 0, rating_count = 0'))
+    session.commit()
+
+
 def init_db() -> None:
     Base.metadata.create_all(bind=engine)
     session = SessionLocal()
@@ -332,5 +340,6 @@ def init_db() -> None:
 
         session.commit()
         _migrate_existing_product_prices_and_categories(session)
+        _sync_product_rating_with_reviews(session)
     finally:
         session.close()

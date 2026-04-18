@@ -1,5 +1,7 @@
 ﻿
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from datetime import datetime
+
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from sqlalchemy.orm import Session
 
 from app.core.security import create_admin_token, get_db, require_admin, verify_password
@@ -18,6 +20,8 @@ from app.schemas import (
     AdminProductCreate,
     AdminProductResponse,
     AdminProductUpdate,
+    AdminReviewListResponse,
+    AdminReviewResponse,
     BannerCreate,
     BannerResponse,
     BannerUpdate,
@@ -70,6 +74,7 @@ from app.services.product_service import (
     parse_sub_items_from_storage,
     admin_update_category,
 )
+from app.services.review_service import delete_review, get_review_by_id, list_admin_reviews, set_review_status
 from app.services.settings_service import get_or_create_settings, update_instagram_settings, update_store_settings
 
 router = APIRouter(prefix='/admin', tags=['admin'])
@@ -81,6 +86,28 @@ def _serialize_product(product):
     product.available_colors = parse_colors_from_storage(product.available_colors)
     product.secondary_color_pairs = parse_secondary_pairs_from_storage(product.secondary_color_pairs, product.available_colors)
     return product
+
+
+def _serialize_admin_review(review) -> AdminReviewResponse:
+    media = sorted(review.media or [], key=lambda item: (item.sort_order, item.id))
+    photos = [item.file_path for item in media if item.media_type == 'image']
+    video = next((item.file_path for item in media if item.media_type == 'video'), None)
+    return AdminReviewResponse(
+        id=review.id,
+        product_id=review.product_id,
+        author_name=review.author_name,
+        rating=review.rating,
+        comment=review.comment,
+        status=review.status,
+        created_at=review.created_at,
+        updated_at=review.updated_at,
+        media=media,
+        photos=photos,
+        video=video,
+        has_media=bool(media),
+        product_title=review.product.title if review.product else None,
+        product_slug=review.product.slug if review.product else None,
+    )
 
 
 @router.post('/auth/login', response_model=AdminLoginResponse)
@@ -326,6 +353,62 @@ def delete_product(product_id: int, _: AdminUser = Depends(require_admin), db: S
     if not product:
         raise HTTPException(status_code=404, detail='Produto nao encontrado')
     admin_delete_product(db, product)
+
+
+@router.get('/reviews', response_model=AdminReviewListResponse)
+def list_reviews(
+    product_id: int | None = Query(default=None),
+    status_filter: str | None = Query(default=None, alias='status'),
+    rating: int | None = Query(default=None, ge=1, le=5),
+    date_from: datetime | None = Query(default=None),
+    date_to: datetime | None = Query(default=None),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+    _: AdminUser = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    reviews, total = list_admin_reviews(
+        db,
+        product_id=product_id,
+        status=status_filter,
+        rating=rating,
+        date_from=date_from,
+        date_to=date_to,
+        page=page,
+        page_size=page_size,
+    )
+    return AdminReviewListResponse(
+        items=[_serialize_admin_review(item) for item in reviews],
+        total=total,
+        page=page,
+        page_size=page_size,
+    )
+
+
+@router.patch('/reviews/{review_id}/approve', response_model=AdminReviewResponse)
+def approve_review(review_id: int, _: AdminUser = Depends(require_admin), db: Session = Depends(get_db)):
+    review = get_review_by_id(db, review_id)
+    if not review:
+        raise HTTPException(status_code=404, detail='Avaliacao nao encontrada')
+    review = set_review_status(db, review, 'approved')
+    return _serialize_admin_review(review)
+
+
+@router.patch('/reviews/{review_id}/reject', response_model=AdminReviewResponse)
+def reject_review(review_id: int, _: AdminUser = Depends(require_admin), db: Session = Depends(get_db)):
+    review = get_review_by_id(db, review_id)
+    if not review:
+        raise HTTPException(status_code=404, detail='Avaliacao nao encontrada')
+    review = set_review_status(db, review, 'rejected')
+    return _serialize_admin_review(review)
+
+
+@router.delete('/reviews/{review_id}', status_code=204)
+def remove_review(review_id: int, _: AdminUser = Depends(require_admin), db: Session = Depends(get_db)):
+    review = get_review_by_id(db, review_id)
+    if not review:
+        raise HTTPException(status_code=404, detail='Avaliacao nao encontrada')
+    delete_review(db, review)
 
 
 @router.get('/orders', response_model=list[AdminOrderResponse])

@@ -16,6 +16,7 @@ import AdminSettingsPage from './pages/AdminSettingsPage';
 import AdminBannersPage from './pages/AdminBannersPage';
 import AdminCouponsPage from './pages/AdminCouponsPage';
 import AdminInstagramPage from './pages/AdminInstagramPage';
+import AdminReviewsPage from './pages/AdminReviewsPage';
 
 function AppContent() {
   const location = useLocation();
@@ -31,6 +32,7 @@ function AppContent() {
             <Route path="produtos" element={<AdminProductsPage />} />
             <Route path="categorias" element={<AdminCategoriesPage />} />
             <Route path="pedidos" element={<AdminOrdersPage />} />
+            <Route path="avaliacoes" element={<AdminReviewsPage />} />
             <Route path="cupons" element={<AdminCouponsPage />} />
             <Route path="banners" element={<AdminBannersPage />} />
             <Route path="configuracoes" element={<AdminSettingsPage />} />

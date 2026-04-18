@@ -398,3 +398,64 @@ class InstagramConnectionTestResponse(BaseModel):
     message: str
     account_id: Optional[str] = None
     account_name: Optional[str] = None
+
+
+class ProductReviewMediaResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    media_type: str
+    file_path: str
+    sort_order: int
+    created_at: Optional[datetime] = None
+
+
+class ProductReviewResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    product_id: int
+    author_name: str
+    rating: int
+    comment: str
+    status: str
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+    media: List[ProductReviewMediaResponse] = Field(default_factory=list)
+    photos: List[str] = Field(default_factory=list)
+    video: Optional[str] = None
+    has_media: bool = False
+
+
+class ProductReviewListResponse(BaseModel):
+    items: List[ProductReviewResponse]
+    total: int
+    page: int
+    page_size: int
+
+
+class ProductReviewSummaryResponse(BaseModel):
+    average_rating: float = 0
+    total_reviews: int = 0
+    count_5: int = 0
+    count_4: int = 0
+    count_3: int = 0
+    count_2: int = 0
+    count_1: int = 0
+
+
+class ProductReviewCreateResponse(BaseModel):
+    message: str
+    review: ProductReviewResponse
+
+
+class AdminReviewResponse(ProductReviewResponse):
+    product_title: Optional[str] = None
+    product_slug: Optional[str] = None
+
+
+class AdminReviewListResponse(BaseModel):
+    items: List[AdminReviewResponse]
+    total: int
+    page: int
+    page_size: int
