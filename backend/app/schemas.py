@@ -158,6 +158,9 @@ class AdminProductBase(BaseModel):
     publish_to_instagram: bool = False
     instagram_caption: Optional[str] = None
     instagram_hashtags: Optional[str] = None
+    is_draft: Optional[bool] = None
+    generated_by_ai: Optional[bool] = None
+    source_ad_generation_id: Optional[int] = None
 
 
 class AdminProductCreate(AdminProductBase):
@@ -210,6 +213,9 @@ class AdminProductResponse(BaseModel):
     instagram_post_id: Optional[str]
     instagram_published_at: Optional[datetime]
     instagram_error_message: Optional[str]
+    is_draft: bool
+    generated_by_ai: bool
+    source_ad_generation_id: Optional[int]
 
 class CouponRequest(BaseModel):
     code: str
@@ -628,6 +634,7 @@ class GeneratedAdItem(BaseModel):
     cta: str
     target_audience: str
     creative_idea: str
+    product_draft: dict = Field(default_factory=dict)
 
 
 class AdsGenerateResponse(BaseModel):
@@ -651,3 +658,13 @@ class AdsGenerationHistoryResponse(BaseModel):
     total: int
     page: int
     page_size: int
+
+
+class CreateProductFromAdRequest(BaseModel):
+    ad_generation_id: int = Field(..., ge=1)
+    ad_index: int = Field(default=0, ge=0)
+
+
+class CreateProductFromAdResponse(BaseModel):
+    product_id: int
+    edit_url: str

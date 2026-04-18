@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import Button from '../components/ui/Button';
 import DataCard from '../components/ui/DataCard';
 import EmptyState from '../components/ui/EmptyState';
@@ -302,6 +303,7 @@ function getInstagramStatusLabel(status) {
 }
 
 function AdminProductsPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -326,6 +328,7 @@ function AdminProductsPage() {
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [instagramAutoPublishDefault, setInstagramAutoPublishDefault] = useState(false);
   const [publishingInstagramById, setPublishingInstagramById] = useState({});
+  const [autoOpenedEditId, setAutoOpenedEditId] = useState(null);
 
   const loadProducts = () => {
     setLoading(true);
@@ -353,6 +356,19 @@ function AdminProductsPage() {
       instagram_hashtags: current?.instagram_hashtags ?? '',
     }));
   }, [instagramAutoPublishDefault, setForm]);
+
+  useEffect(() => {
+    const editParam = Number(searchParams.get('edit') || 0);
+    if (!editParam || !products.length || autoOpenedEditId === editParam) return;
+    const product = products.find((item) => Number(item.id) === editParam);
+    if (!product) return;
+    openEdit(product);
+    setAutoOpenedEditId(editParam);
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.delete('edit');
+    nextParams.delete('source');
+    setSearchParams(nextParams, { replace: true });
+  }, [searchParams, products, autoOpenedEditId]);
 
   const openCreate = () => {
     const shouldResetForm = editingId !== null || modalMode !== 'create';
@@ -743,6 +759,8 @@ function AdminProductsPage() {
                     <div className="flex flex-col">
                       <strong className="font-semibold text-slate-900">{product.title}</strong>
                       <small className="text-xs text-slate-500">{product.slug}</small>
+                      {product.is_draft ? <small className="text-[11px] font-medium text-amber-600">Rascunho</small> : null}
+                      {product.generated_by_ai ? <small className="text-[11px] font-medium text-violet-600">Origem IA</small> : null}
                     </div>
                   </td>
                   <td>
@@ -825,6 +843,12 @@ function AdminProductsPage() {
         }
       >
         <form className="grid grid-cols-1 gap-4 md:grid-cols-2" onSubmit={submitForm}>
+          {selectedProduct?.generated_by_ai ? (
+            <div className="md:col-span-2 rounded-xl border border-violet-200 bg-violet-50 px-3 py-2 text-sm text-violet-700">
+              Produto criado a partir de anuncio gerado por IA
+              {selectedProduct?.source_ad_generation_id ? ` (geracao #${selectedProduct.source_ad_generation_id}).` : '.'}
+            </div>
+          ) : null}
           <Input label="Titulo" value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} required />
           <Input label="Slug" value={form.slug} onChange={(event) => setForm({ ...form, slug: event.target.value })} required />
           <Select label="Categoria" options={categoryOptions} value={form.category_id} onChange={(event) => setForm({ ...form, category_id: event.target.value })} />

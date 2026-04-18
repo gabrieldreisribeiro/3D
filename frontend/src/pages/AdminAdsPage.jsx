@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Button from '../components/ui/Button';
 import DataCard from '../components/ui/DataCard';
 import SectionHeader from '../components/ui/SectionHeader';
 import StatusBadge from '../components/ui/StatusBadge';
 import {
+  createAdminProductFromAdCopy,
   fetchAdminAdsConfig,
   fetchAdminAdsHistory,
   generateAdminAds,
@@ -43,6 +45,7 @@ function downloadAdText(ad, index) {
 }
 
 function AdminAdsPage() {
+  const navigate = useNavigate();
   const [config, setConfig] = useState(initialConfig);
   const [hasApiKey, setHasApiKey] = useState(false);
   const [loadingConfig, setLoadingConfig] = useState(true);
@@ -67,6 +70,7 @@ function AdminAdsPage() {
   const [historyPage, setHistoryPage] = useState(1);
   const [historyPageSize] = useState(10);
   const [historyTotal, setHistoryTotal] = useState(0);
+  const [creatingProductByIndex, setCreatingProductByIndex] = useState({});
 
   const historyTotalPages = useMemo(() => Math.max(1, Math.ceil(historyTotal / historyPageSize)), [historyTotal, historyPageSize]);
 
@@ -169,6 +173,27 @@ function AdminAdsPage() {
       setTimeout(() => setGenerateMessage(''), 1800);
     } catch {
       setGenerateError('Nao foi possivel copiar para a area de transferencia.');
+    }
+  };
+
+  const handleCreateProductFromAd = async (adIndex) => {
+    if (!historyId) {
+      setGenerateError('Historico nao encontrado para este resultado. Gere novamente.');
+      return;
+    }
+    setCreatingProductByIndex((current) => ({ ...current, [adIndex]: true }));
+    setGenerateError('');
+    try {
+      const result = await createAdminProductFromAdCopy({
+        ad_generation_id: historyId,
+        ad_index: adIndex,
+      });
+      const target = result?.edit_url || `/painel-interno/produtos?edit=${result?.product_id || ''}&source=ai`;
+      navigate(target);
+    } catch (requestError) {
+      setGenerateError(requestError.message || 'Nao foi possivel criar o produto.');
+    } finally {
+      setCreatingProductByIndex((current) => ({ ...current, [adIndex]: false }));
     }
   };
 
@@ -333,6 +358,15 @@ function AdminAdsPage() {
                     </Button>
                     <Button className="h-8 px-3 text-xs" variant="secondary" onClick={() => downloadAdText(ad, index)}>
                       Salvar
+                    </Button>
+                    <Button
+                      className="h-8 px-3 text-xs"
+                      variant="secondary"
+                      loading={Boolean(creatingProductByIndex[index])}
+                      loadingText="Criando..."
+                      onClick={() => handleCreateProductFromAd(index)}
+                    >
+                      Criar produto
                     </Button>
                     <Button className="h-8 px-3 text-xs" onClick={runGenerate} loading={generating}>
                       Regenerar

@@ -362,6 +362,13 @@ export function fetchAdminAdsHistory(params = {}) {
   return adminRequest(`/admin/ads/history${query ? `?${query}` : ''}`);
 }
 
+export function createAdminProductFromAdCopy(payload) {
+  return adminRequest('/admin/ads/create-product-from-copy', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
 export function fetchAdminProducts() {
   return adminRequest('/admin/products');
 }

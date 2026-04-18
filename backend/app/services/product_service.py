@@ -314,6 +314,9 @@ def admin_create_product(db: Session, payload):
         instagram_hashtags=(payload.instagram_hashtags or '').strip() or None,
         instagram_post_status='not_published',
         instagram_error_message=None,
+        is_draft=bool(payload.is_draft) if payload.is_draft is not None else False,
+        generated_by_ai=bool(payload.generated_by_ai) if payload.generated_by_ai is not None else False,
+        source_ad_generation_id=payload.source_ad_generation_id,
     )
     _apply_pricing(product, payload)
 
@@ -359,6 +362,12 @@ def admin_update_product(db: Session, product: Product, payload):
     product.publish_to_instagram = bool(payload.publish_to_instagram)
     product.instagram_caption = (payload.instagram_caption or '').strip() or None
     product.instagram_hashtags = (payload.instagram_hashtags or '').strip() or None
+    if payload.is_draft is not None:
+        product.is_draft = bool(payload.is_draft)
+    if payload.generated_by_ai is not None:
+        product.generated_by_ai = bool(payload.generated_by_ai)
+    if payload.source_ad_generation_id is not None:
+        product.source_ad_generation_id = payload.source_ad_generation_id
 
     _apply_pricing(product, payload)
 
