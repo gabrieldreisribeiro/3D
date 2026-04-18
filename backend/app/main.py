@@ -7,7 +7,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.core.config import UPLOADS_DIR, ensure_upload_dirs
 from app.db.init_db import init_db
-from app.routes import admin, admin_analytics, admin_database, coupons, events, orders, products, public
+from app.routes import admin, admin_ads, admin_analytics, admin_database, coupons, events, orders, products, public
 
 ensure_upload_dirs()
 
@@ -28,6 +28,7 @@ app.include_router(coupons.router)
 app.include_router(orders.router)
 app.include_router(events.router)
 app.include_router(admin.router)
+app.include_router(admin_ads.router)
 app.include_router(admin_analytics.router)
 app.include_router(admin_database.router)
 app.include_router(public.router)
