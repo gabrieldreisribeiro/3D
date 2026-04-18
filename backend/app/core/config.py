@@ -5,6 +5,28 @@ BASE_DIR = Path(__file__).resolve().parent.parent.parent
 DEFAULT_SQLITE_URL = f"sqlite:///{BASE_DIR / 'app.db'}"
 
 
+def _load_dotenv_file(dotenv_path: Path) -> None:
+    if not dotenv_path.exists():
+        return
+
+    for raw_line in dotenv_path.read_text(encoding='utf-8').splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith('#') or '=' not in line:
+            continue
+
+        key, value = line.split('=', 1)
+        key = key.strip()
+        value = value.strip()
+
+        if not key:
+            continue
+
+        if value and value[0] == value[-1] and value[0] in {'"', "'"}:
+            value = value[1:-1]
+
+        os.environ.setdefault(key, value)
+
+
 def _normalize_database_url(url: str | None) -> str:
     value = str(url or '').strip()
     if not value:
@@ -16,6 +38,7 @@ def _normalize_database_url(url: str | None) -> str:
     return value
 
 
+_load_dotenv_file(BASE_DIR / '.env')
 SQLALCHEMY_DATABASE_URL = _normalize_database_url(os.getenv('DATABASE_URL'))
 
 ADMIN_TOKEN_SECRET = '3d-marketplace-admin-secret'
