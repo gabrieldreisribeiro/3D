@@ -339,6 +339,7 @@ class DashboardSeriesPoint(BaseModel):
 class DashboardTopProduct(BaseModel):
     title: str
     quantity: int
+    total_value: Optional[float] = None
 
 
 class DashboardStatusPoint(BaseModel):
@@ -350,10 +351,15 @@ class AdminDashboardSummary(BaseModel):
     total_products: int
     total_orders: int
     total_sold: float
+    total_items_sold: int = 0
+    conversion_add_to_whatsapp: float = 0
     sales_series: List[DashboardSeriesPoint]
     orders_series: List[DashboardSeriesPoint]
     top_products: List[DashboardTopProduct]
     order_status: List[DashboardStatusPoint]
+    funnel: List[DashboardSeriesPoint] = Field(default_factory=list)
+    most_viewed_products: List[DashboardTopProduct] = Field(default_factory=list)
+    most_added_products: List[DashboardTopProduct] = Field(default_factory=list)
 
 
 class LogoResponse(BaseModel):
@@ -505,3 +511,82 @@ class DatabaseQueryLogsResponse(BaseModel):
     total: int
     page: int
     page_size: int
+
+
+class UserEventCreate(BaseModel):
+    event_type: Literal[
+        'view_product',
+        'click_product',
+        'add_to_cart',
+        'remove_from_cart',
+        'update_cart',
+        'start_checkout',
+        'send_whatsapp',
+    ]
+    product_id: Optional[int] = None
+    session_id: str = Field(..., min_length=8, max_length=120)
+    user_identifier: Optional[str] = Field(default=None, max_length=160)
+    metadata_json: dict = Field(default_factory=dict)
+
+
+class UserEventResponse(BaseModel):
+    id: int
+    event_type: str
+    product_id: Optional[int] = None
+    session_id: str
+    user_identifier: Optional[str] = None
+    metadata_json: dict = Field(default_factory=dict)
+    created_at: Optional[datetime] = None
+
+
+class AnalyticsSummaryResponse(BaseModel):
+    total_orders: int
+    total_items_sold: int
+    estimated_total_value: float
+    conversion_add_to_whatsapp: float
+
+
+class AnalyticsFunnelPoint(BaseModel):
+    step: str
+    value: int
+
+
+class AnalyticsFunnelResponse(BaseModel):
+    points: List[AnalyticsFunnelPoint]
+
+
+class AnalyticsProductPoint(BaseModel):
+    product_id: Optional[int] = None
+    product_title: str
+    value: int
+    total_value: Optional[float] = None
+
+
+class AnalyticsProductsResponse(BaseModel):
+    most_viewed: List[AnalyticsProductPoint]
+    most_added: List[AnalyticsProductPoint]
+    most_sold: List[AnalyticsProductPoint]
+
+
+class ReportSalesResponse(BaseModel):
+    total_value: float
+    order_count: int
+    avg_ticket: float
+
+
+class ReportTopProductsResponse(BaseModel):
+    items: List[AnalyticsProductPoint]
+
+
+class LeadPoint(BaseModel):
+    session_id: str
+    created_at: Optional[datetime] = None
+    event_type: str
+    product_id: Optional[int] = None
+    product_title: Optional[str] = None
+
+
+class ReportLeadsResponse(BaseModel):
+    total_leads: int
+    items: List[LeadPoint]
+    top_products: List[AnalyticsProductPoint]

@@ -7,7 +7,7 @@ import EmptyState from '../components/ui/EmptyState';
 import Input from '../components/ui/Input';
 import SectionHeader from '../components/ui/SectionHeader';
 import { WHATSAPP_NUMBER } from '../config/endpoints';
-import { createOrder, fetchPublicLogo, fetchPublicSettings, resolveAssetUrl } from '../services/api';
+import { createOrder, fetchPublicLogo, fetchPublicSettings, resolveAssetUrl, trackEvent } from '../services/api';
 import { getLogoSizeConfig, getLogoSizeKey } from '../services/logoSettings';
 import { useCart } from '../services/cart';
 
@@ -43,6 +43,7 @@ function CartPage() {
     clearCart,
   } = useCart();
   const [code, setCode] = useState('');
+  const [customerName, setCustomerName] = useState('');
   const [loading, setLoading] = useState(false);
   const [pendingLoading, setPendingLoading] = useState(false);
   const [paidLoading, setPaidLoading] = useState(false);
@@ -309,6 +310,15 @@ function CartPage() {
     if (isPaid) setPaidLoading(true);
     else setPendingLoading(true);
     setLoading(true);
+    trackEvent({
+      event_type: 'start_checkout',
+      product_id: null,
+      metadata_json: {
+        payment_status: paymentStatus,
+        items_count: items.length,
+        total,
+      },
+    }).catch(() => {});
 
     try {
       const order = await createOrder({
@@ -346,13 +356,60 @@ function CartPage() {
           const colorLabel = formatColors(item.selected_color, item.selected_secondary_color);
           const colorText = colorLabel ? ` (cor: ${colorLabel})` : '';
           const days = getDaysFromHours(getLineLeadHours(item));
-          return `${item.quantity}x ${item.title}${colorText} - R$ ${getItemPrice(item).toFixed(2)}${details}\nPrazo estimado: ${days} dia(s) apos pagamento`;
+          const unitPrice = getItemPrice(item);
+          const lineSubtotal = unitPrice * Number(item.quantity || 0);
+          return [
+            `• Produto: ${item.title}${colorText}`,
+            `  Qtd: ${item.quantity}`,
+            `  Preco unitario: ${formatBRL(unitPrice)}`,
+            `  Subtotal: ${formatBRL(lineSubtotal)}`,
+            details ? `  Itens selecionados:\n  - ${selectedSubItems
+              .map((subItem) => {
+                const subItemColors = formatColors(subItem.selected_color, subItem.selected_secondary_color);
+                return `${subItem.quantity}x ${subItem.title}${subItemColors ? ` (cor: ${subItemColors})` : ''}`;
+              })
+              .join('\n  - ')}` : null,
+            `  Prazo estimado: ${days} dia(s) apos pagamento`,
+          ].filter(Boolean).join('\n');
         })
-        .join('\n');
+        .join('\n\n');
+      const totalItems = items.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
       const statusText = isPaid ? 'PAGO (Pix)' : 'PENDENTE';
       const proofLine = isPaid ? '\nComprovante: vou enviar em anexo nesta conversa.' : '';
-      const message = `Ola! Novo pedido:\n${lines}\nPrazo estimado total: ${totalLeadDays} dia(s) apos pagamento\nSubtotal: R$ ${subtotal.toFixed(2)}\nDesconto: R$ ${discount.toFixed(2)}\nTotal: R$ ${total.toFixed(2)}\nStatus: ${statusText}${proofLine}\nCodigo do pedido: ${order.id}`;
+      const customerLine = customerName.trim() ? `Cliente: ${customerName.trim()}\n` : '';
+      const generatedAt = new Date().toLocaleString('pt-BR');
+      const message = [
+        '🛒 *Novo pedido - PLA Studio*',
+        '',
+        `Pedido: #${order.id}`,
+        customerLine ? customerLine.trimEnd() : null,
+        `Data/Hora: ${generatedAt}`,
+        '',
+        '*Itens do pedido:*',
+        lines,
+        '',
+        '*Resumo*',
+        `• Itens totais: ${totalItems}`,
+        `• Subtotal: ${formatBRL(subtotal)}`,
+        `• Desconto: ${formatBRL(discount)}`,
+        `• Total geral: ${formatBRL(total)}`,
+        `• Status: ${statusText}`,
+        `• Prazo total estimado: ${totalLeadDays} dia(s) apos pagamento`,
+        proofLine ? proofLine.trim() : null,
+        '',
+        'Observacao: Gostaria de finalizar este pedido.',
+      ].filter(Boolean).join('\n');
       clearCart();
+      trackEvent({
+        event_type: 'send_whatsapp',
+        product_id: null,
+        metadata_json: {
+          order_id: order.id,
+          payment_status: paymentStatus,
+          total,
+          total_items: totalItems,
+        },
+      }).catch(() => {});
       window.open(`https://wa.me/${whatsappNumber}?text=${encodeURIComponent(message)}`, '_blank');
     } catch (error) {
       alert(error.message || 'Erro ao finalizar pedido.');
@@ -440,6 +497,7 @@ function CartPage() {
             </div>
 
             <Input label="Cupom" value={code} onChange={(event) => setCode(event.target.value)} placeholder="DESCONTO10" />
+            <Input label="Seu nome (opcional)" value={customerName} onChange={(event) => setCustomerName(event.target.value)} placeholder="Como gostaria de ser identificado no WhatsApp" />
             <Button variant="secondary" onClick={() => applyCoupon(code)}>
               Aplicar cupom
             </Button>

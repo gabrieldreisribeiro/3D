@@ -36,6 +36,12 @@ function AdminDashboardPage() {
             <MetricCard label="Vendas" value={`R$ ${summary.total_sold.toFixed(2)}`} helper="Valor acumulado" />
           </div>
 
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            <MetricCard label="Itens vendidos" value={summary.total_items_sold || 0} helper="Volume total" />
+            <MetricCard label="Valor estimado" value={`R$ ${(summary.total_sold || 0).toFixed(2)}`} helper="Pedidos confirmados" />
+            <MetricCard label="Conversao carrinho → WhatsApp" value={`${Number(summary.conversion_add_to_whatsapp || 0).toFixed(2)}%`} helper="Sessoes com add_to_cart x send_whatsapp" />
+          </div>
+
           <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
             <ChartCard title="Vendas por periodo">
               <MiniBarChart points={summary.sales_series || []} money />
@@ -59,6 +65,29 @@ function AdminDashboardPage() {
                   <li key={item.status} className="flex items-center justify-between rounded-[10px] border border-slate-100 px-3 py-2">
                     <span className="text-slate-600">{item.status}</span>
                     <strong className="font-semibold text-slate-900">{item.value}</strong>
+                  </li>
+                ))}
+              </ul>
+            </ChartCard>
+            <ChartCard title="Funil de conversao">
+              <MiniBarChart points={summary.funnel || []} />
+            </ChartCard>
+            <ChartCard title="Produtos mais vistos">
+              <ul className="space-y-2 text-sm">
+                {(summary.most_viewed_products || []).map((item) => (
+                  <li key={item.title} className="flex items-center justify-between rounded-[10px] border border-slate-100 px-3 py-2">
+                    <span className="text-slate-600">{item.title}</span>
+                    <strong className="font-semibold text-slate-900">{item.quantity}</strong>
+                  </li>
+                ))}
+              </ul>
+            </ChartCard>
+            <ChartCard title="Produtos mais adicionados">
+              <ul className="space-y-2 text-sm">
+                {(summary.most_added_products || []).map((item) => (
+                  <li key={item.title} className="flex items-center justify-between rounded-[10px] border border-slate-100 px-3 py-2">
+                    <span className="text-slate-600">{item.title}</span>
+                    <strong className="font-semibold text-slate-900">{item.quantity}</strong>
                   </li>
                 ))}
               </ul>

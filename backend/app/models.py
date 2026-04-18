@@ -60,6 +60,7 @@ class Product(Base):
 
     category = relationship('Category', back_populates='products')
     reviews = relationship('ProductReview', back_populates='product', cascade='all, delete-orphan')
+    events = relationship('UserEvent', back_populates='product')
 
 
 class Coupon(Base):
@@ -204,3 +205,17 @@ class DatabaseQueryLog(Base):
     created_at = Column(DateTime, nullable=False, server_default=func.now())
 
     admin = relationship('AdminUser', back_populates='query_logs')
+
+
+class UserEvent(Base):
+    __tablename__ = 'user_events'
+
+    id = Column(Integer, primary_key=True, index=True)
+    event_type = Column(String(40), nullable=False, index=True)
+    product_id = Column(Integer, ForeignKey('products.id', ondelete='SET NULL'), nullable=True, index=True)
+    session_id = Column(String(120), nullable=False, index=True)
+    user_identifier = Column(String(160), nullable=True, index=True)
+    metadata_json = Column(Text, nullable=False, default='{}')
+    created_at = Column(DateTime, nullable=False, server_default=func.now(), index=True)
+
+    product = relationship('Product', back_populates='events')
