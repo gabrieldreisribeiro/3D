@@ -131,10 +131,6 @@ def _ensure_orders_created_at_column(session):
 
 
 def _ensure_order_items_columns(session):
-    if session.bind.dialect.name != 'sqlite':
-        return
-    columns = session.execute(text("PRAGMA table_info('order_items')")).fetchall()
-    names = {column[1] for column in columns}
     required_columns = {
         'line_total': "REAL DEFAULT 0",
         'selected_color': "VARCHAR(20)",
@@ -142,11 +138,17 @@ def _ensure_order_items_columns(session):
         'selected_sub_items': "TEXT DEFAULT ''",
         'name_personalizations': "TEXT DEFAULT ''",
     }
-    changed = False
-    for column_name, column_ddl in required_columns.items():
-        if column_name not in names:
-            session.execute(text(f"ALTER TABLE order_items ADD COLUMN {column_name} {column_ddl}"))
-            changed = True
+    if session.bind.dialect.name == 'sqlite':
+        columns = session.execute(text("PRAGMA table_info('order_items')")).fetchall()
+        names = {column[1] for column in columns}
+        for column_name, column_ddl in required_columns.items():
+            if column_name not in names:
+                session.execute(text(f"ALTER TABLE order_items ADD COLUMN {column_name} {column_ddl}"))
+    elif session.bind.dialect.name.startswith('postgres'):
+        for column_name, column_ddl in required_columns.items():
+            session.execute(text(f"ALTER TABLE order_items ADD COLUMN IF NOT EXISTS {column_name} {column_ddl}"))
+    else:
+        return
 
     session.execute(text("UPDATE order_items SET line_total = COALESCE(line_total, unit_price * quantity)"))
     session.commit()
@@ -168,11 +170,6 @@ def _ensure_coupon_columns(session):
 
 
 def _ensure_product_pricing_columns(session):
-    if session.bind.dialect.name != 'sqlite':
-        return
-    columns = session.execute(text("PRAGMA table_info('products')")).fetchall()
-    names = {column[1] for column in columns}
-
     required_columns = {
         'category_id': "INTEGER",
         'sub_items': "TEXT DEFAULT ''",
@@ -208,14 +205,23 @@ def _ensure_product_pricing_columns(session):
         'source_ad_generation_id': "INTEGER",
     }
 
-    changed = False
-    for column_name, column_ddl in required_columns.items():
-        if column_name not in names:
-            session.execute(text(f"ALTER TABLE products ADD COLUMN {column_name} {column_ddl}"))
-            changed = True
+    if session.bind.dialect.name == 'sqlite':
+        columns = session.execute(text("PRAGMA table_info('products')")).fetchall()
+        names = {column[1] for column in columns}
+        changed = False
+        for column_name, column_ddl in required_columns.items():
+            if column_name not in names:
+                session.execute(text(f"ALTER TABLE products ADD COLUMN {column_name} {column_ddl}"))
+                changed = True
 
-    if changed:
+        if changed:
+            session.commit()
+    elif session.bind.dialect.name.startswith('postgres'):
+        for column_name, column_ddl in required_columns.items():
+            session.execute(text(f"ALTER TABLE products ADD COLUMN IF NOT EXISTS {column_name} {column_ddl}"))
         session.commit()
+    else:
+        return
 
     session.execute(text("UPDATE products SET instagram_post_status = COALESCE(instagram_post_status, 'not_published')"))
     session.commit()
