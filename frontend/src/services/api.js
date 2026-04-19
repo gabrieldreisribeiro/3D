@@ -282,6 +282,87 @@ export async function uploadAdminProductImage(file) {
   return data;
 }
 
+export function fetchAdminUploadFiles(folder = 'all') {
+  const query = new URLSearchParams();
+  query.set('folder', folder || 'all');
+  return adminRequest(`/admin/uploads/files?${query.toString()}`);
+}
+
+export async function uploadAdminFiles(folder, files) {
+  const token = localStorage.getItem(ADMIN_TOKEN_KEY);
+  const formData = new FormData();
+  formData.append('folder', String(folder || 'products'));
+  Array.from(files || []).forEach((file) => {
+    formData.append('files', file);
+  });
+
+  const response = await fetch(buildApiUrl('/admin/uploads/upload'), {
+    method: 'POST',
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: formData,
+  });
+
+  const data = await response.json();
+  if (!response.ok) {
+    if (response.status === 401) localStorage.removeItem(ADMIN_TOKEN_KEY);
+    throw new Error(data.detail || data.message || 'Erro no upload de arquivos');
+  }
+  return data;
+}
+
+export async function renameAdminUploadFile(folder, currentName, newName) {
+  const token = localStorage.getItem(ADMIN_TOKEN_KEY);
+  const formData = new FormData();
+  formData.append('folder', String(folder || 'products'));
+  formData.append('current_name', String(currentName || ''));
+  formData.append('new_name', String(newName || ''));
+
+  const response = await fetch(buildApiUrl('/admin/uploads/rename'), {
+    method: 'PATCH',
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: formData,
+  });
+
+  const data = await response.json();
+  if (!response.ok) {
+    if (response.status === 401) localStorage.removeItem(ADMIN_TOKEN_KEY);
+    throw new Error(data.detail || data.message || 'Erro ao renomear arquivo');
+  }
+  return data;
+}
+
+export async function downloadAdminUploadsZip() {
+  const token = localStorage.getItem(ADMIN_TOKEN_KEY);
+  const fingerprint = getClientFingerprint();
+  const response = await fetch(buildApiUrl('/admin/uploads/download-all'), {
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(fingerprint ? { 'X-Client-Fingerprint': fingerprint } : {}),
+    },
+  });
+
+  if (!response.ok) {
+    let detail = 'Erro ao baixar arquivos';
+    try {
+      const body = await response.json();
+      detail = body?.detail || body?.message || detail;
+    } catch {
+      // ignore
+    }
+    throw new Error(detail);
+  }
+
+  const blob = await response.blob();
+  const url = window.URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = 'uploads-gallery.zip';
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  window.URL.revokeObjectURL(url);
+}
+
 export function fetchAdminSummary() {
   return adminRequest('/admin/dashboard/summary');
 }

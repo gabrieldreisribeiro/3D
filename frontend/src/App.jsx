@@ -22,6 +22,7 @@ import AdminReviewsPage from './pages/AdminReviewsPage';
 import AdminDatabasePage from './pages/AdminDatabasePage';
 import AdminReportsPage from './pages/AdminReportsPage';
 import AdminLeadsConversionPage from './pages/AdminLeadsConversionPage';
+import AdminUploadsPage from './pages/AdminUploadsPage';
 import { trackEvent } from './services/api';
 
 function AppContent() {
@@ -57,6 +58,7 @@ function AppContent() {
             <Route path="anuncios-ia" element={<AdminAdsPage />} />
             <Route path="leads-conversao" element={<AdminLeadsConversionPage />} />
             <Route path="banco" element={<AdminDatabasePage />} />
+            <Route path="uploads" element={<AdminUploadsPage />} />
             <Route path="relatorios" element={<AdminReportsPage />} />
           </Route>
           <Route path="*" element={<Navigate to="/painel-interno" replace />} />

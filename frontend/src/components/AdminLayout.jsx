@@ -94,6 +94,9 @@ function AdminLayout() {
       <NavLink to="/painel-interno/banco" className={navClassName}>
         Banco de dados
       </NavLink>
+      <NavLink to="/painel-interno/uploads" className={navClassName}>
+        Uploads
+      </NavLink>
       <NavLink to="/painel-interno/relatorios" className={navClassName}>
         Relatorios
       </NavLink>
