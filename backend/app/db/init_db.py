@@ -114,6 +114,16 @@ BANNERS = [
 ]
 
 
+def _normalize_postgres_column_ddl(column_ddl: str) -> str:
+    ddl = str(column_ddl or '').strip()
+    if not ddl:
+        return ddl
+    ddl = ddl.replace('DATETIME', 'TIMESTAMP')
+    ddl = ddl.replace('BOOLEAN DEFAULT 0', 'BOOLEAN DEFAULT FALSE')
+    ddl = ddl.replace('BOOLEAN DEFAULT 1', 'BOOLEAN DEFAULT TRUE')
+    return ddl
+
+
 def _ensure_orders_created_at_column(session):
     if session.bind.dialect.name != 'sqlite':
         return
@@ -146,7 +156,12 @@ def _ensure_order_items_columns(session):
                 session.execute(text(f"ALTER TABLE order_items ADD COLUMN {column_name} {column_ddl}"))
     elif session.bind.dialect.name.startswith('postgres'):
         for column_name, column_ddl in required_columns.items():
-            session.execute(text(f"ALTER TABLE order_items ADD COLUMN IF NOT EXISTS {column_name} {column_ddl}"))
+            session.execute(
+                text(
+                    f"ALTER TABLE order_items ADD COLUMN IF NOT EXISTS {column_name} "
+                    f"{_normalize_postgres_column_ddl(column_ddl)}"
+                )
+            )
     else:
         return
 
@@ -218,7 +233,12 @@ def _ensure_product_pricing_columns(session):
             session.commit()
     elif session.bind.dialect.name.startswith('postgres'):
         for column_name, column_ddl in required_columns.items():
-            session.execute(text(f"ALTER TABLE products ADD COLUMN IF NOT EXISTS {column_name} {column_ddl}"))
+            session.execute(
+                text(
+                    f"ALTER TABLE products ADD COLUMN IF NOT EXISTS {column_name} "
+                    f"{_normalize_postgres_column_ddl(column_ddl)}"
+                )
+            )
         session.commit()
     else:
         return
