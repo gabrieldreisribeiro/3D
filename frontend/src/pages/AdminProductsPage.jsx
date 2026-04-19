@@ -28,7 +28,7 @@ const defaultPricingFields = {
   price_kg_filament: '150',
   hours_printing: '0',
   avg_power_watts: '110',
-  price_kwh: '1.5',
+  price_kwh: '0',
   total_hours_labor: '0',
   price_hour_labor: '0',
   extra_cost: '0',
