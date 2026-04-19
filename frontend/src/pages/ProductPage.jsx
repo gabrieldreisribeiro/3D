@@ -815,13 +815,6 @@ function ProductPage() {
                   >
                     Adicionar ao carrinho
                   </Button>
-                  <Button
-                    className="h-11 flex-1"
-                    variant="secondary"
-                    onClick={handleOpenCustomizationWhatsapp}
-                  >
-                    Nao encontrou a opcao? Personalize no WhatsApp
-                  </Button>
                 </div>
                 <Button
                   variant="secondary"
@@ -839,6 +832,12 @@ function ProductPage() {
                   }}
                 >
                   Comprar agora
+                </Button>
+                <Button
+                  className="h-11 w-full border border-emerald-600 bg-emerald-600 text-white hover:border-emerald-700 hover:bg-emerald-700 focus-visible:ring-emerald-200"
+                  onClick={handleOpenCustomizationWhatsapp}
+                >
+                  Nao encontrou a opcao? Personalize no WhatsApp
                 </Button>
               </div>
             </div>
