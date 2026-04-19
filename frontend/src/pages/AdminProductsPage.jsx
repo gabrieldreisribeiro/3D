@@ -741,7 +741,7 @@ function AdminProductsPage() {
   };
 
   return (
-    <section className="space-y-6">
+    <section className="admin-page space-y-6">
       <SectionHeader
         eyebrow="Catalogo"
         title="Produtos"
@@ -753,7 +753,7 @@ function AdminProductsPage() {
         {loading ? <div className="rounded-xl border border-slate-200 bg-slate-50 p-6 text-sm text-slate-500">Carregando produtos...</div> : null}
         {!loading ? (
           <>
-            <div className="mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
+            <div className="mb-3 admin-filter-bar rounded-xl border border-slate-200 bg-slate-50 p-3">
               <input
                 type="text"
                 value={searchTerm}
@@ -855,11 +855,11 @@ function AdminProductsPage() {
               )}
             />
 
-            <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+            <div className="mt-3 admin-pagination-bar rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
               <p className="text-xs text-slate-600">
                 Mostrando <strong>{filteredProducts.length ? (currentPage - 1) * itemsPerPage + 1 : 0}</strong> - <strong>{Math.min(currentPage * itemsPerPage, filteredProducts.length)}</strong> de <strong>{filteredProducts.length}</strong> produtos
               </p>
-              <div className="flex items-center gap-2">
+              <div className="admin-pagination-actions">
                 <Button variant="secondary" className="h-8 px-3 text-xs" disabled={currentPage === 1} onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}>Anterior</Button>
                 <span className="text-xs text-slate-600">Pagina {currentPage} de {totalPages}</span>
                 <Button variant="secondary" className="h-8 px-3 text-xs" disabled={currentPage === totalPages} onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}>Proxima</Button>
@@ -1136,7 +1136,7 @@ function AdminProductsPage() {
           ) : null}
 
           <div className="md:col-span-2 rounded-xl border border-slate-200 p-4">
-            <div className="mb-3 flex items-center justify-between">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
               <h4 className="text-sm font-semibold text-slate-900">Sub itens do anuncio</h4>
               <Button type="button" variant="secondary" onClick={addSubItem}>Adicionar sub item</Button>
             </div>
@@ -1148,7 +1148,7 @@ function AdminProductsPage() {
 
               {(form.sub_items || []).map((subItem, index) => (
                 <div key={`sub-item-${index}`} className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                  <div className="mb-3 flex items-center justify-between">
+                  <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                     <strong className="text-sm text-slate-900">Sub item {index + 1}</strong>
                     <div className="flex flex-wrap items-center gap-2">
                       <Button
@@ -1474,6 +1474,9 @@ function AdminProductsPage() {
 }
 
 export default AdminProductsPage;
+
+
+
 
 
 

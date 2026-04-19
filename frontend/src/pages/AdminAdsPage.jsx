@@ -202,7 +202,7 @@ function AdminAdsPage() {
   };
 
   return (
-    <section className="space-y-6">
+    <section className="admin-page space-y-6">
       <SectionHeader
         eyebrow="IA aplicada"
         title="Anuncios com IA"
@@ -335,7 +335,7 @@ function AdminAdsPage() {
               placeholder="Ex.: campanha para Dia das Maes"
             />
           </label>
-          <Button loading={generating} onClick={runGenerate}>
+          <Button className="w-full lg:w-auto" loading={generating} onClick={runGenerate}>
             Gerar ideias de anuncios com IA
           </Button>
         </div>
@@ -433,7 +433,7 @@ function AdminAdsPage() {
                 </div>
               );
             })}
-            <div className="flex items-center justify-end gap-2">
+            <div className="admin-pagination-actions justify-end">
               <Button
                 variant="secondary"
                 className="h-8 px-3 text-xs"
@@ -462,3 +462,4 @@ function AdminAdsPage() {
 }
 
 export default AdminAdsPage;
+

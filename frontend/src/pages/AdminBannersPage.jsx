@@ -175,7 +175,7 @@ function AdminBannersPage() {
   }, [currentPage, totalPages]);
 
   return (
-    <section className="space-y-6">
+    <section className="admin-page space-y-6">
       <SectionHeader
         eyebrow="Marketing"
         title="Banners"
@@ -188,7 +188,7 @@ function AdminBannersPage() {
 
         {!loading ? (
           <>
-            <div className="mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
+            <div className="mb-3 admin-filter-bar rounded-xl border border-slate-200 bg-slate-50 p-3">
               <input
                 type="text"
                 value={searchTerm}
@@ -265,11 +265,11 @@ function AdminBannersPage() {
               )}
             />
 
-            <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+            <div className="mt-3 admin-pagination-bar rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
               <p className="text-xs text-slate-600">
                 Mostrando <strong>{filteredBanners.length ? (currentPage - 1) * itemsPerPage + 1 : 0}</strong> - <strong>{Math.min(currentPage * itemsPerPage, filteredBanners.length)}</strong> de <strong>{filteredBanners.length}</strong> banners
               </p>
-              <div className="flex items-center gap-2">
+              <div className="admin-pagination-actions">
                 <Button variant="secondary" className="h-8 px-3 text-xs" disabled={currentPage === 1} onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}>Anterior</Button>
                 <span className="text-xs text-slate-600">Pagina {currentPage} de {totalPages}</span>
                 <Button variant="secondary" className="h-8 px-3 text-xs" disabled={currentPage === totalPages} onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}>Proxima</Button>
@@ -379,3 +379,5 @@ function AdminBannersPage() {
 }
 
 export default AdminBannersPage;
+
+

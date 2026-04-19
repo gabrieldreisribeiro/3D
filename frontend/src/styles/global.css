@@ -1,4 +1,4 @@
-﻿@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -1691,6 +1691,104 @@ select {
 @media (max-width: 560px) {
   .market-products-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+/* Admin responsive helpers */
+.admin-page {
+  min-width: 0;
+}
+
+.admin-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.admin-filter-bar input,
+.admin-filter-bar select {
+  flex: 1 1 170px;
+  min-width: 0;
+}
+
+.admin-filter-grow {
+  flex: 1 1 280px;
+  min-width: 0;
+}
+
+.admin-filter-fixed {
+  flex: 1 1 170px;
+  min-width: 0;
+}
+
+.admin-pagination-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.admin-pagination-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.admin-table-cell-wrap {
+  max-width: 260px;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.admin-card-grid-4 {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(1, minmax(0, 1fr));
+}
+
+.admin-card-grid-3 {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(1, minmax(0, 1fr));
+}
+
+@media (min-width: 768px) {
+  .admin-card-grid-4 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .admin-card-grid-3 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1200px) {
+  .admin-card-grid-4 {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1024px) {
+  .admin-card-grid-3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .admin-filter-grow,
+  .admin-filter-fixed {
+    flex-basis: 100%;
+  }
+
+  .admin-pagination-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .admin-pagination-actions .btn {
+    flex: 1 1 0;
   }
 }
 

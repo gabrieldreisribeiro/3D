@@ -163,7 +163,7 @@ function AdminLeadsConversionPage() {
   };
 
   const renderMiniPager = (key, currentPage, totalPages) => (
-    <div className="mt-3 flex items-center justify-end gap-2">
+    <div className="admin-pagination-actions mt-3 justify-end">
       <Button
         variant="secondary"
         className="h-8 px-3 text-xs"
@@ -187,7 +187,7 @@ function AdminLeadsConversionPage() {
   );
 
   return (
-    <section className="space-y-6">
+    <section className="admin-page space-y-6">
       <SectionHeader
         eyebrow="Inteligencia comercial"
         title="Leads & Conversao"
@@ -195,7 +195,7 @@ function AdminLeadsConversionPage() {
       />
 
       <DataCard title="Filtros globais">
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-3 xl:grid-cols-9">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           <label className="grid gap-1 text-xs text-slate-600">
             Data inicial
             <input type="date" value={filters.date_from} onChange={(event) => setFilters((c) => ({ ...c, date_from: event.target.value }))} className="h-9 rounded-lg border border-slate-200 px-3 text-xs outline-none focus:border-violet-300" />
@@ -257,7 +257,7 @@ function AdminLeadsConversionPage() {
           </label>
         </div>
         <div className="mt-3 flex justify-end">
-          <Button onClick={() => loadData(1)} loading={loading}>Atualizar</Button>
+          <Button onClick={() => loadData(1)} loading={loading} className="w-full sm:w-auto">Atualizar</Button>
         </div>
       </DataCard>
 
@@ -277,7 +277,7 @@ function AdminLeadsConversionPage() {
             const locationsPage = getTablePagination('locations', data.locations.items || []);
             return (
               <>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-3 xl:grid-cols-6">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-6">
             <MetricCard label="Sessoes" value={data.summary.sessions} helper="Visitantes rastreados" />
             <MetricCard label="Leads frios" value={data.summary.leads_cold} helper="Baixa intencao" />
             <MetricCard label="Leads mornos" value={data.summary.leads_warm} helper="Media intencao" />
@@ -286,7 +286,7 @@ function AdminLeadsConversionPage() {
             <MetricCard label="Pedidos criados" value={data.summary.orders_created} helper="Conversao final" />
           </div>
 
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-3 xl:grid-cols-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <MetricCard label="Views produto" value={data.summary.product_views} helper="Topo do funil" />
             <MetricCard label="Cliques produto" value={data.summary.product_clicks} helper="Interesse ativo" />
             <MetricCard label="Add to cart" value={data.summary.add_to_cart} helper="Intencao de compra" />
@@ -404,7 +404,7 @@ function AdminLeadsConversionPage() {
                   </tr>
                 )}
               />
-              <div className="mt-3 flex items-center justify-end gap-2">
+              <div className="admin-pagination-actions mt-3 justify-end">
                 <Button variant="secondary" className="h-8 px-3 text-xs" disabled={leadsPage <= 1} onClick={() => setLeadsPage((value) => Math.max(1, value - 1))}>Anterior</Button>
                 <span className="text-xs text-slate-600">Pagina {leadsPage} de {leadsTotalPages}</span>
                 <Button variant="secondary" className="h-8 px-3 text-xs" disabled={leadsPage >= leadsTotalPages} onClick={() => setLeadsPage((value) => Math.min(leadsTotalPages, value + 1))}>Proxima</Button>
@@ -466,3 +466,4 @@ function AdminLeadsConversionPage() {
 }
 
 export default AdminLeadsConversionPage;
+

@@ -11,8 +11,8 @@ function Table({
   return (
     <div className="overflow-x-auto rounded-xl border border-slate-200">
       <div className={maxHeightClass ? `overflow-y-auto ${maxHeightClass}` : ''}>
-        <table className="min-w-full bg-white text-sm [&_td]:px-4 [&_td]:py-3 [&_td]:align-middle [&_tr:hover]:bg-slate-50/70">
-          <thead className={stickyHeader ? 'sticky top-0 z-10' : ''}>
+        <table className="min-w-[680px] w-full bg-white text-sm [&_td]:px-3 [&_td]:py-3 [&_td]:align-middle sm:[&_td]:px-4 [&_tr:hover]:bg-slate-50/70">
+          <thead className={stickyHeader ? 'md:sticky md:top-0 md:z-10' : ''}>
             <tr className="border-b border-slate-200 bg-slate-50 text-left">
               {columns.map((column) => (
                 <th key={column} className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">

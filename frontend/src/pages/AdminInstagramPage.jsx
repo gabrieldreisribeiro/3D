@@ -97,7 +97,7 @@ function AdminInstagramPage() {
   };
 
   return (
-    <section className="space-y-6">
+    <section className="admin-page space-y-6">
       <SectionHeader
         eyebrow="Integracoes"
         title="Instagram"
@@ -206,10 +206,10 @@ function AdminInstagramPage() {
             </label>
 
             <div className="md:col-span-2 flex flex-wrap items-center gap-2">
-              <Button type="button" variant="secondary" loading={testing} onClick={handleTestConnection}>
+              <Button className="w-full sm:w-auto" type="button" variant="secondary" loading={testing} onClick={handleTestConnection}>
                 Testar conexao
               </Button>
-              <Button type="submit" loading={saving}>
+              <Button className="w-full sm:w-auto" type="submit" loading={saving}>
                 Salvar configuracoes
               </Button>
             </div>
@@ -234,3 +234,4 @@ function AdminInstagramPage() {
 }
 
 export default AdminInstagramPage;
+

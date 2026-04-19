@@ -108,7 +108,7 @@ function AdminSettingsPage() {
   };
 
   return (
-    <section className="space-y-6">
+    <section className="admin-page space-y-6">
       <SectionHeader eyebrow="Configuracoes" title="Identidade visual" subtitle="Gerencie a logo principal da loja" />
 
       <DataCard title="Logo do site">
@@ -154,7 +154,7 @@ function AdminSettingsPage() {
             onChange={(event) => setSelectedFile(event.target.files?.[0] || null)}
           />
 
-          <Button loading={loading} type="submit">
+          <Button className="w-full sm:w-auto" loading={loading} type="submit">
             Atualizar logo
           </Button>
 
@@ -187,7 +187,7 @@ function AdminSettingsPage() {
             />
           </label>
 
-          <Button loading={settingsLoading} type="submit">
+          <Button className="w-full sm:w-auto" loading={settingsLoading} type="submit">
             Salvar configuracoes
           </Button>
 
@@ -200,3 +200,4 @@ function AdminSettingsPage() {
 }
 
 export default AdminSettingsPage;
+

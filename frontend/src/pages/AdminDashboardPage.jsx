@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import ChartCard from '../components/charts/ChartCard';
 import MiniBarChart from '../components/charts/MiniBarChart';
 import MetricCard from '../components/ui/MetricCard';
@@ -18,7 +18,7 @@ function AdminDashboardPage() {
   }, []);
 
   return (
-    <section className="space-y-6">
+    <section className="admin-page space-y-6">
       <SectionHeader
         eyebrow="Visao geral"
         title="Dashboard"
@@ -30,23 +30,23 @@ function AdminDashboardPage() {
 
       {!loading && !error && summary ? (
         <>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          <div className="admin-card-grid-3">
             <MetricCard label="Produtos ativos" value={summary.total_products} helper="Catalogo publicado" />
             <MetricCard label="Pedidos" value={summary.total_orders} helper="Pedidos totais" />
             <MetricCard label="Vendas" value={`R$ ${summary.total_sold.toFixed(2)}`} helper="Valor acumulado" />
           </div>
 
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          <div className="admin-card-grid-3">
             <MetricCard label="Itens vendidos" value={summary.total_items_sold || 0} helper="Volume total" />
             <MetricCard label="Valor estimado" value={`R$ ${(summary.total_sold || 0).toFixed(2)}`} helper="Pedidos confirmados" />
-            <MetricCard label="Conversao carrinho → WhatsApp" value={`${Number(summary.conversion_add_to_whatsapp || 0).toFixed(2)}%`} helper="Sessoes com add_to_cart x send_whatsapp" />
+            <MetricCard label="Conversao carrinho ? WhatsApp" value={`${Number(summary.conversion_add_to_whatsapp || 0).toFixed(2)}%`} helper="Sessoes com add_to_cart x send_whatsapp" />
           </div>
 
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+          <div className="admin-card-grid-4">
             <MetricCard label="Sessoes geolocalizadas" value={summary.geolocated_sessions || 0} helper="Com pais/estado/cidade" />
           </div>
 
-          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <ChartCard title="Vendas por periodo">
               <MiniBarChart points={summary.sales_series || []} money />
             </ChartCard>
@@ -134,3 +134,5 @@ function AdminDashboardPage() {
 }
 
 export default AdminDashboardPage;
+
+

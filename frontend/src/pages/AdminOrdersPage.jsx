@@ -80,7 +80,7 @@ function AdminOrdersPage() {
   }, [currentPage, totalPages]);
 
   return (
-    <section className="space-y-6">
+    <section className="admin-page space-y-6">
       <SectionHeader eyebrow="Operacao" title="Pedidos" subtitle="Acompanhe detalhes e totais" />
 
       <DataCard title="Lista de pedidos">
@@ -88,7 +88,7 @@ function AdminOrdersPage() {
         {error ? <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">{error}</div> : null}
         {!loading && !error ? (
           <>
-            <div className="mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
+            <div className="mb-3 admin-filter-bar rounded-xl border border-slate-200 bg-slate-50 p-3">
               <input
                 type="text"
                 value={searchTerm}
@@ -149,11 +149,11 @@ function AdminOrdersPage() {
               )}
             />
 
-            <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+            <div className="mt-3 admin-pagination-bar rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
               <p className="text-xs text-slate-600">
                 Mostrando <strong>{filteredOrders.length ? (currentPage - 1) * itemsPerPage + 1 : 0}</strong> - <strong>{Math.min(currentPage * itemsPerPage, filteredOrders.length)}</strong> de <strong>{filteredOrders.length}</strong> pedidos
               </p>
-              <div className="flex items-center gap-2">
+              <div className="admin-pagination-actions">
                 <Button variant="secondary" className="h-8 px-3 text-xs" disabled={currentPage === 1} onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}>
                   Anterior
                 </Button>
@@ -225,3 +225,5 @@ function AdminOrdersPage() {
 }
 
 export default AdminOrdersPage;
+
+

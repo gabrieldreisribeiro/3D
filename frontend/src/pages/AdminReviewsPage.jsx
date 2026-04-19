@@ -94,11 +94,11 @@ function AdminReviewsPage() {
   );
 
   return (
-    <section className="space-y-6">
+    <section className="admin-page space-y-6">
       <SectionHeader eyebrow="Operacao" title="Avaliacoes" subtitle="Modere comentarios e midias de produtos" />
 
       <DataCard title="Lista de avaliacoes">
-        <div className="mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
+        <div className="mb-3 admin-filter-bar rounded-xl border border-slate-200 bg-slate-50 p-3">
           <select
             value={statusFilter}
             onChange={(event) => {
@@ -227,11 +227,11 @@ function AdminReviewsPage() {
         ) : null}
 
         {!loading ? (
-          <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+          <div className="mt-3 admin-pagination-bar rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
             <p className="text-xs text-slate-600">
               Mostrando <strong>{total ? (page - 1) * pageSize + 1 : 0}</strong> - <strong>{Math.min(page * pageSize, total)}</strong> de <strong>{total}</strong> avaliacoes
             </p>
-            <div className="flex items-center gap-2">
+            <div className="admin-pagination-actions">
               <Button variant="secondary" className="h-8 px-3 text-xs" disabled={page <= 1} onClick={() => setPage((current) => Math.max(1, current - 1))}>
                 Anterior
               </Button>
@@ -287,3 +287,5 @@ function AdminReviewsPage() {
 }
 
 export default AdminReviewsPage;
+
+

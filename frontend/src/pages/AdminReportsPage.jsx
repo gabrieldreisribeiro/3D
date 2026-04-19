@@ -46,11 +46,11 @@ function AdminReportsPage() {
   const totalLeadRows = useMemo(() => leads.items || [], [leads.items]);
 
   return (
-    <section className="space-y-6">
+    <section className="admin-page space-y-6">
       <SectionHeader eyebrow="Inteligencia" title="Relatorios" subtitle="Vendas, comportamento e leads por periodo" />
 
       <DataCard title="Filtros">
-        <div className="flex flex-wrap items-end gap-3">
+        <div className="admin-filter-bar items-end">
           <label className="grid gap-1 text-xs text-slate-600">
             Data inicial
             <input
@@ -69,7 +69,7 @@ function AdminReportsPage() {
               className="h-9 rounded-lg border border-slate-200 px-3 text-xs text-slate-700 outline-none focus:border-violet-300"
             />
           </label>
-          <Button onClick={loadReports} loading={loading} loadingText="Aplicando...">
+          <Button onClick={loadReports} loading={loading} loadingText="Aplicando..." className="w-full sm:w-auto">
             Aplicar filtro
           </Button>
         </div>
@@ -127,3 +127,4 @@ function AdminReportsPage() {
 }
 
 export default AdminReportsPage;
+

@@ -120,7 +120,7 @@ function AdminDatabasePage() {
   };
 
   return (
-    <section className="space-y-6">
+    <section className="admin-page space-y-6">
       <SectionHeader eyebrow="Infraestrutura" title="Banco de dados" subtitle="Exportacao, inspeção e consultas administrativas" />
 
       {error ? <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">{error}</div> : null}
@@ -142,13 +142,13 @@ function AdminDatabasePage() {
         </div>
 
         <div className="mt-3 flex flex-wrap gap-2">
-          <Button loading={downloading === 'schema'} loadingText="Baixando..." onClick={() => runDownload('/admin/database/export/schema', 'database_schema.sql', 'schema')}>
+          <Button className="w-full sm:w-auto" loading={downloading === 'schema'} loadingText="Baixando..." onClick={() => runDownload('/admin/database/export/schema', 'database_schema.sql', 'schema')}>
             Baixar schema SQL
           </Button>
-          <Button variant="secondary" loading={downloading === 'data'} loadingText="Baixando..." onClick={() => runDownload('/admin/database/export/data', 'database_data.sql', 'data')}>
+          <Button className="w-full sm:w-auto" variant="secondary" loading={downloading === 'data'} loadingText="Baixando..." onClick={() => runDownload('/admin/database/export/data', 'database_data.sql', 'data')}>
             Baixar dados SQL
           </Button>
-          <Button variant="secondary" loading={downloading === 'full'} loadingText="Baixando..." onClick={() => runDownload('/admin/database/export/full', 'database_full.sql', 'full')}>
+          <Button className="w-full sm:w-auto" variant="secondary" loading={downloading === 'full'} loadingText="Baixando..." onClick={() => runDownload('/admin/database/export/full', 'database_full.sql', 'full')}>
             Baixar schema + dados
           </Button>
         </div>
@@ -224,7 +224,7 @@ function AdminDatabasePage() {
 
       <DataCard title="Executor de query (controlado)">
         <div className="space-y-3">
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="admin-filter-bar">
             <select
               value={queryMode}
               onChange={(event) => setQueryMode(event.target.value)}
@@ -233,7 +233,7 @@ function AdminDatabasePage() {
               <option value="read">Somente leitura (SELECT)</option>
               <option value="maintenance">Manutencao controlada (SELECT/INSERT/UPDATE/DELETE)</option>
             </select>
-            <Button loading={queryLoading} loadingText="Executando..." onClick={handleExecuteQuery}>
+            <Button className="w-full sm:w-auto" loading={queryLoading} loadingText="Executando..." onClick={handleExecuteQuery}>
               Executar query
             </Button>
           </div>
@@ -303,13 +303,13 @@ function AdminDatabasePage() {
                 </td>
                 <td>{item.affected_rows}</td>
                 <td>
-                  <code className="line-clamp-2 block max-w-[420px] text-[11px] text-slate-600">{item.sql_text}</code>
+                  <code className="admin-table-cell-wrap line-clamp-2 block text-[11px] text-slate-600">{item.sql_text}</code>
                 </td>
               </tr>
             )}
           />
         )}
-        <div className="mt-3 flex items-center justify-end gap-2">
+        <div className="admin-pagination-actions mt-3 justify-end">
           <Button variant="secondary" className="h-8 px-3 text-xs" disabled={logsPage <= 1} onClick={() => setLogsPage((current) => Math.max(1, current - 1))}>
             Anterior
           </Button>
@@ -326,3 +326,4 @@ function AdminDatabasePage() {
 }
 
 export default AdminDatabasePage;
+
