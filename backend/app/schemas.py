@@ -87,6 +87,7 @@ class ProductBase(BaseModel):
     available_colors: List[str]
     allow_secondary_color: bool
     secondary_color_pairs: List[SecondaryColorPair]
+    allow_name_personalization: bool
 
     price: float
     final_price: float
@@ -144,6 +145,7 @@ class AdminProductBase(BaseModel):
     available_colors: List[str] = Field(default_factory=list)
     allow_secondary_color: bool = False
     secondary_color_pairs: List[SecondaryColorPair] = Field(default_factory=list)
+    allow_name_personalization: bool = False
 
     grams_filament: float = Field(default=0, ge=0)
     price_kg_filament: float = Field(default=0, ge=0)
@@ -189,6 +191,7 @@ class AdminProductResponse(BaseModel):
     available_colors: List[str]
     allow_secondary_color: bool
     secondary_color_pairs: List[SecondaryColorPair]
+    allow_name_personalization: bool
 
     grams_filament: float
     price_kg_filament: float
@@ -268,6 +271,7 @@ class OrderItemCreate(BaseModel):
     selected_color: Optional[str] = None
     selected_secondary_color: Optional[str] = None
     selected_sub_items: List[dict] = Field(default_factory=list)
+    name_personalizations: List[str] = Field(default_factory=list)
 
 
 class OrderCreate(BaseModel):
@@ -288,6 +292,7 @@ class OrderItemResponse(BaseModel):
     selected_color: Optional[str] = None
     selected_secondary_color: Optional[str] = None
     selected_sub_items: List[dict] = Field(default_factory=list)
+    name_personalizations: List[str] = Field(default_factory=list)
 
 class OrderResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -323,6 +328,7 @@ class AdminOrderItemResponse(BaseModel):
     selected_color: Optional[str] = None
     selected_secondary_color: Optional[str] = None
     selected_sub_items: List[dict] = Field(default_factory=list)
+    name_personalizations: List[str] = Field(default_factory=list)
 
 
 class AdminOrderResponse(BaseModel):

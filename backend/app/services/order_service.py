@@ -33,6 +33,7 @@ def _create_order(db: Session, items, coupon_code, subtotal, discount, total, pa
             selected_color=item.get('selected_color'),
             selected_secondary_color=item.get('selected_secondary_color'),
             selected_sub_items=json.dumps(item.get('selected_sub_items') or [], ensure_ascii=False),
+            name_personalizations=json.dumps(item.get('name_personalizations') or [], ensure_ascii=False),
         )
         db.add(order_item)
     db.commit()
@@ -76,6 +77,18 @@ def _safe_parse_selected_sub_items(raw_value):
     return parsed
 
 
+def _safe_parse_name_personalizations(raw_value):
+    if not raw_value:
+        return []
+    try:
+        data = json.loads(raw_value) if isinstance(raw_value, str) else raw_value
+    except Exception:  # noqa: BLE001
+        return []
+    if not isinstance(data, list):
+        return []
+    return [str(value or '').strip() for value in data]
+
+
 def serialize_order_item(item: OrderItem) -> dict:
     quantity = int(item.quantity or 0)
     unit_price = float(item.unit_price or 0)
@@ -90,6 +103,7 @@ def serialize_order_item(item: OrderItem) -> dict:
         'selected_color': item.selected_color,
         'selected_secondary_color': item.selected_secondary_color,
         'selected_sub_items': _safe_parse_selected_sub_items(item.selected_sub_items),
+        'name_personalizations': _safe_parse_name_personalizations(item.name_personalizations),
     }
 
 

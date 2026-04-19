@@ -34,6 +34,7 @@ class Product(Base):
     available_colors = Column(Text, nullable=False, default='')
     allow_secondary_color = Column(Boolean, default=False)
     secondary_color_pairs = Column(Text, nullable=False, default='')
+    allow_name_personalization = Column(Boolean, default=False)
 
     grams_filament = Column(Float, default=0.0)
     price_kg_filament = Column(Float, default=0.0)
@@ -120,6 +121,7 @@ class OrderItem(Base):
     selected_color = Column(String(20), nullable=True)
     selected_secondary_color = Column(String(20), nullable=True)
     selected_sub_items = Column(Text, nullable=False, default='')
+    name_personalizations = Column(Text, nullable=False, default='')
     order = relationship('Order', back_populates='items')
 
 

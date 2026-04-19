@@ -35,6 +35,10 @@ def create_order_endpoint(payload: OrderCreate, request: Request, db: Session = 
         quantity = max(1, int(item.quantity))
         fallback_unit_price = float(product.final_price if product.final_price is not None else product.price)
         unit_price = float(item.unit_price) if item.unit_price is not None else fallback_unit_price
+        raw_name_personalizations = item.name_personalizations or []
+        name_personalizations = [str(value or '').strip() for value in raw_name_personalizations][:quantity]
+        if len(name_personalizations) < quantity:
+            name_personalizations.extend([''] * (quantity - len(name_personalizations)))
         selected_sub_items = []
         valid_sub_items = parse_sub_items_from_storage(product.sub_items)
         by_title = {str(sub.get('title') or '').strip().lower(): sub for sub in valid_sub_items}
@@ -70,6 +74,7 @@ def create_order_endpoint(payload: OrderCreate, request: Request, db: Session = 
                 'selected_color': item.selected_color,
                 'selected_secondary_color': item.selected_secondary_color,
                 'selected_sub_items': selected_sub_items,
+                'name_personalizations': name_personalizations,
             }
         )
 

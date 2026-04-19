@@ -74,6 +74,15 @@ function CartPage() {
     if (!values.length) return null;
     return values.join(' + ');
   };
+  const getNamePersonalizations = (item) => {
+    const quantity = Math.max(1, Number(item.quantity || 1));
+    const values = Array.isArray(item.name_personalizations)
+      ? item.name_personalizations.map((value) => String(value || '').trim())
+      : [];
+    const next = values.slice(0, quantity);
+    while (next.length < quantity) next.push('');
+    return next;
+  };
 
   const formatBRL = (value) =>
     new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(value || 0));
@@ -257,7 +266,11 @@ function CartPage() {
           ? ` (${selectedSubItems.map((subItem) => `${subItem.quantity}x ${subItem.title}`).join(', ')})`
           : '';
         const colorLabel = formatColors(item.selected_color, item.selected_secondary_color);
-        const subtitle = colorLabel ? ` | Cores: ${colorLabel} | Entrega: ${deliveryDays} dia(s)` : ` | Entrega: ${deliveryDays} dia(s)`;
+        const names = getNamePersonalizations(item).filter(Boolean);
+        const namesText = names.length ? ` | Textos: ${names.join(', ')}` : '';
+        const subtitle = colorLabel
+          ? ` | Cores: ${colorLabel}${namesText} | Entrega: ${deliveryDays} dia(s)`
+          : `${namesText} | Entrega: ${deliveryDays} dia(s)`;
         const titleLines = doc.splitTextToSize(`${item.title}${selectedSubItemsText}${subtitle}`, 250);
         const rowHeight = Math.max(22, titleLines.length * 12);
 
@@ -330,6 +343,7 @@ function CartPage() {
           unit_price: getItemPrice(item),
           selected_color: item.selected_color || null,
           selected_secondary_color: item.selected_secondary_color || null,
+          name_personalizations: getNamePersonalizations(item),
           selected_sub_items: (item.selected_sub_items || []).map((subItem) => ({
             slug: subItem.slug || null,
             title: subItem.title,
@@ -369,6 +383,10 @@ function CartPage() {
             : '';
           const colorLabel = formatColors(item.selected_color, item.selected_secondary_color);
           const colorText = colorLabel ? ` (cor: ${colorLabel})` : '';
+          const names = getNamePersonalizations(item);
+          const namesText = names.some(Boolean)
+            ? `\n  Textos por unidade:\n  - ${names.map((value, index) => `${index + 1}: ${value || '(sem texto)'}`).join('\n  - ')}`
+            : '';
           const days = getDaysFromHours(getLineLeadHours(item));
           const unitPrice = getItemPrice(item);
           const lineSubtotal = unitPrice * Number(item.quantity || 0);
@@ -383,6 +401,7 @@ function CartPage() {
                 return `${subItem.quantity}x ${subItem.title}${subItemColors ? ` (cor: ${subItemColors})` : ''}`;
               })
               .join('\n  - ')}` : null,
+            namesText ? namesText.trimEnd() : null,
             `  Prazo estimado: ${days} dia(s) apos pagamento`,
           ].filter(Boolean).join('\n');
         })
@@ -472,6 +491,16 @@ function CartPage() {
                           <strong>R$ {(Number(subItem.unit_price || 0) * Number(subItem.quantity || 0)).toFixed(2)}</strong>
                         </div>
                       ))}
+                    </div>
+                  ) : null}
+                  {getNamePersonalizations(item).some(Boolean) ? (
+                    <div className="mb-2 rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-2 text-xs text-emerald-700">
+                      <p className="font-semibold">Textos para personalizacao:</p>
+                      <ul className="mt-1 space-y-1">
+                        {getNamePersonalizations(item).map((name, index) => (
+                          <li key={`${getCartItemKey(item)}-name-${index}`}>Unidade {index + 1}: {name || '(sem texto)'}</li>
+                        ))}
+                      </ul>
                     </div>
                   ) : null}
                   <p className="mb-2 text-xs text-slate-500">

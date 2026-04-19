@@ -41,11 +41,28 @@ function normalizeSelectedSubItems(selectedSubItems = []) {
     .sort((a, b) => a.key.localeCompare(b.key));
 }
 
+function normalizeNamePersonalizations(namePersonalizations = [], quantity = 1) {
+  const safeQuantity = Math.max(1, Math.floor(toNumber(quantity || 1)));
+  const normalized = Array.isArray(namePersonalizations)
+    ? namePersonalizations.map((value) => String(value || '').trim())
+    : [];
+  const limited = normalized.slice(0, safeQuantity);
+  while (limited.length < safeQuantity) {
+    limited.push('');
+  }
+  return limited;
+}
+
 function createSelectionSignature(selectedSubItems) {
   if (!selectedSubItems.length) return 'base';
   return selectedSubItems
     .map((item) => `${item.key}:${item.quantity}:${item.selected_color || '-'}:${item.selected_secondary_color || '-'}`)
     .join('|');
+}
+
+function createNameSignature(namePersonalizations = []) {
+  if (!namePersonalizations.length) return 'noname';
+  return namePersonalizations.map((value) => value || '-').join('|');
 }
 
 function getItemPrice(item) {
@@ -99,14 +116,16 @@ export function CartProvider({ children }) {
   const addToCart = (product, quantity = 1, options = {}) => {
     const safeQuantity = Math.max(1, Math.floor(toNumber(quantity || 1)));
     const normalizedSubItems = normalizeSelectedSubItems(options.selectedSubItems || []);
+    const normalizedNames = normalizeNamePersonalizations(options.namePersonalizations || [], safeQuantity);
     const selectedColor = normalizeColor(options.selectedColor);
     const selectedSecondaryColor = normalizeColor(options.selectedSecondaryColor);
     const baseUnitPrice = getBaseItemPrice(product);
     const selectedSubItemsTotal = normalizedSubItems.reduce((sum, item) => sum + item.line_total, 0);
     const unitPrice = normalizedSubItems.length > 0 ? baseUnitPrice + selectedSubItemsTotal : baseUnitPrice;
     const signature = createSelectionSignature(normalizedSubItems);
+    const nameSignature = createNameSignature(normalizedNames);
     const colorSignature = `${selectedColor || '-'}:${selectedSecondaryColor || '-'}`;
-    const cartKey = `${product.slug}::${colorSignature}::${signature}`;
+    const cartKey = `${product.slug}::${colorSignature}::${signature}::${nameSignature}`;
     const nextItem = {
       ...product,
       quantity: safeQuantity,
@@ -115,15 +134,21 @@ export function CartProvider({ children }) {
       selected_color: selectedColor,
       selected_secondary_color: selectedSecondaryColor,
       selected_sub_items: normalizedSubItems,
+      name_personalizations: normalizedNames,
       unit_price: unitPrice,
     };
 
     setItems((current) => {
       const exists = current.find((item) => (item.cart_key || `${item.slug}::base`) === cartKey);
       if (exists) {
+        const mergedQuantity = Math.max(1, Number(exists.quantity || 0) + safeQuantity);
+        const mergedNames = normalizeNamePersonalizations(
+          [...(exists.name_personalizations || []), ...normalizedNames],
+          mergedQuantity
+        );
         return current.map((item) =>
           (item.cart_key || `${item.slug}::base`) === cartKey
-            ? { ...item, quantity: item.quantity + safeQuantity }
+            ? { ...item, quantity: mergedQuantity, name_personalizations: mergedNames }
             : item
         );
       }
@@ -140,7 +165,8 @@ export function CartProvider({ children }) {
           quantity: safeQuantity,
           has_sub_items: normalizedSubItems.length > 0,
           selected_color: selectedColor,
-        selected_secondary_color: selectedSecondaryColor,
+          selected_secondary_color: selectedSecondaryColor,
+          name_personalizations: normalizedNames,
       },
     }).catch(() => {});
   };
@@ -151,7 +177,13 @@ export function CartProvider({ children }) {
       current
         .map((item) => {
           const itemKey = item.cart_key || `${item.slug}::base`;
-          return itemKey === cartKey ? { ...item, quantity } : item;
+          if (itemKey !== cartKey) return item;
+          const safeQuantity = Math.max(1, Math.floor(toNumber(quantity || 1)));
+          return {
+            ...item,
+            quantity: safeQuantity,
+            name_personalizations: normalizeNamePersonalizations(item.name_personalizations || [], safeQuantity),
+          };
         })
         .filter((item) => item.quantity > 0)
     );

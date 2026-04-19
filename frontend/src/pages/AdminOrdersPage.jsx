@@ -213,6 +213,16 @@ function AdminOrdersPage() {
                         ))}
                       </div>
                     ) : <p className="text-xs text-slate-400">Sem subitens neste item.</p>}
+                    {(item.name_personalizations || []).length ? (
+                      <div className="space-y-1 rounded-md bg-emerald-50 px-2 py-1 text-xs text-emerald-700">
+                        <p className="font-semibold">Textos para personalizacao:</p>
+                        {(item.name_personalizations || []).map((name, index) => (
+                          <p key={`${item.id}-name-${index}`}>
+                            Unidade {index + 1}: {String(name || '').trim() || '(sem texto)'}
+                          </p>
+                        ))}
+                      </div>
+                    ) : null}
                   </li>
                 );
               })}

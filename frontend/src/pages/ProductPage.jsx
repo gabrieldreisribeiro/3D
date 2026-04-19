@@ -161,6 +161,7 @@ function ProductPage() {
   const [selectedSecondaryColor, setSelectedSecondaryColor] = useState('');
   const [selectedSubItemColors, setSelectedSubItemColors] = useState({});
   const [selectedSubItemSecondaryColors, setSelectedSubItemSecondaryColors] = useState({});
+  const [namePersonalizations, setNamePersonalizations] = useState([]);
   const [selectedImage, setSelectedImage] = useState(0);
   const [isAddingCustom, setIsAddingCustom] = useState(false);
   const [isBuyingCustom, setIsBuyingCustom] = useState(false);
@@ -210,6 +211,7 @@ function ProductPage() {
         setSelectedSecondaryColor('');
         setSelectedSubItemColors({});
         setSelectedSubItemSecondaryColors({});
+        setNamePersonalizations([]);
         setActiveDetailTab('description');
         setReviewSort('recent');
         setReviewPage(1);
@@ -244,6 +246,7 @@ function ProductPage() {
     secondary_color_pairs: [],
     allow_colors: false,
     allow_secondary_color: false,
+    allow_name_personalization: false,
     lead_time_hours: 0,
     final_price: 0,
     price: 0,
@@ -273,6 +276,7 @@ function ProductPage() {
     0
   );
   const canAddCustomized = selectedSubItemsList.length > 0;
+  const supportsNamePersonalization = Boolean(productData.allow_name_personalization);
   const productLeadTimeHours = toNumber(productData.lead_time_hours);
   const productLeadTimeDays = estimateDaysFromHours(productLeadTimeHours);
   const customizedLeadTimeDays = estimateDaysFromHours(productLeadTimeHours + selectedSubItemsLeadTimeHours);
@@ -384,6 +388,21 @@ function ProductPage() {
       .finally(() => setReviewsLoading(false));
   }, [productData.id, reviewSort, reviewPage, reviewPageSize]);
 
+  useEffect(() => {
+    if (!supportsNamePersonalization) {
+      if (namePersonalizations.length) setNamePersonalizations([]);
+      return;
+    }
+    const safeQuantity = Math.max(1, Math.floor(toNumber(quantity || 1)));
+    setNamePersonalizations((current) => {
+      const normalized = Array.isArray(current) ? current.map((value) => String(value || '')) : [];
+      const next = normalized.slice(0, safeQuantity);
+      while (next.length < safeQuantity) next.push('');
+      const changed = next.length !== normalized.length || next.some((value, index) => value !== normalized[index]);
+      return changed ? next : current;
+    });
+  }, [supportsNamePersonalization, quantity, namePersonalizations.length]);
+
   if (loading) {
     return <div className="loading-state-pro container">Carregando produto...</div>;
   }
@@ -413,6 +432,16 @@ function ProductPage() {
     setSelectedSubItemSecondaryColors((current) => ({ ...current, [key]: color }));
   };
 
+  const handleNamePersonalizationChange = (index, value) => {
+    setNamePersonalizations((current) => {
+      const safeQuantity = Math.max(1, Math.floor(toNumber(quantity || 1)));
+      const base = Array.isArray(current) ? [...current] : [];
+      while (base.length < safeQuantity) base.push('');
+      base[index] = value;
+      return base.slice(0, safeQuantity);
+    });
+  };
+
   const addCustomizedToCart = (goToCart = false) => {
     if (!canAddCustomized) return false;
     addToCart(product, quantity, {
@@ -429,6 +458,7 @@ function ProductPage() {
       })),
       selectedColor: selectedColor || null,
       selectedSecondaryColor: selectedSecondaryColor || null,
+      namePersonalizations: supportsNamePersonalization ? namePersonalizations : [],
     });
     if (goToCart) navigate('/cart');
     return true;
@@ -458,11 +488,14 @@ function ProductPage() {
       'Ola! Gostaria de verificar uma personalizacao que nao encontrei no site.',
       '',
       `Produto: ${productData.title || product.title || '-'}`,
-      `Quantidade: ${Math.max(1, Math.floor(toNumber(quantity || 1)))}`,
-      `Cor selecionada no site: ${selectedColors || 'nenhuma'}`,
-      '',
-      'Exemplo: quero uma variacao/cor que ainda nao esta disponivel na pagina. Pode me ajudar?',
-    ].join('\n');
+        `Quantidade: ${Math.max(1, Math.floor(toNumber(quantity || 1)))}`,
+        `Cor selecionada no site: ${selectedColors || 'nenhuma'}`,
+        supportsNamePersonalization
+          ? `Textos para personalizacao: ${(namePersonalizations || []).map((value) => value.trim()).filter(Boolean).join(', ') || 'nenhum informado'}`
+          : null,
+        '',
+        'Exemplo: quero uma variacao/cor que ainda nao esta disponivel na pagina. Pode me ajudar?',
+      ].join('\n');
 
     trackEvent({
       event_type: 'whatsapp_click',
@@ -474,6 +507,7 @@ function ProductPage() {
         quantity: Math.max(1, Math.floor(toNumber(quantity || 1))),
         selected_color: selectedColor || null,
         selected_secondary_color: selectedSecondaryColor || null,
+        name_personalizations: supportsNamePersonalization ? namePersonalizations.map((value) => String(value || '').trim()) : [],
       },
     }).catch(() => {});
 
@@ -689,6 +723,28 @@ function ProductPage() {
               </ul>
 
               <p className="text-xs text-slate-500">Selecione os itens e ajuste quantidades para montar seu pedido.</p>
+              {supportsNamePersonalization ? (
+                <div className="rounded-[10px] border border-slate-200 bg-white p-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    Personalizacao com texto (opcional)
+                  </p>
+                  <div className="mt-2 space-y-2">
+                    {Array.from({ length: Math.max(1, Math.floor(toNumber(quantity || 1))) }, (_, index) => (
+                      <label key={`custom-name-${index + 1}`} className="grid gap-1 text-xs text-slate-600">
+                        Texto para unidade {index + 1}
+                        <input
+                          type="text"
+                          maxLength={60}
+                          value={namePersonalizations[index] || ''}
+                          onChange={(event) => handleNamePersonalizationChange(index, event.target.value)}
+                          placeholder="Deixe vazio se nao quiser texto nesta unidade"
+                          className="h-10 rounded-lg border border-slate-200 px-3 text-sm text-slate-700 outline-none focus:border-violet-300"
+                        />
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
               {product.allow_colors && (product.available_colors || []).length > 0 ? (
                 <div className="space-y-2">
                   <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Cor principal do produto</p>
@@ -795,6 +851,28 @@ function ProductPage() {
               ) : null}
 
               <p className="text-xs text-slate-500">Prazo estimado: {productLeadTimeDays} dia(s) apos confirmacao do pagamento.</p>
+              {supportsNamePersonalization ? (
+                <div className="rounded-[10px] border border-slate-200 bg-white p-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    Personalizacao com texto (opcional)
+                  </p>
+                  <div className="mt-2 space-y-2">
+                    {Array.from({ length: Math.max(1, Math.floor(toNumber(quantity || 1))) }, (_, index) => (
+                      <label key={`simple-name-${index + 1}`} className="grid gap-1 text-xs text-slate-600">
+                        Texto para unidade {index + 1}
+                        <input
+                          type="text"
+                          maxLength={60}
+                          value={namePersonalizations[index] || ''}
+                          onChange={(event) => handleNamePersonalizationChange(index, event.target.value)}
+                          placeholder="Deixe vazio se nao quiser texto nesta unidade"
+                          className="h-10 rounded-lg border border-slate-200 px-3 text-sm text-slate-700 outline-none focus:border-violet-300"
+                        />
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
 
               <div className="flex flex-col gap-2">
                 <div className="flex items-center gap-2">
@@ -809,6 +887,7 @@ function ProductPage() {
                           selectedColor: selectedColor || null,
                           selectedSecondaryColor: selectedSecondaryColor || null,
                           selectedSubItems: [],
+                          namePersonalizations: supportsNamePersonalization ? namePersonalizations : [],
                         })
                       )
                     }
@@ -826,6 +905,7 @@ function ProductPage() {
                         selectedColor: selectedColor || null,
                         selectedSecondaryColor: selectedSecondaryColor || null,
                         selectedSubItems: [],
+                        namePersonalizations: supportsNamePersonalization ? namePersonalizations : [],
                       });
                       navigate('/cart');
                     });

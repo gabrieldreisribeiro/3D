@@ -140,6 +140,7 @@ def _ensure_order_items_columns(session):
         'selected_color': "VARCHAR(20)",
         'selected_secondary_color': "VARCHAR(20)",
         'selected_sub_items': "TEXT DEFAULT ''",
+        'name_personalizations': "TEXT DEFAULT ''",
     }
     changed = False
     for column_name, column_ddl in required_columns.items():
@@ -180,6 +181,7 @@ def _ensure_product_pricing_columns(session):
         'available_colors': "TEXT DEFAULT ''",
         'allow_secondary_color': "BOOLEAN DEFAULT 0",
         'secondary_color_pairs': "TEXT DEFAULT ''",
+        'allow_name_personalization': "BOOLEAN DEFAULT 0",
         'grams_filament': "REAL DEFAULT 0",
         'price_kg_filament': "REAL DEFAULT 0",
         'hours_printing': "REAL DEFAULT 0",

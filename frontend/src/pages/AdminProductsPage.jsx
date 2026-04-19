@@ -69,6 +69,7 @@ const initialForm = {
   available_colors: [],
   allow_secondary_color: false,
   secondary_color_pairs: [],
+  allow_name_personalization: false,
   publish_to_instagram: false,
   instagram_caption: '',
   instagram_hashtags: '',
@@ -181,6 +182,7 @@ function toPayload(form) {
     available_colors: form.allow_colors ? parseColors(form.available_colors) : [],
     allow_secondary_color: Boolean(form.allow_colors) && Boolean(form.allow_secondary_color),
     secondary_color_pairs: form.allow_colors && form.allow_secondary_color ? parseSecondaryPairs(form.secondary_color_pairs) : [],
+    allow_name_personalization: Boolean(form.allow_name_personalization),
     publish_to_instagram: Boolean(form.publish_to_instagram),
     instagram_caption: String(form.instagram_caption || '').trim() || null,
     instagram_hashtags: String(form.instagram_hashtags || '').trim() || null,
@@ -255,6 +257,7 @@ function fromProduct(product) {
     available_colors: Array.isArray(product.available_colors) ? product.available_colors : [],
     allow_secondary_color: Boolean(product.allow_secondary_color),
     secondary_color_pairs: parseSecondaryPairs(product.secondary_color_pairs || []),
+    allow_name_personalization: Boolean(product.allow_name_personalization),
     publish_to_instagram: Boolean(product.publish_to_instagram),
     instagram_caption: product.instagram_caption || '',
     instagram_hashtags: product.instagram_hashtags || '',
@@ -1009,6 +1012,14 @@ function AdminProductsPage() {
               onChange={(event) => setForm({ ...form, allow_colors: event.target.checked })}
             />
             <span>Permitir escolha de cores neste produto</span>
+          </label>
+          <label className="inline-flex items-center gap-2 rounded-[10px] border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+            <input
+              type="checkbox"
+              checked={Boolean(form.allow_name_personalization)}
+              onChange={(event) => setForm({ ...form, allow_name_personalization: event.target.checked })}
+            />
+            <span>Permitir personalizacao com texto neste produto</span>
           </label>
           {form.allow_colors ? (
             <div className="md:col-span-2 rounded-[10px] border border-slate-200 bg-slate-50 p-3">
