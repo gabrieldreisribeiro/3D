@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+﻿import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import Button from '../components/ui/Button';
 import DataCard from '../components/ui/DataCard';
@@ -25,14 +25,14 @@ import {
 
 const defaultPricingFields = {
   grams_filament: '0',
-  price_kg_filament: '0',
+  price_kg_filament: '150',
   hours_printing: '0',
-  avg_power_watts: '0',
-  price_kwh: '0',
+  avg_power_watts: '110',
+  price_kwh: '1,5',
   total_hours_labor: '0',
   price_hour_labor: '0',
   extra_cost: '0',
-  profit_margin: '0',
+  profit_margin: '40',
 };
 
 const createEmptySubItem = () => ({

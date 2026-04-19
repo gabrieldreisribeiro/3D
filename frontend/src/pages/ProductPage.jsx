@@ -9,12 +9,14 @@ import Modal from '../components/ui/Modal';
 import {
   createProductReview,
   fetchProduct,
+  fetchPublicSettings,
   fetchProductReviews,
   fetchProductReviewSummary,
   fetchProducts,
   resolveAssetUrl,
   trackEvent,
 } from '../services/api';
+import { WHATSAPP_NUMBER } from '../config/endpoints';
 import { useCart } from '../services/cart';
 
 function toNumber(value) {
@@ -192,6 +194,7 @@ function ProductPage() {
     video: null,
   });
   const [loading, setLoading] = useState(true);
+  const [storeSettings, setStoreSettings] = useState({ whatsapp_number: '' });
   const { addToCart } = useCart();
 
   useEffect(() => {
@@ -217,6 +220,16 @@ function ProductPage() {
 
     fetchProducts().then((items) => setRelated(items.filter((item) => item.slug !== slug).slice(0, 3)));
   }, [slug, navigate]);
+
+  useEffect(() => {
+    fetchPublicSettings()
+      .then((data) => {
+        setStoreSettings({ whatsapp_number: data?.whatsapp_number || '' });
+      })
+      .catch(() => {
+        setStoreSettings({ whatsapp_number: '' });
+      });
+  }, []);
 
   const productData = product || {
     id: 0,
@@ -299,6 +312,11 @@ function ProductPage() {
   );
 
   const reviewTotalPages = Math.max(1, Math.ceil(reviewTotal / reviewPageSize));
+  const whatsappNumber = useMemo(() => {
+    const configured = String(storeSettings.whatsapp_number || '').trim();
+    if (configured) return configured.replace(/[^\d+]/g, '');
+    return String(WHATSAPP_NUMBER || '').trim().replace(/[^\d+]/g, '');
+  }, [storeSettings.whatsapp_number]);
 
   const reviewImagePreviews = useMemo(
     () =>
@@ -427,6 +445,39 @@ function ProductPage() {
       const delay = Math.max(0, 380 - elapsed);
       window.setTimeout(() => setLoadingState(false), delay);
     }
+  };
+
+  const handleOpenCustomizationWhatsapp = () => {
+    if (!whatsappNumber) {
+      alert('Configure o numero de WhatsApp no painel para usar este atalho.');
+      return;
+    }
+
+    const selectedColors = [selectedColor, selectedSecondaryColor].filter(Boolean).join(' + ');
+    const message = [
+      'Ola! Gostaria de verificar uma personalizacao que nao encontrei no site.',
+      '',
+      `Produto: ${productData.title || product.title || '-'}`,
+      `Quantidade: ${Math.max(1, Math.floor(toNumber(quantity || 1)))}`,
+      `Cor selecionada no site: ${selectedColors || 'nenhuma'}`,
+      '',
+      'Exemplo: quero uma variacao/cor que ainda nao esta disponivel na pagina. Pode me ajudar?',
+    ].join('\n');
+
+    trackEvent({
+      event_type: 'whatsapp_click',
+      product_id: productData.id || product?.id || null,
+      category_id: productData.category_id ?? null,
+      cta_name: 'product_customization_whatsapp',
+      metadata_json: {
+        slug: productData.slug || slug,
+        quantity: Math.max(1, Math.floor(toNumber(quantity || 1))),
+        selected_color: selectedColor || null,
+        selected_secondary_color: selectedSecondaryColor || null,
+      },
+    }).catch(() => {});
+
+    window.open(`https://wa.me/${whatsappNumber}?text=${encodeURIComponent(message)}`, '_blank');
   };
 
   const clearReviewForm = () => {
@@ -763,6 +814,13 @@ function ProductPage() {
                     }
                   >
                     Adicionar ao carrinho
+                  </Button>
+                  <Button
+                    className="h-11 flex-1"
+                    variant="secondary"
+                    onClick={handleOpenCustomizationWhatsapp}
+                  >
+                    Nao encontrou a opcao? Personalize no WhatsApp
                   </Button>
                 </div>
                 <Button
