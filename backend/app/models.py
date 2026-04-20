@@ -65,6 +65,7 @@ class Product(Base):
     category = relationship('Category', back_populates='products')
     reviews = relationship('ProductReview', back_populates='product', cascade='all, delete-orphan')
     events = relationship('UserEvent', back_populates='product')
+    promotion_links = relationship('PromotionProduct', back_populates='product', cascade='all, delete-orphan')
 
 
 class Coupon(Base):
@@ -283,3 +284,32 @@ class UploadedImage(Base):
     base64_data = Column(Text, nullable=False)
     created_at = Column(DateTime, nullable=False, server_default=func.now())
     updated_at = Column(DateTime, nullable=False, server_default=func.now(), onupdate=func.now())
+
+
+class Promotion(Base):
+    __tablename__ = 'promotions'
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(180), nullable=False)
+    description = Column(Text, nullable=True)
+    discount_type = Column(String(20), nullable=False)
+    discount_value = Column(Float, nullable=False, default=0.0)
+    applies_to_all = Column(Boolean, default=False, index=True)
+    is_active = Column(Boolean, default=True, index=True)
+    start_at = Column(DateTime, nullable=True, index=True)
+    end_at = Column(DateTime, nullable=True, index=True)
+    created_at = Column(DateTime, nullable=False, server_default=func.now())
+    updated_at = Column(DateTime, nullable=False, server_default=func.now(), onupdate=func.now())
+    product_links = relationship('PromotionProduct', back_populates='promotion', cascade='all, delete-orphan')
+
+
+class PromotionProduct(Base):
+    __tablename__ = 'promotion_products'
+
+    id = Column(Integer, primary_key=True, index=True)
+    promotion_id = Column(Integer, ForeignKey('promotions.id', ondelete='CASCADE'), nullable=False, index=True)
+    product_id = Column(Integer, ForeignKey('products.id', ondelete='CASCADE'), nullable=False, index=True)
+    created_at = Column(DateTime, nullable=False, server_default=func.now())
+
+    promotion = relationship('Promotion', back_populates='product_links')
+    product = relationship('Product', back_populates='promotion_links')

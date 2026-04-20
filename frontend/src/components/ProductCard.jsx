@@ -7,11 +7,13 @@ import { resolveAssetUrl, trackEvent } from '../services/api';
 function ProductCard({ product, onAdd, highlightLabel = '', compact = false }) {
   const [isAdding, setIsAdding] = useState(false);
   const price = Number(product.final_price ?? product.price ?? 0);
+  const originalPrice = Number(product.original_price ?? product.price ?? product.final_price ?? 0);
   const coverImageUrl = resolveAssetUrl(product.cover_image) || product.cover_image || '';
   const hasSubItems = (product.sub_items || []).length > 0;
+  const isOnSale = Boolean(product.is_on_sale && originalPrice > price);
   const ratingCount = Number(product.rating_count || 0);
   const ratingAverage = ratingCount > 0 ? Number(product.rating_average || 0) : 0;
-  const badgeLabel = highlightLabel || (hasSubItems ? 'Personalizado' : '');
+  const badgeLabel = product?.promotion_badge || highlightLabel || (hasSubItems ? 'Personalizado' : '');
   const handleProductClick = () => {
     trackEvent({
       event_type: 'product_click',
@@ -65,7 +67,16 @@ function ProductCard({ product, onAdd, highlightLabel = '', compact = false }) {
         </div>
 
         <div className="product-card-price-row">
-          <strong className={hasSubItems ? 'is-custom' : ''}>{hasSubItems ? 'Personalizado' : `R$ ${price.toFixed(2)}`}</strong>
+          {hasSubItems ? (
+            <strong className="is-custom">
+              {isOnSale ? `A partir de R$ ${price.toFixed(2)}` : 'Personalizado'}
+            </strong>
+          ) : (
+            <>
+              {isOnSale ? <span className="product-card-old-price">R$ {originalPrice.toFixed(2)}</span> : null}
+              <strong className={isOnSale ? 'is-sale' : ''}>R$ {price.toFixed(2)}</strong>
+            </>
+          )}
         </div>
 
         {/* <p className="product-card-installments">em ate 12x sem juros</p> */}

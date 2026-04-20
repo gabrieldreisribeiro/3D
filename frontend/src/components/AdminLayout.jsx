@@ -79,6 +79,9 @@ function AdminLayout() {
       <NavLink to="/painel-interno/cupons" className={navClassName}>
         Cupons
       </NavLink>
+      <NavLink to="/painel-interno/promocoes" className={navClassName}>
+        Promocoes
+      </NavLink>
       <NavLink to="/painel-interno/banners" className={navClassName}>
         Banners
       </NavLink>

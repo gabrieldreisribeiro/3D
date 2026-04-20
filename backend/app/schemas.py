@@ -94,6 +94,10 @@ class ProductBase(BaseModel):
     calculated_price: float
     cost_total: float
     estimated_profit: float
+    is_on_sale: bool = False
+    original_price: Optional[float] = None
+    promotional_price: Optional[float] = None
+    promotion_badge: Optional[str] = None
 
 class ProductResponse(ProductBase):
     pass
@@ -261,6 +265,44 @@ class AdminCouponResponse(BaseModel):
     expires_at: Optional[datetime] = None
     max_uses: Optional[int] = None
     uses_count: int = 0
+
+
+class PromotionBase(BaseModel):
+    name: str = Field(..., min_length=2, max_length=180)
+    description: Optional[str] = None
+    discount_type: Literal['percentage', 'fixed']
+    discount_value: float = Field(..., gt=0)
+    applies_to_all: bool = False
+    is_active: bool = True
+    start_at: Optional[datetime] = None
+    end_at: Optional[datetime] = None
+    product_ids: List[int] = Field(default_factory=list)
+
+
+class PromotionCreate(PromotionBase):
+    pass
+
+
+class PromotionUpdate(PromotionBase):
+    pass
+
+
+class PromotionResponse(BaseModel):
+    id: int
+    name: str
+    description: Optional[str] = None
+    discount_type: str
+    discount_value: float
+    applies_to_all: bool
+    is_active: bool
+    start_at: Optional[datetime] = None
+    end_at: Optional[datetime] = None
+    status: Literal['active', 'scheduled', 'ended', 'inactive']
+    promotion_badge: str
+    product_ids: List[int] = Field(default_factory=list)
+    affected_products_count: int = 0
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
 
 class OrderItemCreate(BaseModel):
     model_config = ConfigDict(extra='ignore')

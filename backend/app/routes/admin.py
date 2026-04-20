@@ -32,6 +32,9 @@ from app.schemas import (
     MetaPixelAdminConfigResponse,
     MetaPixelAdminConfigUpdate,
     MetaPixelValidationResponse,
+    PromotionCreate,
+    PromotionResponse,
+    PromotionUpdate,
     StoreSettingsResponse,
     StoreSettingsUpdate,
 )
@@ -77,6 +80,15 @@ from app.services.product_service import (
     parse_secondary_pairs_from_storage,
     parse_sub_items_from_storage,
     admin_update_category,
+)
+from app.services.promotion_service import (
+    create_promotion,
+    delete_promotion,
+    get_promotion_by_id,
+    list_promotions,
+    serialize_promotion,
+    toggle_promotion,
+    update_promotion,
 )
 from app.services.review_service import delete_review, get_review_by_id, list_admin_reviews, set_review_status
 from app.services.settings_service import (
@@ -572,6 +584,62 @@ def delete_coupon(coupon_id: int, _: AdminUser = Depends(require_admin), db: Ses
     if not coupon:
         raise HTTPException(status_code=404, detail='Cupom nao encontrado')
     admin_delete_coupon(db, coupon)
+
+
+@router.get('/promotions', response_model=list[PromotionResponse])
+def list_admin_promotions(_: AdminUser = Depends(require_admin), db: Session = Depends(get_db)):
+    promotions = list_promotions(db)
+    return [serialize_promotion(db, promotion) for promotion in promotions]
+
+
+@router.post('/promotions', response_model=PromotionResponse)
+def create_admin_promotion(
+    payload: PromotionCreate,
+    _: AdminUser = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    promotion = create_promotion(db, payload)
+    return serialize_promotion(db, promotion)
+
+
+@router.put('/promotions/{promotion_id}', response_model=PromotionResponse)
+def update_admin_promotion(
+    promotion_id: int,
+    payload: PromotionUpdate,
+    _: AdminUser = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    promotion = get_promotion_by_id(db, promotion_id)
+    if not promotion:
+        raise HTTPException(status_code=404, detail='Promocao nao encontrada')
+    promotion = update_promotion(db, promotion, payload)
+    return serialize_promotion(db, promotion)
+
+
+@router.patch('/promotions/{promotion_id}/toggle', response_model=PromotionResponse)
+def toggle_admin_promotion(
+    promotion_id: int,
+    is_active: bool,
+    _: AdminUser = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    promotion = get_promotion_by_id(db, promotion_id)
+    if not promotion:
+        raise HTTPException(status_code=404, detail='Promocao nao encontrada')
+    promotion = toggle_promotion(db, promotion, is_active=is_active)
+    return serialize_promotion(db, promotion)
+
+
+@router.delete('/promotions/{promotion_id}', status_code=204)
+def delete_admin_promotion(
+    promotion_id: int,
+    _: AdminUser = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    promotion = get_promotion_by_id(db, promotion_id)
+    if not promotion:
+        raise HTTPException(status_code=404, detail='Promocao nao encontrada')
+    delete_promotion(db, promotion)
 
 
 @router.get('/banners', response_model=list[BannerResponse])

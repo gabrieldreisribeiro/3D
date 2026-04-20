@@ -25,6 +25,7 @@ import AdminReportsPage from './pages/AdminReportsPage';
 import AdminLeadsConversionPage from './pages/AdminLeadsConversionPage';
 import AdminUploadsPage from './pages/AdminUploadsPage';
 import AdminMetaPixelPage from './pages/AdminMetaPixelPage';
+import AdminPromotionsPage from './pages/AdminPromotionsPage';
 import { trackEvent } from './services/api';
 
 function AppContent() {
@@ -54,6 +55,7 @@ function AppContent() {
             <Route path="pedidos" element={<AdminOrdersPage />} />
             <Route path="avaliacoes" element={<AdminReviewsPage />} />
             <Route path="cupons" element={<AdminCouponsPage />} />
+            <Route path="promocoes" element={<AdminPromotionsPage />} />
             <Route path="banners" element={<AdminBannersPage />} />
             <Route path="configuracoes" element={<AdminSettingsPage />} />
             <Route path="instagram" element={<AdminInstagramPage />} />

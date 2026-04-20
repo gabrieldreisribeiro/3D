@@ -1627,6 +1627,22 @@ select {
   color: var(--success);
 }
 
+.product-card-price-row {
+  display: grid;
+  gap: 3px;
+}
+
+.product-card-old-price {
+  font-size: 12px;
+  color: #94a3b8;
+  text-decoration: line-through;
+  font-weight: 600;
+}
+
+.product-card-price-row strong.is-sale {
+  color: #059669;
+}
+
 .product-card-price-row strong.is-custom {
   color: var(--primary);
   font-size: 21px;

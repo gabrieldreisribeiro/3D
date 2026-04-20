@@ -734,6 +734,36 @@ export function deleteAdminCoupon(couponId) {
   });
 }
 
+export function fetchAdminPromotions() {
+  return adminRequest('/admin/promotions');
+}
+
+export function createAdminPromotion(payload) {
+  return adminRequest('/admin/promotions', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export function updateAdminPromotion(promotionId, payload) {
+  return adminRequest(`/admin/promotions/${promotionId}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  });
+}
+
+export function setAdminPromotionStatus(promotionId, isActive) {
+  return adminRequest(`/admin/promotions/${promotionId}/toggle?is_active=${isActive}`, {
+    method: 'PATCH',
+  });
+}
+
+export function deleteAdminPromotion(promotionId) {
+  return adminRequest(`/admin/promotions/${promotionId}`, {
+    method: 'DELETE',
+  });
+}
+
 export function fetchAdminBanners() {
   return adminRequest('/admin/banners');
 }

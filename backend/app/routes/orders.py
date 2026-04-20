@@ -8,6 +8,7 @@ from app.services.analytics_service import create_user_event
 from app.services.coupon_service import build_client_hash, register_coupon_usage, validate_coupon_for_client
 from app.services.order_service import create_order_with_payment, serialize_order
 from app.services.product_service import get_product_by_slug, parse_sub_items_from_storage
+from app.services.promotion_service import get_effective_price_for_product
 
 router = APIRouter()
 
@@ -33,7 +34,7 @@ def create_order_endpoint(payload: OrderCreate, request: Request, db: Session = 
             raise HTTPException(status_code=404, detail=f'Produto nao encontrado: {item.slug}')
 
         quantity = max(1, int(item.quantity))
-        fallback_unit_price = float(product.final_price if product.final_price is not None else product.price)
+        fallback_unit_price = float(get_effective_price_for_product(db, product))
         unit_price = float(item.unit_price) if item.unit_price is not None else fallback_unit_price
         raw_name_personalizations = item.name_personalizations or []
         name_personalizations = [str(value or '').strip() for value in raw_name_personalizations][:quantity]

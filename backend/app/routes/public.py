@@ -12,6 +12,7 @@ from app.services.product_service import (
     parse_sub_items_from_storage,
 )
 from app.services.settings_service import get_or_create_settings, is_meta_pixel_config_valid
+from app.services.promotion_service import apply_promotion_pricing_to_products
 
 router = APIRouter(prefix='/public', tags=['public'])
 
@@ -53,6 +54,7 @@ def read_public_meta_pixel_config(db: Session = Depends(get_db)):
 @router.get('/most-ordered', response_model=list[ProductResponse])
 def read_most_ordered_products(limit: int = Query(default=4, ge=1, le=12), db: Session = Depends(get_db)):
     products = list_most_ordered_products(db, limit=limit)
+    apply_promotion_pricing_to_products(db, products)
     for product in products:
         product.images = product.images.split(',') if product.images else []
         product.sub_items = parse_sub_items_from_storage(product.sub_items)

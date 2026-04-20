@@ -250,6 +250,10 @@ function ProductPage() {
     lead_time_hours: 0,
     final_price: 0,
     price: 0,
+    is_on_sale: false,
+    original_price: null,
+    promotional_price: null,
+    promotion_badge: null,
     rating_average: 0,
     rating_count: 0,
     reviews: [],
@@ -260,6 +264,8 @@ function ProductPage() {
     ...((productData.images || []).map((image) => resolveImageUrl(image))),
   ]);
   const finalPrice = Number(productData.final_price ?? productData.price ?? 0);
+  const originalPrice = Number(productData.original_price ?? productData.price ?? productData.final_price ?? 0);
+  const isOnSale = Boolean(productData.is_on_sale && originalPrice > finalPrice);
   const hasSubItems = (productData.sub_items || []).length > 0;
   const selectedSubItemsList = (productData.sub_items || [])
     .map((item, index) => ({ item, index, key: getSubItemKey(item, index) }))
@@ -642,9 +648,23 @@ function ProductPage() {
 
           <div className="rounded-xl border border-slate-100 bg-slate-50 px-4 py-3">
             <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Preco</p>
-            <p className="mt-1 text-3xl font-semibold tracking-tight text-slate-900">
-              {hasSubItems ? `A partir de R$ ${finalPrice.toFixed(2)}` : `R$ ${finalPrice.toFixed(2)}`}
-            </p>
+            {isOnSale ? (
+              <div className="mt-1">
+                <p className="text-sm font-medium text-slate-500 line-through">R$ {originalPrice.toFixed(2)}</p>
+                <p className="text-3xl font-semibold tracking-tight text-emerald-700">
+                  {hasSubItems ? `A partir de R$ ${finalPrice.toFixed(2)}` : `R$ ${finalPrice.toFixed(2)}`}
+                </p>
+              </div>
+            ) : (
+              <p className="mt-1 text-3xl font-semibold tracking-tight text-slate-900">
+                {hasSubItems ? `A partir de R$ ${finalPrice.toFixed(2)}` : `R$ ${finalPrice.toFixed(2)}`}
+              </p>
+            )}
+            {productData.promotion_badge ? (
+              <span className="mt-2 inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
+                {productData.promotion_badge}
+              </span>
+            ) : null}
             <p className="mt-1 text-xs text-slate-500">
               {hasSubItems ? 'Selecione os itens para calcular o total final.' : 'Valor unitario'}
             </p>
