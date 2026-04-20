@@ -85,6 +85,9 @@ function AdminLayout() {
       <NavLink to="/painel-interno/instagram" className={navClassName}>
         Instagram
       </NavLink>
+      <NavLink to="/painel-interno/meta-pixel" className={navClassName}>
+        Meta Pixel
+      </NavLink>
       <NavLink to="/painel-interno/anuncios-ia" className={navClassName}>
         Anuncios com IA
       </NavLink>

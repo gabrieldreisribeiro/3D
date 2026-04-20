@@ -5,6 +5,7 @@ import Footer from './components/Footer';
 import AppShell from './components/layout/AppShell';
 import AdminLayout from './components/AdminLayout';
 import { CartProvider } from './services/cart';
+import MetaPixelProvider from './components/MetaPixelProvider';
 import HomePage from './pages/HomePage';
 import ProductPage from './pages/ProductPage';
 import CartPage from './pages/CartPage';
@@ -23,6 +24,7 @@ import AdminDatabasePage from './pages/AdminDatabasePage';
 import AdminReportsPage from './pages/AdminReportsPage';
 import AdminLeadsConversionPage from './pages/AdminLeadsConversionPage';
 import AdminUploadsPage from './pages/AdminUploadsPage';
+import AdminMetaPixelPage from './pages/AdminMetaPixelPage';
 import { trackEvent } from './services/api';
 
 function AppContent() {
@@ -55,6 +57,7 @@ function AppContent() {
             <Route path="banners" element={<AdminBannersPage />} />
             <Route path="configuracoes" element={<AdminSettingsPage />} />
             <Route path="instagram" element={<AdminInstagramPage />} />
+            <Route path="meta-pixel" element={<AdminMetaPixelPage />} />
             <Route path="anuncios-ia" element={<AdminAdsPage />} />
             <Route path="leads-conversao" element={<AdminLeadsConversionPage />} />
             <Route path="banco" element={<AdminDatabasePage />} />
@@ -82,9 +85,11 @@ function AppContent() {
 function App() {
   return (
     <CartProvider>
-      <BrowserRouter>
-        <AppContent />
-      </BrowserRouter>
+      <MetaPixelProvider>
+        <BrowserRouter>
+          <AppContent />
+        </BrowserRouter>
+      </MetaPixelProvider>
     </CartProvider>
   );
 }

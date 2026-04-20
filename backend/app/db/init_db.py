@@ -248,10 +248,6 @@ def _ensure_product_pricing_columns(session):
 
 
 def _ensure_store_settings_columns(session):
-    if session.bind.dialect.name != 'sqlite':
-        return
-    columns = session.execute(text("PRAGMA table_info('store_settings')")).fetchall()
-    names = {column[1] for column in columns}
     required_columns = {
         'instagram_enabled': "BOOLEAN DEFAULT 0",
         'instagram_app_id': "VARCHAR(120)",
@@ -262,13 +258,36 @@ def _ensure_store_settings_columns(session):
         'instagram_default_caption': "TEXT",
         'instagram_default_hashtags': "TEXT",
         'instagram_auto_publish_default': "BOOLEAN DEFAULT 0",
+        'meta_pixel_enabled': "BOOLEAN DEFAULT 0",
+        'meta_pixel_pixel_id': "VARCHAR(64)",
+        'meta_pixel_auto_page_view': "BOOLEAN DEFAULT 1",
+        'meta_pixel_track_product_events': "BOOLEAN DEFAULT 1",
+        'meta_pixel_track_cart_events': "BOOLEAN DEFAULT 1",
+        'meta_pixel_track_whatsapp_as_lead': "BOOLEAN DEFAULT 1",
+        'meta_pixel_track_order_created': "BOOLEAN DEFAULT 1",
+        'meta_pixel_test_event_code': "VARCHAR(120)",
     }
-    changed = False
-    for column_name, column_ddl in required_columns.items():
-        if column_name not in names:
-            session.execute(text(f"ALTER TABLE store_settings ADD COLUMN {column_name} {column_ddl}"))
-            changed = True
-    if changed:
+
+    if session.bind.dialect.name == 'sqlite':
+        columns = session.execute(text("PRAGMA table_info('store_settings')")).fetchall()
+        names = {column[1] for column in columns}
+        changed = False
+        for column_name, column_ddl in required_columns.items():
+            if column_name not in names:
+                session.execute(text(f"ALTER TABLE store_settings ADD COLUMN {column_name} {column_ddl}"))
+                changed = True
+        if changed:
+            session.commit()
+        return
+
+    if session.bind.dialect.name.startswith('postgres'):
+        for column_name, column_ddl in required_columns.items():
+            session.execute(
+                text(
+                    f"ALTER TABLE store_settings ADD COLUMN IF NOT EXISTS {column_name} "
+                    f"{_normalize_postgres_column_ddl(column_ddl)}"
+                )
+            )
         session.commit()
 
 

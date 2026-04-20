@@ -1,4 +1,5 @@
 import { API_BASE_URL, buildApiUrl } from '../config/endpoints';
+import { trackMetaPixelFromInternalEvent } from './metaPixelService';
 
 const API_BASE = API_BASE_URL;
 const ADMIN_TOKEN_KEY = 'admin_token';
@@ -98,6 +99,10 @@ export function fetchPublicSettings() {
   return request('/public/settings');
 }
 
+export function fetchPublicMetaPixelConfig() {
+  return request('/public/meta-pixel/config');
+}
+
 export function fetchMostOrderedProducts(limit = 4) {
   return request(`/public/most-ordered?limit=${encodeURIComponent(limit)}`);
 }
@@ -133,6 +138,10 @@ export function trackEvent(payload) {
     if (type === 'send_whatsapp') return 'whatsapp_click';
     return type;
   })();
+  trackMetaPixelFromInternalEvent({
+    ...payload,
+    event_type: normalizedEventType,
+  });
   return request('/events', {
     method: 'POST',
     body: JSON.stringify({
@@ -542,6 +551,23 @@ export function updateAdminInstagramSettings(payload) {
 
 export function testAdminInstagramConnection() {
   return adminRequest('/admin/integrations/instagram/test', {
+    method: 'POST',
+  });
+}
+
+export function fetchAdminMetaPixelConfig() {
+  return adminRequest('/admin/meta-pixel/config');
+}
+
+export function saveAdminMetaPixelConfig(payload) {
+  return adminRequest('/admin/meta-pixel/config', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export function testAdminMetaPixelConfig() {
+  return adminRequest('/admin/meta-pixel/config/test', {
     method: 'POST',
   });
 }

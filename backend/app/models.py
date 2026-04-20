@@ -166,6 +166,14 @@ class StoreSettings(Base):
     instagram_default_caption = Column(Text, nullable=True)
     instagram_default_hashtags = Column(Text, nullable=True)
     instagram_auto_publish_default = Column(Boolean, default=False)
+    meta_pixel_enabled = Column(Boolean, default=False)
+    meta_pixel_pixel_id = Column(String(64), nullable=True)
+    meta_pixel_auto_page_view = Column(Boolean, default=True)
+    meta_pixel_track_product_events = Column(Boolean, default=True)
+    meta_pixel_track_cart_events = Column(Boolean, default=True)
+    meta_pixel_track_whatsapp_as_lead = Column(Boolean, default=True)
+    meta_pixel_track_order_created = Column(Boolean, default=True)
+    meta_pixel_test_event_code = Column(String(120), nullable=True)
 
 
 class ProductReview(Base):

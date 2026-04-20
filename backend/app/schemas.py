@@ -422,6 +422,40 @@ class InstagramConnectionTestResponse(BaseModel):
     account_name: Optional[str] = None
 
 
+class MetaPixelConfigBase(BaseModel):
+    enabled: bool = False
+    pixel_id: Optional[str] = None
+    auto_page_view: bool = True
+    track_product_events: bool = True
+    track_cart_events: bool = True
+    track_whatsapp_as_lead: bool = True
+    track_order_created: bool = True
+    test_event_code: Optional[str] = None
+
+
+class MetaPixelAdminConfigUpdate(MetaPixelConfigBase):
+    pass
+
+
+class MetaPixelAdminConfigResponse(MetaPixelConfigBase):
+    is_valid: bool = False
+
+
+class MetaPixelPublicConfigResponse(BaseModel):
+    enabled: bool = False
+    pixel_id: Optional[str] = None
+    auto_page_view: bool = True
+    track_product_events: bool = True
+    track_cart_events: bool = True
+    track_whatsapp_as_lead: bool = True
+    track_order_created: bool = True
+
+
+class MetaPixelValidationResponse(BaseModel):
+    ok: bool
+    message: str
+
+
 class ProductReviewMediaResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

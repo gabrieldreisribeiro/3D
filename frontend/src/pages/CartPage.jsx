@@ -329,6 +329,9 @@ function CartPage() {
       product_id: null,
       cta_name: isPaid ? 'checkout_pix' : 'checkout_whatsapp_pending',
       metadata_json: {
+        value: total,
+        currency: 'BRL',
+        num_items: items.reduce((sum, item) => sum + Number(item.quantity || 0), 0),
         payment_status: paymentStatus,
         items_count: items.length,
         total,
@@ -364,6 +367,10 @@ function CartPage() {
         cta_name: 'order_created_checkout',
         metadata_json: {
           order_id: order.id,
+          content_ids: items.map((item) => item.slug || String(item.id || '')).filter(Boolean),
+          num_items: items.reduce((sum, item) => sum + Number(item.quantity || 0), 0),
+          value: total,
+          currency: 'BRL',
           payment_status: paymentStatus,
           total,
           items_count: items.length,
@@ -439,6 +446,11 @@ function CartPage() {
         cta_name: 'checkout_send_whatsapp',
         metadata_json: {
           order_id: order.id,
+          content_name: 'checkout_whatsapp',
+          content_ids: items.map((item) => item.slug || String(item.id || '')).filter(Boolean),
+          num_items: totalItems,
+          value: total,
+          currency: 'BRL',
           payment_status: paymentStatus,
           total,
           total_items: totalItems,

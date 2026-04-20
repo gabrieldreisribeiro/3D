@@ -29,6 +29,9 @@ from app.schemas import (
     InstagramSettingsResponse,
     InstagramSettingsUpdate,
     LogoResponse,
+    MetaPixelAdminConfigResponse,
+    MetaPixelAdminConfigUpdate,
+    MetaPixelValidationResponse,
     StoreSettingsResponse,
     StoreSettingsUpdate,
 )
@@ -76,7 +79,13 @@ from app.services.product_service import (
     admin_update_category,
 )
 from app.services.review_service import delete_review, get_review_by_id, list_admin_reviews, set_review_status
-from app.services.settings_service import get_or_create_settings, update_instagram_settings, update_store_settings
+from app.services.settings_service import (
+    get_or_create_settings,
+    is_meta_pixel_config_valid,
+    update_instagram_settings,
+    update_meta_pixel_settings,
+    update_store_settings,
+)
 
 router = APIRouter(prefix='/admin', tags=['admin'])
 
@@ -206,6 +215,65 @@ def instagram_test_connection(_: AdminUser = Depends(require_admin), db: Session
         message=result.get('message') or '',
         account_id=result.get('account_id'),
         account_name=result.get('account_name'),
+    )
+
+
+@router.get('/meta-pixel/config', response_model=MetaPixelAdminConfigResponse)
+def read_meta_pixel_config(_: AdminUser = Depends(require_admin), db: Session = Depends(get_db)):
+    settings = get_or_create_settings(db)
+    return MetaPixelAdminConfigResponse(
+        enabled=bool(settings.meta_pixel_enabled),
+        pixel_id=settings.meta_pixel_pixel_id,
+        auto_page_view=bool(settings.meta_pixel_auto_page_view),
+        track_product_events=bool(settings.meta_pixel_track_product_events),
+        track_cart_events=bool(settings.meta_pixel_track_cart_events),
+        track_whatsapp_as_lead=bool(settings.meta_pixel_track_whatsapp_as_lead),
+        track_order_created=bool(settings.meta_pixel_track_order_created),
+        test_event_code=settings.meta_pixel_test_event_code,
+        is_valid=is_meta_pixel_config_valid(settings),
+    )
+
+
+@router.post('/meta-pixel/config', response_model=MetaPixelAdminConfigResponse)
+def save_meta_pixel_config(
+    payload: MetaPixelAdminConfigUpdate,
+    _: AdminUser = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    settings = update_meta_pixel_settings(
+        db,
+        payload.enabled,
+        payload.pixel_id,
+        payload.auto_page_view,
+        payload.track_product_events,
+        payload.track_cart_events,
+        payload.track_whatsapp_as_lead,
+        payload.track_order_created,
+        payload.test_event_code,
+    )
+    return MetaPixelAdminConfigResponse(
+        enabled=bool(settings.meta_pixel_enabled),
+        pixel_id=settings.meta_pixel_pixel_id,
+        auto_page_view=bool(settings.meta_pixel_auto_page_view),
+        track_product_events=bool(settings.meta_pixel_track_product_events),
+        track_cart_events=bool(settings.meta_pixel_track_cart_events),
+        track_whatsapp_as_lead=bool(settings.meta_pixel_track_whatsapp_as_lead),
+        track_order_created=bool(settings.meta_pixel_track_order_created),
+        test_event_code=settings.meta_pixel_test_event_code,
+        is_valid=is_meta_pixel_config_valid(settings),
+    )
+
+
+@router.post('/meta-pixel/config/test', response_model=MetaPixelValidationResponse)
+def test_meta_pixel_config(_: AdminUser = Depends(require_admin), db: Session = Depends(get_db)):
+    settings = get_or_create_settings(db)
+    if not bool(settings.meta_pixel_enabled):
+        return MetaPixelValidationResponse(ok=False, message='Meta Pixel desativado. Ative para validar a integracao.')
+    if not is_meta_pixel_config_valid(settings):
+        return MetaPixelValidationResponse(ok=False, message='Pixel ID invalido. Informe um ID numerico valido.')
+    return MetaPixelValidationResponse(
+        ok=True,
+        message='Configuracao valida. Use o Meta Pixel Helper no navegador para confirmar os eventos em tempo real.',
     )
 
 

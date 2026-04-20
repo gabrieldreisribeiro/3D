@@ -342,6 +342,11 @@ function ProductPage() {
       product_id: productData.id,
       category_id: productData.category_id ?? null,
       metadata_json: {
+        content_name: productData.title || null,
+        content_ids: [productData.slug || String(productData.id || '')].filter(Boolean),
+        content_type: 'product',
+        value: Number(productData.final_price ?? productData.price ?? 0),
+        currency: 'BRL',
         slug: productData.slug || slug,
       },
     }).catch(() => {});
@@ -503,6 +508,11 @@ function ProductPage() {
       category_id: productData.category_id ?? null,
       cta_name: 'product_customization_whatsapp',
       metadata_json: {
+        content_name: productData.title || null,
+        content_ids: [productData.slug || String(productData.id || '')].filter(Boolean),
+        value: Number(productData.final_price ?? productData.price ?? 0) * Math.max(1, Math.floor(toNumber(quantity || 1))),
+        currency: 'BRL',
+        num_items: Math.max(1, Math.floor(toNumber(quantity || 1))),
         slug: productData.slug || slug,
         quantity: Math.max(1, Math.floor(toNumber(quantity || 1))),
         selected_color: selectedColor || null,

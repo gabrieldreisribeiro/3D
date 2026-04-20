@@ -20,6 +20,18 @@ def _normalize_text(value: str | None) -> str | None:
     return raw or None
 
 
+def _normalize_pixel_id(value: str | None) -> str | None:
+    raw = ''.join(char for char in str(value or '') if char.isdigit())
+    return raw or None
+
+
+def _is_valid_pixel_id(value: str | None) -> bool:
+    pixel_id = _normalize_pixel_id(value)
+    if not pixel_id:
+        return False
+    return 8 <= len(pixel_id) <= 32
+
+
 def get_or_create_settings(db: Session) -> StoreSettings:
     settings = db.query(StoreSettings).first()
     if settings:
@@ -67,3 +79,35 @@ def update_instagram_settings(
     db.commit()
     db.refresh(settings)
     return settings
+
+
+def update_meta_pixel_settings(
+    db: Session,
+    enabled: bool,
+    pixel_id: str | None,
+    auto_page_view: bool,
+    track_product_events: bool,
+    track_cart_events: bool,
+    track_whatsapp_as_lead: bool,
+    track_order_created: bool,
+    test_event_code: str | None,
+) -> StoreSettings:
+    settings = get_or_create_settings(db)
+    settings.meta_pixel_enabled = bool(enabled)
+    settings.meta_pixel_pixel_id = _normalize_pixel_id(pixel_id)
+    settings.meta_pixel_auto_page_view = bool(auto_page_view)
+    settings.meta_pixel_track_product_events = bool(track_product_events)
+    settings.meta_pixel_track_cart_events = bool(track_cart_events)
+    settings.meta_pixel_track_whatsapp_as_lead = bool(track_whatsapp_as_lead)
+    settings.meta_pixel_track_order_created = bool(track_order_created)
+    settings.meta_pixel_test_event_code = _normalize_text(test_event_code)
+    db.add(settings)
+    db.commit()
+    db.refresh(settings)
+    return settings
+
+
+def is_meta_pixel_config_valid(settings: StoreSettings) -> bool:
+    if not settings or not bool(settings.meta_pixel_enabled):
+        return False
+    return _is_valid_pixel_id(settings.meta_pixel_pixel_id)

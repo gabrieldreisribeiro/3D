@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.core.security import get_db
-from app.schemas import BannerResponse, LogoResponse, ProductResponse, StoreSettingsResponse
+from app.schemas import BannerResponse, LogoResponse, MetaPixelPublicConfigResponse, ProductResponse, StoreSettingsResponse
 from app.services.banner_service import list_public_banners
 from app.services.logo_service import get_public_logo_url
 from app.services.order_service import list_most_ordered_products
@@ -11,7 +11,7 @@ from app.services.product_service import (
     parse_secondary_pairs_from_storage,
     parse_sub_items_from_storage,
 )
-from app.services.settings_service import get_or_create_settings
+from app.services.settings_service import get_or_create_settings, is_meta_pixel_config_valid
 
 router = APIRouter(prefix='/public', tags=['public'])
 
@@ -32,6 +32,21 @@ def read_public_settings(db: Session = Depends(get_db)):
     return StoreSettingsResponse(
         whatsapp_number=settings.whatsapp_number,
         pix_key=settings.pix_key,
+    )
+
+
+@router.get('/meta-pixel/config', response_model=MetaPixelPublicConfigResponse)
+def read_public_meta_pixel_config(db: Session = Depends(get_db)):
+    settings = get_or_create_settings(db)
+    pixel_id = str(settings.meta_pixel_pixel_id or '').strip()
+    return MetaPixelPublicConfigResponse(
+        enabled=bool(is_meta_pixel_config_valid(settings)),
+        pixel_id=pixel_id or None,
+        auto_page_view=bool(settings.meta_pixel_auto_page_view),
+        track_product_events=bool(settings.meta_pixel_track_product_events),
+        track_cart_events=bool(settings.meta_pixel_track_cart_events),
+        track_whatsapp_as_lead=bool(settings.meta_pixel_track_whatsapp_as_lead),
+        track_order_created=bool(settings.meta_pixel_track_order_created),
     )
 
 
