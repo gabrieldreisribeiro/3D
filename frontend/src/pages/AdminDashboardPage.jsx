@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import ChartCard from '../components/charts/ChartCard';
 import MiniBarChart from '../components/charts/MiniBarChart';
 import Button from '../components/ui/Button';
@@ -39,6 +39,30 @@ function toDateRange(filterMode, day, month, year) {
   };
 }
 
+function formatMoney(value) {
+  return `R$ ${Number(value || 0).toFixed(2)}`;
+}
+
+function StatList({ items, keyField = 'label', labelField = 'label', valueField = 'value', suffix = '' }) {
+  if (!items?.length) {
+    return <p className="text-sm text-slate-500">Nenhum dado para o periodo selecionado.</p>;
+  }
+
+  return (
+    <ul className="space-y-2 text-sm">
+      {items.map((item) => (
+        <li key={item[keyField]} className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50/70 px-3 py-2.5">
+          <span className="line-clamp-1 text-slate-600">{item[labelField]}</span>
+          <strong className="font-semibold text-slate-900">
+            {item[valueField]}
+            {suffix}
+          </strong>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 function AdminDashboardPage() {
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -50,6 +74,12 @@ function AdminDashboardPage() {
     return `${now.getFullYear()}-${pad(now.getMonth() + 1)}`;
   });
   const [yearFilter, setYearFilter] = useState(() => String(new Date().getFullYear()));
+
+  const periodLabel = useMemo(() => {
+    if (filterMode === 'day') return dayFilter || 'Dia nao selecionado';
+    if (filterMode === 'month') return monthFilter || 'Mes nao selecionado';
+    return yearFilter || 'Ano nao selecionado';
+  }, [filterMode, dayFilter, monthFilter, yearFilter]);
 
   const loadSummary = () => {
     setLoading(true);
@@ -71,15 +101,15 @@ function AdminDashboardPage() {
       <SectionHeader
         eyebrow="Visao geral"
         title="Dashboard"
-        subtitle="Metricas executivas para acompanhar saude comercial"
+        subtitle="Acompanhe desempenho comercial, conversao e comportamento dos usuarios em um unico painel."
       />
 
-      <div className="rounded-xl border border-slate-200 bg-white p-3">
+      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         <div className="admin-filter-bar">
           <select
             value={filterMode}
             onChange={(event) => setFilterMode(event.target.value)}
-            className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-xs text-slate-700 outline-none focus:border-violet-300"
+            className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none transition focus:border-violet-300 focus:ring-2 focus:ring-violet-100"
           >
             <option value="day">Filtrar por dia</option>
             <option value="month">Filtrar por mes</option>
@@ -91,7 +121,7 @@ function AdminDashboardPage() {
               type="date"
               value={dayFilter}
               onChange={(event) => setDayFilter(event.target.value)}
-              className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-xs text-slate-700 outline-none focus:border-violet-300"
+              className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none transition focus:border-violet-300 focus:ring-2 focus:ring-violet-100"
             />
           ) : null}
 
@@ -100,7 +130,7 @@ function AdminDashboardPage() {
               type="month"
               value={monthFilter}
               onChange={(event) => setMonthFilter(event.target.value)}
-              className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-xs text-slate-700 outline-none focus:border-violet-300"
+              className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none transition focus:border-violet-300 focus:ring-2 focus:ring-violet-100"
             />
           ) : null}
 
@@ -111,116 +141,71 @@ function AdminDashboardPage() {
               max="2100"
               value={yearFilter}
               onChange={(event) => setYearFilter(event.target.value)}
-              className="h-9 w-28 rounded-lg border border-slate-200 bg-white px-3 text-xs text-slate-700 outline-none focus:border-violet-300"
+              className="h-10 w-36 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none transition focus:border-violet-300 focus:ring-2 focus:ring-violet-100"
             />
           ) : null}
 
-          <Button variant="secondary" onClick={loadSummary} loading={loading}>
+          <Button variant="secondary" onClick={loadSummary} loading={loading} className="h-10 px-5">
             Aplicar filtro
           </Button>
+          <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+            Periodo: {periodLabel}
+          </span>
         </div>
       </div>
 
-      {loading ? <div className="rounded-xl border border-slate-200 bg-white p-8 text-sm text-slate-500">Carregando...</div> : null}
-      {error ? <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">{error}</div> : null}
+      {loading ? <div className="rounded-2xl border border-slate-200 bg-white p-8 text-sm text-slate-500">Carregando dashboard...</div> : null}
+      {error ? <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">{error}</div> : null}
 
       {!loading && !error && summary ? (
         <>
-          <div className="admin-card-grid-3">
-            <MetricCard label="Produtos ativos" value={summary.total_products} helper="Catalogo publicado" />
-            <MetricCard label="Pedidos" value={summary.total_orders} helper="Pedidos totais" />
-            <MetricCard label="Vendas" value={`R$ ${summary.total_sold.toFixed(2)}`} helper="Valor acumulado" />
-          </div>
-
-          <div className="admin-card-grid-3">
-            <MetricCard label="Itens vendidos" value={summary.total_items_sold || 0} helper="Volume total" />
-            <MetricCard label="Valor estimado" value={`R$ ${(summary.total_sold || 0).toFixed(2)}`} helper="Pedidos confirmados" />
-            <MetricCard label="Conversao carrinho ? WhatsApp" value={`${Number(summary.conversion_add_to_whatsapp || 0).toFixed(2)}%`} helper="Sessoes com add_to_cart x send_whatsapp" />
-          </div>
-
           <div className="admin-card-grid-4">
-            <MetricCard label="Sessoes geolocalizadas" value={summary.geolocated_sessions || 0} helper="Com pais/estado/cidade" />
+            <MetricCard label="Vendas" value={formatMoney(summary.total_sold)} helper="Receita no periodo" />
+            <MetricCard label="Pedidos" value={summary.total_orders || 0} helper="Pedidos confirmados" />
+            <MetricCard label="Itens vendidos" value={summary.total_items_sold || 0} helper="Volume comercializado" />
+            <MetricCard
+              label="Conversao carrinho para WhatsApp"
+              value={`${Number(summary.conversion_add_to_whatsapp || 0).toFixed(2)}%`}
+              helper="AddToCart x SendToWhatsApp"
+            />
           </div>
 
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <div className="admin-card-grid-3">
+            <MetricCard label="Produtos ativos" value={summary.total_products || 0} helper="Catalogo publicado" />
+            <MetricCard label="Sessoes geolocalizadas" value={summary.geolocated_sessions || 0} helper="Com pais, estado e cidade" />
+            <MetricCard label="Ticket medio estimado" value={formatMoney((summary.total_sold || 0) / Math.max(summary.total_orders || 0, 1))} helper="Vendas / pedidos" />
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
             <ChartCard title="Vendas por periodo">
               <MiniBarChart points={summary.sales_series || []} money />
             </ChartCard>
             <ChartCard title="Pedidos por periodo">
               <MiniBarChart points={summary.orders_series || []} />
             </ChartCard>
-            <ChartCard title="Produtos mais vendidos">
-              <ul className="space-y-2 text-sm">
-                {(summary.top_products || []).map((item) => (
-                  <li key={item.title} className="flex items-center justify-between rounded-[10px] border border-slate-100 px-3 py-2">
-                    <span className="text-slate-600">{item.title}</span>
-                    <strong className="font-semibold text-slate-900">{item.quantity} un.</strong>
-                  </li>
-                ))}
-              </ul>
-            </ChartCard>
-            <ChartCard title="Distribuicao de status">
-              <ul className="space-y-2 text-sm">
-                {(summary.order_status || []).map((item) => (
-                  <li key={item.status} className="flex items-center justify-between rounded-[10px] border border-slate-100 px-3 py-2">
-                    <span className="text-slate-600">{item.status}</span>
-                    <strong className="font-semibold text-slate-900">{item.value}</strong>
-                  </li>
-                ))}
-              </ul>
-            </ChartCard>
             <ChartCard title="Funil de conversao">
               <MiniBarChart points={summary.funnel || []} />
             </ChartCard>
+            <ChartCard title="Distribuicao de status">
+              <StatList items={summary.order_status || []} keyField="status" labelField="status" valueField="value" />
+            </ChartCard>
+            <ChartCard title="Produtos mais vendidos">
+              <StatList items={summary.top_products || []} keyField="title" labelField="title" valueField="quantity" suffix=" un." />
+            </ChartCard>
             <ChartCard title="Produtos mais vistos">
-              <ul className="space-y-2 text-sm">
-                {(summary.most_viewed_products || []).map((item) => (
-                  <li key={item.title} className="flex items-center justify-between rounded-[10px] border border-slate-100 px-3 py-2">
-                    <span className="text-slate-600">{item.title}</span>
-                    <strong className="font-semibold text-slate-900">{item.quantity}</strong>
-                  </li>
-                ))}
-              </ul>
+              <StatList items={summary.most_viewed_products || []} keyField="title" labelField="title" valueField="quantity" />
             </ChartCard>
             <ChartCard title="Produtos mais adicionados">
-              <ul className="space-y-2 text-sm">
-                {(summary.most_added_products || []).map((item) => (
-                  <li key={item.title} className="flex items-center justify-between rounded-[10px] border border-slate-100 px-3 py-2">
-                    <span className="text-slate-600">{item.title}</span>
-                    <strong className="font-semibold text-slate-900">{item.quantity}</strong>
-                  </li>
-                ))}
-              </ul>
+              <StatList items={summary.most_added_products || []} keyField="title" labelField="title" valueField="quantity" />
             </ChartCard>
             <ChartCard title="Top paises">
-              <ul className="space-y-2 text-sm">
-                {(summary.top_countries || []).map((item) => (
-                  <li key={item.label} className="flex items-center justify-between rounded-[10px] border border-slate-100 px-3 py-2">
-                    <span className="text-slate-600">{item.label}</span>
-                    <strong className="font-semibold text-slate-900">{item.value}</strong>
-                  </li>
-                ))}
-              </ul>
+              <StatList items={summary.top_countries || []} />
             </ChartCard>
             <ChartCard title="Top estados">
-              <ul className="space-y-2 text-sm">
-                {(summary.top_states || []).map((item) => (
-                  <li key={item.label} className="flex items-center justify-between rounded-[10px] border border-slate-100 px-3 py-2">
-                    <span className="text-slate-600">{item.label}</span>
-                    <strong className="font-semibold text-slate-900">{item.value}</strong>
-                  </li>
-                ))}
-              </ul>
+              <StatList items={summary.top_states || []} />
             </ChartCard>
             <ChartCard title="Top cidades">
-              <ul className="space-y-2 text-sm">
-                {(summary.top_cities || []).map((item) => (
-                  <li key={item.label} className="flex items-center justify-between rounded-[10px] border border-slate-100 px-3 py-2">
-                    <span className="text-slate-600">{item.label}</span>
-                    <strong className="font-semibold text-slate-900">{item.value}</strong>
-                  </li>
-                ))}
-              </ul>
+              <StatList items={summary.top_cities || []} />
             </ChartCard>
           </div>
         </>

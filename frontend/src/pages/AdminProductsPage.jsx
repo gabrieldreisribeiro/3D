@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from 'react';
+﻿import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import Button from '../components/ui/Button';
 import DataCard from '../components/ui/DataCard';
@@ -305,6 +305,18 @@ function getInstagramStatusLabel(status) {
   return 'Nao publicado';
 }
 
+function ProductFormSection({ title, subtitle = null, children }) {
+  return (
+    <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+      <header className="mb-4 border-b border-slate-100 pb-3">
+        <h4 className="text-sm font-semibold tracking-tight text-slate-900">{title}</h4>
+        {subtitle ? <p className="mt-1 text-xs text-slate-500">{subtitle}</p> : null}
+      </header>
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">{children}</div>
+    </section>
+  );
+}
+
 function AdminProductsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [products, setProducts] = useState([]);
@@ -333,6 +345,8 @@ function AdminProductsPage() {
   const [instagramAutoPublishDefault, setInstagramAutoPublishDefault] = useState(false);
   const [publishingInstagramById, setPublishingInstagramById] = useState({});
   const [autoOpenedEditId, setAutoOpenedEditId] = useState(null);
+  const [openActionMenuId, setOpenActionMenuId] = useState(null);
+  const actionMenuRef = useRef(null);
 
   const loadProducts = () => {
     setLoading(true);
@@ -374,6 +388,27 @@ function AdminProductsPage() {
     setSearchParams(nextParams, { replace: true });
   }, [searchParams, products, autoOpenedEditId]);
 
+  useEffect(() => {
+    if (openActionMenuId == null) return undefined;
+
+    const handleClickOutside = (event) => {
+      if (!actionMenuRef.current?.contains(event.target)) {
+        setOpenActionMenuId(null);
+      }
+    };
+
+    const handleEscape = (event) => {
+      if (event.key === 'Escape') setOpenActionMenuId(null);
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    window.addEventListener('keydown', handleEscape);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      window.removeEventListener('keydown', handleEscape);
+    };
+  }, [openActionMenuId]);
+
   const openCreate = () => {
     const shouldResetForm = editingId !== null || modalMode !== 'create';
     setEditingId(null);
@@ -389,6 +424,7 @@ function AdminProductsPage() {
     setProductPairDraft(createEmptyPairDraft());
     setSubItemPairDrafts({});
     setModalMode('create');
+    setOpenActionMenuId(null);
     setIsModalOpen(true);
   };
 
@@ -412,6 +448,7 @@ function AdminProductsPage() {
     setError('');
     setSelectedProduct(product);
     setModalMode('edit');
+    setOpenActionMenuId(null);
     setIsModalOpen(true);
   };
 
@@ -756,18 +793,19 @@ function AdminProductsPage() {
         {loading ? <div className="rounded-xl border border-slate-200 bg-slate-50 p-6 text-sm text-slate-500">Carregando produtos...</div> : null}
         {!loading ? (
           <>
-            <div className="mb-3 admin-filter-bar rounded-xl border border-slate-200 bg-slate-50 p-3">
+            <div className="mb-4 rounded-2xl border border-slate-200 bg-slate-50/80 p-3">
+              <div className="admin-filter-bar">
               <input
                 type="text"
                 value={searchTerm}
                 onChange={(event) => setSearchTerm(event.target.value)}
                 placeholder="Buscar por titulo ou slug"
-                className="h-9 min-w-[220px] flex-1 rounded-lg border border-slate-200 bg-white px-3 text-xs text-slate-700 outline-none focus:border-violet-300"
+                className="h-10 min-w-[220px] flex-1 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none transition focus:border-violet-300 focus:ring-2 focus:ring-violet-100"
               />
               <select
                 value={statusFilter}
                 onChange={(event) => setStatusFilter(event.target.value)}
-                className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-xs text-slate-700 outline-none focus:border-violet-300"
+                className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none transition focus:border-violet-300 focus:ring-2 focus:ring-violet-100"
               >
                 <option value="all">Todos status</option>
                 <option value="active">Ativos</option>
@@ -776,7 +814,7 @@ function AdminProductsPage() {
               <select
                 value={categoryFilter}
                 onChange={(event) => setCategoryFilter(event.target.value)}
-                className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-xs text-slate-700 outline-none focus:border-violet-300"
+                className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none transition focus:border-violet-300 focus:ring-2 focus:ring-violet-100"
               >
                 <option value="all">Todas categorias</option>
                 <option value="none">Sem categoria</option>
@@ -787,12 +825,21 @@ function AdminProductsPage() {
               <select
                 value={itemsPerPage}
                 onChange={(event) => setItemsPerPage(Number(event.target.value))}
-                className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-xs text-slate-700 outline-none focus:border-violet-300"
+                className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none transition focus:border-violet-300 focus:ring-2 focus:ring-violet-100"
               >
                 <option value={10}>10 / pagina</option>
                 <option value={20}>20 / pagina</option>
                 <option value={50}>50 / pagina</option>
               </select>
+              </div>
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+                <p className="text-xs font-medium text-slate-500">
+                  {filteredProducts.length} produto(s) encontrado(s)
+                </p>
+                <Button variant="secondary" className="h-9 px-3 text-xs" onClick={openCreate}>
+                  Novo produto
+                </Button>
+              </div>
             </div>
 
             <Table
@@ -835,23 +882,59 @@ function AdminProductsPage() {
                     </div>
                   </td>
                   <td>
-                    <div className="flex flex-wrap gap-2">
-                      <Button variant="secondary" onClick={() => openEdit(product)}>
-                        Editar
-                      </Button>
-                      <Button
-                        variant="secondary"
-                        loading={Boolean(publishingInstagramById[product.id])}
-                        onClick={() => publishOnInstagram(product.id)}
+                    <div className="relative flex justify-end" ref={openActionMenuId === product.id ? actionMenuRef : null}>
+                      <button
+                        type="button"
+                        onClick={() => setOpenActionMenuId((current) => (current === product.id ? null : product.id))}
+                        className="inline-flex h-9 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
                       >
-                        Publicar Insta
-                      </Button>
-                      <Button variant="ghost" onClick={() => setConfirmTarget(product)}>
-                        {product.is_active ? 'Inativar' : 'Ativar'}
-                      </Button>
-                      <Button variant="danger" onClick={() => setDeleteTarget(product)}>
-                        Excluir
-                      </Button>
+                        Acoes
+                        <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8">
+                          <path d="m5 8 5 5 5-5" />
+                        </svg>
+                      </button>
+                      {openActionMenuId === product.id ? (
+                        <div className="absolute right-0 top-11 z-20 min-w-[210px] rounded-xl border border-slate-200 bg-white p-1.5 shadow-lg">
+                          <button
+                            type="button"
+                            onClick={() => openEdit(product)}
+                            className="flex w-full items-center rounded-lg px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-100"
+                          >
+                            Editar produto
+                          </button>
+                          <button
+                            type="button"
+                            disabled={Boolean(publishingInstagramById[product.id])}
+                            onClick={() => {
+                              publishOnInstagram(product.id);
+                              setOpenActionMenuId(null);
+                            }}
+                            className="flex w-full items-center rounded-lg px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-100 disabled:opacity-60"
+                          >
+                            {publishingInstagramById[product.id] ? 'Publicando...' : 'Publicar no Instagram'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setConfirmTarget(product);
+                              setOpenActionMenuId(null);
+                            }}
+                            className="flex w-full items-center rounded-lg px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-100"
+                          >
+                            {product.is_active ? 'Inativar produto' : 'Ativar produto'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setDeleteTarget(product);
+                              setOpenActionMenuId(null);
+                            }}
+                            className="flex w-full items-center rounded-lg px-3 py-2 text-left text-sm text-rose-600 transition hover:bg-rose-50"
+                          >
+                            Excluir produto
+                          </button>
+                        </div>
+                      ) : null}
                     </div>
                   </td>
                 </tr>
@@ -875,6 +958,7 @@ function AdminProductsPage() {
       <Modal
         open={isModalOpen}
         title={editingId ? 'Editar produto' : 'Novo produto'}
+        subtitle="Organize informacoes por bloco para cadastrar com mais clareza."
         onClose={() => setIsModalOpen(false)}
         size="lg"
         footer={
@@ -888,13 +972,17 @@ function AdminProductsPage() {
           </>
         }
       >
-        <form className="grid grid-cols-1 gap-4 md:grid-cols-2" onSubmit={submitForm}>
+        <form className="space-y-4" onSubmit={submitForm}>
           {selectedProduct?.generated_by_ai ? (
-            <div className="md:col-span-2 rounded-xl border border-violet-200 bg-violet-50 px-3 py-2 text-sm text-violet-700">
+            <div className="rounded-xl border border-violet-200 bg-violet-50 px-3 py-2 text-sm text-violet-700">
               Produto criado a partir de anuncio gerado por IA
               {selectedProduct?.source_ad_generation_id ? ` (geracao #${selectedProduct.source_ad_generation_id}).` : '.'}
             </div>
           ) : null}
+          <ProductFormSection
+            title="Informacoes basicas"
+            subtitle="Dados principais do produto, descricao e configuracao base de preco."
+          >
           <Input label="Titulo" value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} required />
           <Input label="Slug" value={form.slug} onChange={(event) => setForm({ ...form, slug: event.target.value })} required />
           <Select label="Categoria" options={categoryOptions} value={form.category_id} onChange={(event) => setForm({ ...form, category_id: event.target.value })} />
@@ -941,6 +1029,12 @@ function AdminProductsPage() {
             onChange={(event) => setForm({ ...form, short_description: event.target.value })}
             required
           />
+          </ProductFormSection>
+
+          <ProductFormSection
+            title="Midia e conteudo"
+            subtitle="Imagem de capa, galeria e descricao detalhada."
+          >
           <Input
             label="URL da capa"
             value={form.cover_image}
@@ -996,7 +1090,12 @@ function AdminProductsPage() {
             <small className="text-xs text-slate-500">Voce pode misturar links, upload do computador e Ctrl+V no campo acima.</small>
             {uploadingExtraImages ? <small className="text-xs text-slate-500">Enviando imagens extras...</small> : null}
           </label>
+          </ProductFormSection>
 
+          <ProductFormSection
+            title="Producao, custo e personalizacao"
+            subtitle="Controle de prazo, variacoes e calculo de preco."
+          >
           <Input
             label="Tempo de producao (horas)"
             type="number"
@@ -1145,8 +1244,9 @@ function AdminProductsPage() {
               <Input label="Margem de lucro (%)" type="number" min="0" step="0.01" value={form.profit_margin} onChange={(event) => setForm({ ...form, profit_margin: event.target.value })} />
             </>
           ) : null}
+          </ProductFormSection>
 
-          <div className="md:col-span-2 rounded-xl border border-slate-200 p-4">
+          <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
               <h4 className="text-sm font-semibold text-slate-900">Sub itens do anuncio</h4>
               <Button type="button" variant="secondary" onClick={addSubItem}>Adicionar sub item</Button>
@@ -1372,8 +1472,12 @@ function AdminProductsPage() {
                 </div>
               ))}
             </div>
-          </div>
+          </section>
 
+          <ProductFormSection
+            title="Publicacao e status"
+            subtitle="Controle de envio ao Instagram e ativacao do produto."
+          >
           <label className="md:col-span-2 inline-flex items-center gap-2 rounded-[10px] border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
             <input
               type="checkbox"
@@ -1438,6 +1542,7 @@ function AdminProductsPage() {
           ) : null}
 
           {error ? <p className="md:col-span-2 text-sm text-rose-600">{error}</p> : null}
+          </ProductFormSection>
         </form>
       </Modal>
 
@@ -1485,6 +1590,7 @@ function AdminProductsPage() {
 }
 
 export default AdminProductsPage;
+
 
 
 
