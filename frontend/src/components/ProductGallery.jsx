@@ -1,57 +1,33 @@
-import { useMemo, useState } from 'react';
-
 function ProductGallery({ images, selected, onSelect }) {
   const safeImages = (images || []).map((item) => String(item || '').trim()).filter(Boolean);
   const hero = safeImages[selected] || safeImages[0];
-  const [isZoomed, setIsZoomed] = useState(false);
-  const [zoomPos, setZoomPos] = useState({ x: 50, y: 50 });
-
-  const heroStyle = useMemo(
-    () => ({
-      backgroundImage: `url(${hero})`,
-      backgroundSize: isZoomed ? '170%' : 'contain',
-      backgroundRepeat: 'no-repeat',
-      backgroundPosition: `${zoomPos.x}% ${zoomPos.y}%`,
-      cursor: isZoomed ? 'zoom-out' : 'zoom-in',
-    }),
-    [hero, isZoomed, zoomPos.x, zoomPos.y]
-  );
-
-  const handleMouseMove = (event) => {
-    const rect = event.currentTarget.getBoundingClientRect();
-    if (!rect.width || !rect.height) return;
-    const x = ((event.clientX - rect.left) / rect.width) * 100;
-    const y = ((event.clientY - rect.top) / rect.height) * 100;
-    setZoomPos({
-      x: Math.min(100, Math.max(0, x)),
-      y: Math.min(100, Math.max(0, y)),
-    });
-  };
 
   return (
     <div className="space-y-3">
-      <div
-        className={`min-h-[320px] rounded-[16px] border border-[#E6EAF0] bg-white shadow-sm transition-shadow sm:min-h-[430px] lg:min-h-[560px] ${
-          isZoomed ? 'shadow-md' : ''
-        }`}
-        style={heroStyle}
-        onMouseEnter={() => setIsZoomed(true)}
-        onMouseLeave={() => setIsZoomed(false)}
-        onMouseMove={handleMouseMove}
-      />
-      <div className="grid grid-cols-4 gap-2 sm:gap-3">
+      <div className="group relative h-[320px] overflow-hidden rounded-[16px] border border-[#E6EAF0] bg-[#F3F4F6] sm:h-[420px]">
+        <img
+          src={hero}
+          alt="Imagem principal do produto"
+          className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+        />
+      </div>
+
+      <div className="flex gap-3 overflow-x-auto pb-1">
         {safeImages.map((image, index) => (
           <button
             key={`${image}-${index}`}
-            className={`aspect-[4/3] overflow-hidden rounded-xl border bg-white shadow-sm transition hover:border-violet-200 ${
-              index === selected ? 'border-violet-500 ring-2 ring-violet-100' : 'border-[#E6EAF0]'
+            type="button"
+            className={`h-[72px] w-[72px] shrink-0 overflow-hidden rounded-[10px] border-2 bg-white transition-all duration-200 ${
+              index === selected
+                ? 'border-[#6D28D9] shadow-[0_4px_14px_rgba(109,40,217,0.2)]'
+                : 'border-[#E6EAF0] hover:border-violet-300'
             }`}
             onClick={() => onSelect(index)}
           >
             <img
               src={image}
               alt={`Miniatura ${index + 1}`}
-              className="h-full w-full object-contain object-center p-1"
+              className="h-full w-full object-cover transition-transform duration-200 hover:scale-[1.03]"
               loading="lazy"
             />
           </button>

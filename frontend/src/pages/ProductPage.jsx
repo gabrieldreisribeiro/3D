@@ -335,6 +335,7 @@ function ProductPage() {
       })),
     [reviewForm.images]
   );
+  const categoryLabel = String(productData.category_name || productData.category || 'Produto');
 
   useEffect(() => () => {
     reviewImagePreviews.forEach((item) => URL.revokeObjectURL(item.url));
@@ -634,28 +635,28 @@ function ProductPage() {
   ];
 
   return (
-    <section className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-4 py-6 sm:px-6 lg:gap-10 lg:px-8">
-      <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1.65fr)_minmax(340px,1fr)]">
-        <ProductGallery images={galleryImages} selected={selectedImage} onSelect={setSelectedImage} />
+    <section className="mx-auto flex w-full max-w-[1280px] flex-col gap-8 px-4 py-6 sm:px-6 lg:gap-10 lg:px-6">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-12 lg:gap-6">
+        <div className="lg:col-span-7">
+          <ProductGallery images={galleryImages} selected={selectedImage} onSelect={setSelectedImage} />
+        </div>
 
-        <aside className="space-y-4 rounded-[16px] border border-[#E6EAF0] bg-white p-5 shadow-sm">
-          <span className="inline-flex rounded-full border border-[#E6EAF0] bg-[#F8FAFC] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-[#667085]">
-            Produto
-          </span>
-          <h1 className="text-2xl font-bold tracking-tight text-[#111827] sm:text-[32px]">{product.title}</h1>
-          <p className="text-sm leading-7 text-[#667085]">{product.short_description}</p>
+        <aside className="space-y-4 rounded-[16px] border border-[#E6EAF0] bg-white p-5 shadow-[0_8px_24px_rgba(15,23,42,0.07)] lg:col-span-5">
+          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#6B7280]">{categoryLabel}</p>
+          <h1 className="line-clamp-2 text-[24px] font-semibold tracking-tight text-[#111827]">{product.title}</h1>
+          <p className="text-sm leading-6 text-[#6B7280]">{product.short_description}</p>
 
-          <div className="rounded-xl border border-[#E6EAF0] bg-[#F8FAFC] px-4 py-3">
-            <p className="text-xs font-medium uppercase tracking-wide text-[#667085]">Preco</p>
+          <div className="rounded-xl border border-[#E6EAF0] bg-white px-4 py-3">
+            <p className="text-xs font-medium text-[#6B7280]">A partir de</p>
             {isOnSale ? (
               <div className="mt-1">
                 <p className="text-sm font-medium text-[#98A2B3] line-through">R$ {originalPrice.toFixed(2)}</p>
-                <p className="text-3xl font-semibold tracking-tight text-[#16A34A]">
+                <p className="text-[28px] font-bold tracking-tight text-[#16A34A]">
                   {hasSubItems ? `A partir de R$ ${finalPrice.toFixed(2)}` : `R$ ${finalPrice.toFixed(2)}`}
                 </p>
               </div>
             ) : (
-              <p className="mt-1 text-3xl font-semibold tracking-tight text-[#111827]">
+              <p className="mt-1 text-[28px] font-bold tracking-tight text-[#16A34A]">
                 {hasSubItems ? `A partir de R$ ${finalPrice.toFixed(2)}` : `R$ ${finalPrice.toFixed(2)}`}
               </p>
             )}
@@ -664,49 +665,54 @@ function ProductPage() {
                 {productData.promotion_badge}
               </span>
             ) : null}
-            <p className="mt-1 text-xs text-[#667085]">
+            <p className="mt-1 text-xs text-[#6B7280]">
               {hasSubItems ? 'Selecione os itens para calcular o total final.' : 'Valor unitario'}
             </p>
           </div>
 
           {hasSubItems ? (
-            <div className="space-y-3 rounded-xl border border-[#E6EAF0] bg-[#F8FAFC] p-3">
-              <h3 className="text-sm font-semibold text-[#111827]">Monte o seu kit</h3>
+            <div className="space-y-3 rounded-xl border border-[#E6EAF0] bg-[#F9FAFB] p-3.5">
+              <h3 className="text-sm font-semibold text-[#111827]">Personalize seu produto</h3>
               <ul className={`space-y-2 text-sm text-[#667085] ${shouldScrollSubItems ? 'subitems-scroll-wrap' : ''}`}>
                 {product.sub_items.map((item, index) => (
-                  <li key={`${item.title}-${index}`} className="rounded-xl border border-[#E6EAF0] bg-white px-3 py-3">
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                      <div className="flex items-center gap-2">
-                        {item.image_url ? (
-                          <div className="subitem-image-zoom-wrap">
-                            <img src={resolveImageUrl(item.image_url)} alt={item.title} className="subitem-image-zoom" />
-                            <div className="subitem-image-zoom-pop" aria-hidden="true">
-                              <img src={resolveImageUrl(item.image_url)} alt={item.title} className="subitem-image-zoom-pop-img" />
-                            </div>
-                          </div>
-                        ) : null}
-                        <span>{item.title}</span>
-                      </div>
-                      <strong>R$ {getSubItemPrice(item).toFixed(2)}</strong>
-                    </div>
-                    <div className="mt-3 flex flex-wrap items-center gap-2">
-                      <label className="inline-flex items-center gap-2 text-xs font-medium text-slate-600">
+                  <li
+                    key={`${item.title}-${index}`}
+                    className={`rounded-[10px] border px-3 py-2.5 transition-all duration-200 ${
+                      selectedSubItems[getSubItemKey(item, index)]
+                        ? 'border-[#C4B5FD] bg-[#F3E8FF]'
+                        : 'border-[#E6EAF0] bg-white hover:border-violet-200'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <label className="inline-flex items-center">
                         <input
                           type="checkbox"
                           checked={Boolean(selectedSubItems[getSubItemKey(item, index)])}
                           onChange={(event) => handleToggleSubItem(getSubItemKey(item, index), event.target.checked)}
                         />
-                        Selecionar item
                       </label>
-                      <div className={`${selectedSubItems[getSubItemKey(item, index)] ? '' : 'pointer-events-none opacity-60'}`}>
-                        <QuantitySelector
-                          value={Math.max(1, Math.floor(toNumber(subItemQuantities[getSubItemKey(item, index)] || 1)))}
-                          onChange={(value) => handleSubItemQuantity(getSubItemKey(item, index), value)}
-                        />
+                      <div className="flex min-w-0 flex-1 items-center gap-2">
+                        {item.image_url ? (
+                          <img src={resolveImageUrl(item.image_url)} alt={item.title} className="h-10 w-10 rounded-lg border border-[#E6EAF0] object-cover" />
+                        ) : null}
+                        <div className="min-w-0">
+                          <p className="line-clamp-1 text-sm font-medium text-[#111827]">{item.title}</p>
+                          <p className="text-[13px] font-semibold text-[#16A34A]">R$ {getSubItemPrice(item).toFixed(2)}</p>
+                        </div>
                       </div>
-                          <small className="text-xs text-[#667085]">
-                            Prazo: {estimateDaysFromHours(item.lead_time_hours)} dia(s) apos pagamento
-                          </small>
+                      <input
+                        type="number"
+                        min="1"
+                        value={Math.max(1, Math.floor(toNumber(subItemQuantities[getSubItemKey(item, index)] || 1)))}
+                        onChange={(event) => handleSubItemQuantity(getSubItemKey(item, index), event.target.value)}
+                        className={`h-8 w-12 rounded-[8px] border border-[#E6EAF0] bg-white px-1 text-center text-sm text-[#111827] outline-none ${
+                          selectedSubItems[getSubItemKey(item, index)] ? '' : 'pointer-events-none opacity-60'
+                        }`}
+                      />
+                    </div>
+
+                    <div className="mt-2 space-y-2">
+                      <small className="text-xs text-[#667085]">Prazo: {estimateDaysFromHours(item.lead_time_hours)} dia(s) apos pagamento</small>
                       {item.allow_colors && (item.available_colors || []).length > 0 ? (
                         <div className="w-full space-y-2 rounded-[10px] border border-slate-200 bg-white p-2">
                           <p className="text-xs font-semibold text-slate-500">Cor principal</p>
@@ -810,8 +816,9 @@ function ProductPage() {
                 </div>
               ) : null}
 
-              <div className="rounded-[10px] border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700">
-                <strong>Total da composicao: R$ {((finalPrice + selectedSubItemsTotal) * quantity).toFixed(2)}</strong>
+              <div className="rounded-[10px] bg-[#EEF2FF] px-3 py-3 transition-all duration-200">
+                <p className="text-[13px] text-[#6B7280]">Total da composicao</p>
+                <strong className="mt-1 block text-[20px] font-bold text-[#111827]">R$ {((finalPrice + selectedSubItemsTotal) * quantity).toFixed(2)}</strong>
               </div>
               <p className="text-xs text-[#667085]">
                 Prazo estimado: {customizedLeadTimeDays} dia(s) apos confirmacao do pagamento.
@@ -821,7 +828,7 @@ function ProductPage() {
                 <div className="flex items-center gap-2">
                   <QuantitySelector value={quantity} onChange={setQuantity} />
                   <Button
-                    className="h-11 flex-1"
+                    className="h-12 flex-1 rounded-[12px] bg-gradient-to-br from-[#7C3AED] to-[#6D28D9] text-white shadow-[0_8px_18px_rgba(109,40,217,0.24)] transition hover:scale-[1.01] hover:brightness-105"
                     disabled={!canAddCustomized}
                     loading={isAddingCustom}
                     loadingText="Adicionando..."
@@ -832,6 +839,7 @@ function ProductPage() {
                 </div>
                 <Button
                   variant="secondary"
+                  className="h-12 rounded-[12px] border border-[#E6EAF0] bg-transparent text-[#111827]"
                   disabled={!canAddCustomized}
                   loading={isBuyingCustom}
                   loadingText="Adicionando..."
@@ -842,7 +850,7 @@ function ProductPage() {
               </div>
             </div>
           ) : (
-            <div className="space-y-3 rounded-xl border border-[#E6EAF0] bg-[#F8FAFC] p-3">
+            <div className="space-y-3 rounded-xl border border-[#E6EAF0] bg-[#F9FAFB] p-3.5">
               {product.allow_colors && (product.available_colors || []).length > 0 ? (
                 <div className="space-y-2">
                   <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Cor principal do produto</p>
@@ -879,6 +887,10 @@ function ProductPage() {
                 </div>
               ) : null}
 
+              <div className="rounded-[10px] bg-[#EEF2FF] px-3 py-3 transition-all duration-200">
+                <p className="text-[13px] text-[#6B7280]">Total da composicao</p>
+                <strong className="mt-1 block text-[20px] font-bold text-[#111827]">R$ {(finalPrice * quantity).toFixed(2)}</strong>
+              </div>
               <p className="text-xs text-[#667085]">Prazo estimado: {productLeadTimeDays} dia(s) apos confirmacao do pagamento.</p>
               {supportsNamePersonalization ? (
                 <div className="rounded-[10px] border border-slate-200 bg-white p-3">
@@ -907,7 +919,7 @@ function ProductPage() {
                 <div className="flex items-center gap-2">
                   <QuantitySelector value={quantity} onChange={setQuantity} />
                   <Button
-                    className="h-11 flex-1"
+                    className="h-12 flex-1 rounded-[12px] bg-gradient-to-br from-[#7C3AED] to-[#6D28D9] text-white shadow-[0_8px_18px_rgba(109,40,217,0.24)] transition hover:scale-[1.01] hover:brightness-105"
                     loading={isAddingSimple}
                     loadingText="Adicionando..."
                     onClick={() =>
@@ -926,6 +938,7 @@ function ProductPage() {
                 </div>
                 <Button
                   variant="secondary"
+                  className="h-12 rounded-[12px] border border-[#E6EAF0] bg-transparent text-[#111827]"
                   loading={isBuyingSimple}
                   loadingText="Adicionando..."
                   onClick={() => {
@@ -954,6 +967,18 @@ function ProductPage() {
         </aside>
       </div>
 
+      <section className="grid grid-cols-1 gap-3 md:grid-cols-3">
+        {highlightItems.map((item) => (
+          <article key={`highlight-${item.id}`} className="rounded-xl border border-[#E6EAF0] bg-white p-4">
+            <div className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-[#E6EAF0] bg-[#F9FAFB] text-[#475467]">
+              {item.icon}
+            </div>
+            <h3 className="mt-3 text-sm font-semibold text-[#111827]">{item.title}</h3>
+            <p className="mt-1 text-xs leading-6 text-[#667085]">{item.description}</p>
+          </article>
+        ))}
+      </section>
+
       <section className="rounded-[16px] border border-[#E6EAF0] bg-white p-4 shadow-sm sm:p-5 lg:p-6">
         <div className="flex flex-wrap items-center gap-2 border-b border-[#E6EAF0] pb-3">
           <button
@@ -969,37 +994,33 @@ function ProductPage() {
           </button>
           <button
             type="button"
-            onClick={() => setActiveDetailTab('highlights')}
+            onClick={() => setActiveDetailTab('specs')}
             className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
-              activeDetailTab === 'highlights'
+              activeDetailTab === 'specs'
                 ? 'border-violet-500 bg-violet-50 text-violet-700'
                 : 'border-slate-200 bg-white text-slate-600 hover:border-violet-200 hover:text-violet-700'
             }`}
           >
-            Destaques
+            Especificacoes
           </button>
         </div>
 
         {activeDetailTab === 'description' ? (
           <p className="mt-4 whitespace-pre-line text-sm leading-8 text-slate-600">{product.full_description}</p>
         ) : (
-          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <ul className="mt-4 space-y-2 text-sm leading-7 text-[#374151]">
             {highlightItems.map((item) => (
-              <article key={item.id} className="rounded-xl border border-slate-100 bg-slate-50 p-3">
-                <div className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600">
-                  {item.icon}
-                </div>
-                <h3 className="mt-3 text-sm font-semibold text-slate-900">{item.title}</h3>
-                <p className="mt-1 text-xs leading-6 text-slate-600">{item.description}</p>
-              </article>
+              <li key={`spec-${item.id}`} className="rounded-xl border border-[#E6EAF0] bg-[#F9FAFB] px-3 py-2">
+                <strong className="text-[#111827]">{item.title}:</strong> {item.description}
+              </li>
             ))}
-          </div>
+          </ul>
         )}
       </section>
 
       <section className="space-y-3">
         <div>
-          <h2 className="text-[28px] font-bold tracking-tight text-[#111827]">Relacionados</h2>
+          <h2 className="text-[20px] font-semibold tracking-tight text-[#111827]">Relacionados</h2>
           <p className="mt-1 text-sm text-[#667085]">Sugestoes para complementar seu pedido.</p>
         </div>
         <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
