@@ -974,15 +974,12 @@ function ProductPage() {
 
       <section className="grid grid-cols-1 gap-3 md:grid-cols-3">
         {highlightItems.map((item) => (
-          <article
-            key={`highlight-${item.id}`}
-            className="rounded-2xl border border-[#E4E8EF] bg-[#F6F7FB] px-5 py-4"
-          >
-            <div className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-[#E0E5ED] bg-white text-[#7A3FB0]">
+          <article key={`highlight-${item.id}`} className="rounded-xl border border-[#E6EAF0] bg-white p-4">
+            <div className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-[#E6EAF0] bg-[#F9FAFB] text-[#475467]">
               {item.icon}
             </div>
-            <h3 className="mt-3 text-[18px] font-semibold leading-tight text-[#2A2F3A]">{item.title}</h3>
-            <p className="mt-2 text-[14px] leading-[1.35] text-[#535B6C]">{item.description}</p>
+            <h3 className="mt-3 text-sm font-semibold text-[#111827]">{item.title}</h3>
+            <p className="mt-1 text-xs leading-6 text-[#667085]">{item.description}</p>
           </article>
         ))}
       </section>
