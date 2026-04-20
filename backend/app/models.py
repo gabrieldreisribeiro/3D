@@ -296,6 +296,17 @@ class HighlightItem(Base):
     is_active = Column(Boolean, default=True, index=True)
     created_at = Column(DateTime, nullable=False, server_default=func.now())
     updated_at = Column(DateTime, nullable=False, server_default=func.now(), onupdate=func.now())
+
+
+class PublicationDraft(Base):
+    __tablename__ = 'publication_drafts'
+
+    id = Column(Integer, primary_key=True, index=True)
+    entity_type = Column(String(40), nullable=False, index=True)
+    entity_id = Column(Integer, nullable=True, index=True)
+    action = Column(String(20), nullable=False, default='update')
+    payload_json = Column(Text, nullable=False, default='{}')
+    created_at = Column(DateTime, nullable=False, server_default=func.now())
     updated_at = Column(DateTime, nullable=False, server_default=func.now(), onupdate=func.now())
 
 

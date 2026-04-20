@@ -26,14 +26,23 @@ import AdminLeadsConversionPage from './pages/AdminLeadsConversionPage';
 import AdminUploadsPage from './pages/AdminUploadsPage';
 import AdminMetaPixelPage from './pages/AdminMetaPixelPage';
 import AdminPromotionsPage from './pages/AdminPromotionsPage';
-import { trackEvent } from './services/api';
+import AdminHighlightsPage from './pages/AdminHighlightsPage';
+import AdminPublicationPage from './pages/AdminPublicationPage';
+import { getAdminToken, trackEvent } from './services/api';
+
+function PreviewGuard({ children }) {
+  const hasToken = Boolean(getAdminToken());
+  if (!hasToken) return <Navigate to="/painel-interno/login" replace />;
+  return children;
+}
 
 function AppContent() {
   const location = useLocation();
   const isAdminRoute = location.pathname.startsWith('/painel-interno');
+  const isPreviewRoute = location.pathname.startsWith('/preview');
 
   useEffect(() => {
-    if (isAdminRoute) return;
+    if (isAdminRoute || isPreviewRoute) return;
     trackEvent({
       event_type: 'page_view',
       metadata_json: {
@@ -41,7 +50,7 @@ function AppContent() {
         query: location.search || '',
       },
     }).catch(() => {});
-  }, [isAdminRoute, location.pathname, location.search]);
+  }, [isAdminRoute, isPreviewRoute, location.pathname, location.search]);
 
   if (isAdminRoute) {
     return (
@@ -57,9 +66,11 @@ function AppContent() {
             <Route path="cupons" element={<AdminCouponsPage />} />
             <Route path="promocoes" element={<AdminPromotionsPage />} />
             <Route path="banners" element={<AdminBannersPage />} />
+            <Route path="highlights" element={<AdminHighlightsPage />} />
             <Route path="configuracoes" element={<AdminSettingsPage />} />
             <Route path="instagram" element={<AdminInstagramPage />} />
             <Route path="meta-pixel" element={<AdminMetaPixelPage />} />
+            <Route path="publicacao" element={<AdminPublicationPage />} />
             <Route path="anuncios-ia" element={<AdminAdsPage />} />
             <Route path="leads-conversao" element={<AdminLeadsConversionPage />} />
             <Route path="banco" element={<AdminDatabasePage />} />
@@ -78,6 +89,9 @@ function AppContent() {
         <Route path="/" element={<HomePage />} />
         <Route path="/product/:slug" element={<ProductPage />} />
         <Route path="/cart" element={<CartPage />} />
+        <Route path="/preview" element={<PreviewGuard><HomePage /></PreviewGuard>} />
+        <Route path="/preview/product/:slug" element={<PreviewGuard><ProductPage /></PreviewGuard>} />
+        <Route path="/preview/cart" element={<PreviewGuard><CartPage /></PreviewGuard>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </AppShell>

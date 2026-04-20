@@ -133,6 +133,8 @@ class BannerResponse(BaseModel):
     is_active: bool
     show_in_carousel: bool
     created_at: Optional[datetime]
+    publication_status: Optional[str] = None
+    draft_id: Optional[int] = None
 
 
 class HighlightItemBase(BaseModel):
@@ -162,6 +164,8 @@ class HighlightItemResponse(BaseModel):
     is_active: bool
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
+    publication_status: Optional[str] = None
+    draft_id: Optional[int] = None
 
 class AdminProductBase(BaseModel):
     title: str = Field(..., min_length=2, max_length=160)
@@ -252,6 +256,8 @@ class AdminProductResponse(BaseModel):
     is_draft: bool
     generated_by_ai: bool
     source_ad_generation_id: Optional[int]
+    publication_status: Optional[str] = None
+    draft_id: Optional[int] = None
 
 class CouponRequest(BaseModel):
     code: str
@@ -332,6 +338,26 @@ class PromotionResponse(BaseModel):
     affected_products_count: int = 0
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
+    publication_status: Optional[str] = None
+    draft_id: Optional[int] = None
+
+
+class PublicationPendingItemResponse(BaseModel):
+    draft_id: int
+    entity_type: str
+    entity_id: Optional[int] = None
+    action: str
+    status: str
+    title: str
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+
+class PublicationActionResponse(BaseModel):
+    ok: bool = True
+    message: str = ''
+    published_count: int = 0
+    published_at: Optional[str] = None
 
 class OrderItemCreate(BaseModel):
     model_config = ConfigDict(extra='ignore')

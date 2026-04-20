@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, NavLink, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, NavLink, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { fetchPublicLogo, resolveAssetUrl, trackEvent } from '../services/api';
 import { useCart } from '../services/cart';
 import { getLogoSizeConfig, getLogoSizeKey } from '../services/logoSettings';
@@ -19,6 +19,9 @@ function Header() {
   const [logoUrl, setLogoUrl] = useState(null);
   const [logoSizeKey, setLogoSizePreference] = useState(getLogoSizeKey());
   const navigate = useNavigate();
+  const location = useLocation();
+  const isPreview = location.pathname.startsWith('/preview');
+  const previewPrefix = isPreview ? '/preview' : '';
 
   const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
 
@@ -46,7 +49,7 @@ function Header() {
       cta_name: 'header_search_submit',
       metadata_json: { query: value },
     }).catch(() => {});
-    navigate(value ? `/?q=${encodeURIComponent(value)}` : '/');
+    navigate(value ? `${previewPrefix}/?q=${encodeURIComponent(value)}` : `${previewPrefix}/`);
   };
 
   const logoSize = getLogoSizeConfig(logoSizeKey);
@@ -54,7 +57,7 @@ function Header() {
   return (
     <header className="sticky top-0 z-50 border-b border-[#E6EAF0] bg-white shadow-[0_3px_14px_rgba(15,23,42,0.06)]">
       <div className="mx-auto grid h-[74px] w-full max-w-7xl grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 px-4 sm:gap-4 sm:px-6 lg:px-8">
-        <Link to="/" className="flex min-w-[124px] items-center">
+        <Link to={`${previewPrefix}/`} className="flex min-w-[124px] items-center">
           {logoUrl ? (
             <img
               src={logoUrl}
@@ -91,7 +94,7 @@ function Header() {
 
         <div className="flex items-center gap-2">
           <NavLink
-            to="/"
+            to={`${previewPrefix}/`}
             end
             className={({ isActive }) =>
               `hidden rounded-[10px] px-3 py-2 text-xs font-semibold transition md:inline-flex ${
@@ -102,7 +105,7 @@ function Header() {
             Inicio
           </NavLink>
           <NavLink
-            to="/cart"
+            to={`${previewPrefix}/cart`}
             className={({ isActive }) =>
               `inline-flex items-center gap-2 rounded-[10px] border px-3 py-2 text-xs font-semibold transition ${
                 isActive
@@ -129,7 +132,7 @@ function Header() {
           {marketNav.map((item) => (
             <a
               key={item.label}
-              href={item.to}
+              href={isPreview && item.to.startsWith('/') ? `${previewPrefix}${item.to}` : item.to}
               className="whitespace-nowrap rounded-[10px] px-3 py-1.5 font-medium transition hover:bg-white hover:text-[#111827]"
             >
               {item.label}

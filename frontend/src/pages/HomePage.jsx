@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import Button from '../components/ui/Button';
 import Modal from '../components/ui/Modal';
 import ProductCard from '../components/ProductCard';
@@ -25,6 +25,7 @@ const fallbackSlides = [
 
 function HomePage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -47,6 +48,8 @@ function HomePage() {
   const { addToCart } = useCart();
   const filterPopoverRef = useRef(null);
   const query = (searchParams.get('q') || '').trim().toLowerCase();
+  const isPreview = location.pathname.startsWith('/preview');
+  const previewPrefix = isPreview ? '/preview' : '';
 
   useEffect(() => {
     fetchPublicBanners()
@@ -226,7 +229,11 @@ function HomePage() {
               <p className="mt-3 max-w-xl text-sm text-white/90 sm:text-base">{visibleBanner.subtitle}</p>
               <div className="mt-5">
                 <Link
-                  to={visibleBanner.target_url || '/#catalogo'}
+                  to={
+                    visibleBanner.target_url?.startsWith('/')
+                      ? `${previewPrefix}${visibleBanner.target_url}`
+                      : (visibleBanner.target_url || `${previewPrefix}/#catalogo`)
+                  }
                   onClick={() => {
                     trackEvent({
                       event_type: 'banner_click',
@@ -533,7 +540,7 @@ function HomePage() {
             <Button
               onClick={() => {
                 setIsAddedModalOpen(false);
-                navigate('/cart');
+                navigate(`${previewPrefix}/cart`);
               }}
             >
               Finalizar compra

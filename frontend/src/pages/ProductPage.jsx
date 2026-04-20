@@ -1,5 +1,5 @@
-﻿import { useEffect, useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import ProductGallery from '../components/ProductGallery';
 import ProductCard from '../components/ProductCard';
 import QuantitySelector from '../components/QuantitySelector';
@@ -8,6 +8,7 @@ import Modal from '../components/ui/Modal';
 import {
   createProductReview,
   fetchProduct,
+  fetchPublicHighlightItems,
   fetchPublicSettings,
   fetchProductReviews,
   fetchProductReviewSummary,
@@ -17,6 +18,7 @@ import {
 } from '../services/api';
 import { WHATSAPP_NUMBER } from '../config/endpoints';
 import { useCart } from '../services/cart';
+import { renderHighlightIcon } from '../constants/highlightIcons';
 
 function toNumber(value) {
   const numeric = Number(value ?? 0);
@@ -151,6 +153,8 @@ function getAvatarTone(name) {
 function ProductPage() {
   const { slug } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  const previewPrefix = location.pathname.startsWith('/preview') ? '/preview' : '';
   const [product, setProduct] = useState(null);
   const [related, setRelated] = useState([]);
   const [quantity, setQuantity] = useState(1);
@@ -186,6 +190,7 @@ function ProductPage() {
   const [reviewSubmitting, setReviewSubmitting] = useState(false);
   const [reviewFormError, setReviewFormError] = useState('');
   const [reviewSubmitNotice, setReviewSubmitNotice] = useState('');
+  const [dynamicHighlightItems, setDynamicHighlightItems] = useState([]);
   const [reviewForm, setReviewForm] = useState({
     author_name: '',
     rating: 0,
@@ -216,11 +221,17 @@ function ProductPage() {
         setReviewPage(1);
         setReviewSubmitNotice('');
       })
-      .catch(() => navigate('/'))
+      .catch(() => navigate(`${previewPrefix}/`))
       .finally(() => setLoading(false));
 
     fetchProducts().then((items) => setRelated(items.filter((item) => item.slug !== slug).slice(0, 3)));
   }, [slug, navigate]);
+
+  useEffect(() => {
+    fetchPublicHighlightItems()
+      .then((items) => setDynamicHighlightItems(Array.isArray(items) ? items : []))
+      .catch(() => setDynamicHighlightItems([]));
+  }, []);
 
   useEffect(() => {
     fetchPublicSettings()
@@ -471,7 +482,7 @@ function ProductPage() {
       selectedSecondaryColor: selectedSecondaryColor || null,
       namePersonalizations: supportsNamePersonalization ? namePersonalizations : [],
     });
-    if (goToCart) navigate('/cart');
+    if (goToCart) navigate(`${previewPrefix}/cart`);
     return true;
   };
 
@@ -596,7 +607,7 @@ function ProductPage() {
     }
   };
 
-  const highlightItems = [
+  const fallbackHighlightItems = [
     {
       id: 'custom',
       title: hasSubItems ? 'Configuracao personalizada' : 'Produto pronto para uso',
@@ -633,6 +644,15 @@ function ProductPage() {
       ),
     },
   ];
+
+  const highlightItems = dynamicHighlightItems.length
+    ? dynamicHighlightItems.map((item) => ({
+      id: item.id,
+      title: item.title,
+      description: item.description,
+      icon: renderHighlightIcon(item.icon_name, 'h-4 w-4'),
+    }))
+    : fallbackHighlightItems;
 
   return (
     <section className="mx-auto flex w-full max-w-[1280px] flex-col gap-8 px-4 py-6 sm:px-6 lg:gap-10 lg:px-6">
@@ -954,7 +974,7 @@ function ProductPage() {
                         selectedSubItems: [],
                         namePersonalizations: supportsNamePersonalization ? namePersonalizations : [],
                       });
-                      navigate('/cart');
+                      navigate(`${previewPrefix}/cart`);
                     });
                   }}
                 >
@@ -1069,7 +1089,7 @@ function ProductPage() {
             <div className="space-y-2 rounded-xl border border-slate-200 bg-white p-3">
               {ratingDistribution.map((item) => (
                 <div key={`distribution-${item.star}`} className="grid grid-cols-[40px_1fr_36px] items-center gap-2">
-                  <span className="text-xs text-slate-600">{item.star}★</span>
+                  <span className="text-xs text-slate-600">{item.star}?</span>
                   <div className="h-2 overflow-hidden rounded-full bg-slate-100">
                     <div className="h-full rounded-full bg-amber-300 transition-all" style={{ width: `${item.percentage}%` }} />
                   </div>
@@ -1398,4 +1418,5 @@ function ProductPage() {
 }
 
 export default ProductPage;
+
 

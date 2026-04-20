@@ -83,3 +83,16 @@ def require_admin(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Acesso negado')
 
     return admin
+
+
+def get_optional_admin(
+    credentials: HTTPAuthorizationCredentials = Depends(auth_scheme),
+    db: Session = Depends(get_db),
+) -> AdminUser | None:
+    if not credentials or credentials.scheme.lower() != 'bearer':
+        return None
+    try:
+        admin_id = parse_admin_token(credentials.credentials)
+    except HTTPException:
+        return None
+    return db.query(AdminUser).filter(AdminUser.id == admin_id, AdminUser.is_active == True).first()

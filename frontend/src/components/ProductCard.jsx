@@ -1,10 +1,13 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import RatingPill from './RatingPill';
 import Button from './ui/Button';
 import { resolveAssetUrl, trackEvent } from '../services/api';
 
 function ProductCard({ product, onAdd, highlightLabel = '', compact = false }) {
+  const location = useLocation();
+  const previewPrefix = location.pathname.startsWith('/preview') ? '/preview' : '';
+  const productLink = `${previewPrefix}/product/${product.slug}`;
   const [isAdding, setIsAdding] = useState(false);
   const price = Number(product.final_price ?? product.price ?? 0);
   const originalPrice = Number(product.original_price ?? product.price ?? product.final_price ?? 0);
@@ -49,7 +52,7 @@ function ProductCard({ product, onAdd, highlightLabel = '', compact = false }) {
 
   return (
     <article className={`product-card-pro ${compact ? 'product-card-pro-compact' : ''}`}>
-      <Link to={`/product/${product.slug}`} className="product-card-image-link" onClick={handleProductClick}>
+      <Link to={productLink} className="product-card-image-link" onClick={handleProductClick}>
         <div className="product-card-image-wrap">
           <div className="product-card-image" style={{ backgroundImage: `url(${coverImageUrl})` }} />
           {badgeLabel ? <span className="product-card-badge">{badgeLabel}</span> : null}
@@ -57,7 +60,7 @@ function ProductCard({ product, onAdd, highlightLabel = '', compact = false }) {
       </Link>
 
       <div className="product-card-body">
-        <Link to={`/product/${product.slug}`} className="product-card-title-link" onClick={handleProductClick}>
+        <Link to={productLink} className="product-card-title-link" onClick={handleProductClick}>
           <h3>{product.title}</h3>
         </Link>
         <p className="product-card-desc">{product.short_description}</p>
@@ -85,7 +88,7 @@ function ProductCard({ product, onAdd, highlightLabel = '', compact = false }) {
 
         <div className="product-card-actions">
           {hasSubItems ? (
-            <Link to={`/product/${product.slug}`}>
+            <Link to={productLink}>
               <Button className="product-card-cta">Monte o seu</Button>
             </Link>
           ) : (

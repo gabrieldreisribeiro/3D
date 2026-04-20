@@ -6,6 +6,16 @@ const ADMIN_TOKEN_KEY = 'admin_token';
 const CLIENT_FP_KEY = 'client_fingerprint';
 const SESSION_ID_KEY = 'session_id';
 
+function isPreviewMode() {
+  if (typeof window === 'undefined') return false;
+  return window.location.pathname.startsWith('/preview');
+}
+
+function previewPath(path, adminPreviewPath) {
+  if (!isPreviewMode()) return path;
+  return adminPreviewPath || path;
+}
+
 function getClientFingerprint() {
   if (typeof window === 'undefined') return '';
   try {
@@ -38,11 +48,14 @@ export function getSessionId() {
 async function request(path, options = {}) {
   const fingerprint = getClientFingerprint();
   const sessionId = getSessionId();
+  const token = localStorage.getItem(ADMIN_TOKEN_KEY);
+  const isPreviewRequest = isPreviewMode();
   const response = await fetch(buildApiUrl(path), {
     headers: {
       'Content-Type': 'application/json',
       ...(fingerprint ? { 'X-Client-Fingerprint': fingerprint } : {}),
       ...(sessionId ? { 'X-Session-Id': sessionId } : {}),
+      ...(isPreviewRequest && token ? { Authorization: `Bearer ${token}` } : {}),
     },
     ...options,
   });
@@ -92,7 +105,7 @@ export function fetchPublicLogo() {
 }
 
 export function fetchPublicBanners() {
-  return request('/public/banners');
+  return request(previewPath('/public/banners', '/admin/publication/preview/banners'));
 }
 
 export function fetchPublicSettings() {
@@ -104,11 +117,13 @@ export function fetchPublicMetaPixelConfig() {
 }
 
 export function fetchPublicHighlightItems() {
-  return request('/public/highlight-items');
+  return request(previewPath('/public/highlight-items', '/admin/publication/preview/highlight-items'));
 }
 
 export function fetchMostOrderedProducts(limit = 4) {
-  return request(`/public/most-ordered?limit=${encodeURIComponent(limit)}`);
+  const defaultPath = `/public/most-ordered?limit=${encodeURIComponent(limit)}`;
+  const previewEndpoint = `/admin/publication/preview/most-ordered?limit=${encodeURIComponent(limit)}`;
+  return request(previewPath(defaultPath, previewEndpoint));
 }
 
 export function fetchCategories() {
@@ -116,14 +131,15 @@ export function fetchCategories() {
 }
 
 export function fetchProducts(category = null) {
+  const baseProductsPath = previewPath('/products', '/admin/publication/preview/products');
   if (category) {
-    return request(`/products?category=${encodeURIComponent(category)}`);
+    return request(`${baseProductsPath}?category=${encodeURIComponent(category)}`);
   }
-  return request('/products');
+  return request(baseProductsPath);
 }
 
 export function fetchProduct(slug) {
-  return request(`/products/${slug}`);
+  return request(previewPath(`/products/${slug}`, `/admin/publication/preview/products/${slug}`));
 }
 
 export function trackEvent(payload) {
@@ -823,6 +839,32 @@ export function updateAdminBanner(id, payload) {
 export function deleteAdminBanner(id) {
   return adminRequest(`/admin/banners/${id}`, {
     method: 'DELETE',
+  });
+}
+
+export function fetchAdminPublicationPending() {
+  return adminRequest('/admin/publication/pending');
+}
+
+export function fetchAdminPublicationPreviewData() {
+  return adminRequest('/admin/publication/preview-data');
+}
+
+export function publishAllAdminDrafts() {
+  return adminRequest('/admin/publication/publish', {
+    method: 'POST',
+  });
+}
+
+export function publishAdminDraft(entityType, entityId) {
+  return adminRequest(`/admin/publication/publish/${encodeURIComponent(entityType)}/${encodeURIComponent(entityId)}`, {
+    method: 'POST',
+  });
+}
+
+export function discardAdminDraft(entityType, entityId) {
+  return adminRequest(`/admin/publication/discard/${encodeURIComponent(entityType)}/${encodeURIComponent(entityId)}`, {
+    method: 'POST',
   });
 }
 

@@ -1,4 +1,4 @@
-﻿
+import json
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
@@ -20,6 +20,7 @@ from app.schemas import (
     AdminProductCreate,
     AdminProductResponse,
     AdminProductUpdate,
+    ProductResponse,
     AdminReviewListResponse,
     AdminReviewResponse,
     BannerCreate,
@@ -36,6 +37,8 @@ from app.schemas import (
     MetaPixelAdminConfigUpdate,
     MetaPixelValidationResponse,
     PromotionCreate,
+    PublicationActionResponse,
+    PublicationPendingItemResponse,
     PromotionResponse,
     PromotionUpdate,
     StoreSettingsResponse,
@@ -100,6 +103,28 @@ from app.services.promotion_service import (
     serialize_promotion,
     toggle_promotion,
     update_promotion,
+)
+from app.services.publication_service import (
+    build_preview_banners,
+    build_preview_highlights,
+    build_preview_most_ordered_products,
+    build_preview_product_by_slug,
+    build_preview_products,
+    build_preview_promotions,
+    discard_draft_by_entity_and_id,
+    find_draft_by_id,
+    get_pending_publication_items,
+    list_admin_banners_with_drafts,
+    list_admin_highlights_with_drafts,
+    list_admin_products_with_drafts,
+    list_admin_promotions_with_drafts,
+    list_entity_create_drafts,
+    get_draft_payload,
+    publish_all_drafts,
+    publish_draft,
+    publish_draft_by_entity_and_id,
+    save_draft,
+    serialize_product_payload_for_draft,
 )
 from app.services.review_service import delete_review, get_review_by_id, list_admin_reviews, set_review_status
 from app.services.settings_service import (
@@ -349,8 +374,7 @@ def dashboard_summary(
 
 @router.get('/products', response_model=list[AdminProductResponse])
 def list_admin_products(_: AdminUser = Depends(require_admin), db: Session = Depends(get_db)):
-    products = admin_list_products(db)
-    return [_serialize_product(product) for product in products]
+    return list_admin_products_with_drafts(db)
 
 
 @router.post('/products', response_model=AdminProductResponse)
@@ -359,13 +383,14 @@ def create_admin_product(payload: AdminProductCreate, _: AdminUser = Depends(req
     payload.slug = slug
     if admin_slug_exists(db, slug):
         raise HTTPException(status_code=400, detail='Slug ja esta em uso')
-
-    try:
-        product = admin_create_product(db, payload)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-    return _serialize_product(product)
+    draft = save_draft(
+        db,
+        entity_type='product',
+        action='create',
+        payload=payload.model_dump(mode='json'),
+    )
+    products = list_admin_products_with_drafts(db)
+    return next((item for item in products if int(item.get('id', 0)) == -int(draft.id)), products[0] if products else {})
 
 
 @router.put('/products/{product_id}', response_model=AdminProductResponse)
@@ -376,20 +401,35 @@ def update_admin_product(
     db: Session = Depends(get_db),
 ):
     product = admin_get_product_by_id(db, product_id)
-    if not product:
-        raise HTTPException(status_code=404, detail='Produto nao encontrado')
-
     slug = payload.slug.strip().lower()
     payload.slug = slug
+    if product_id < 0:
+        draft = find_draft_by_id(db, abs(product_id))
+        if not draft or draft.entity_type != 'product' or draft.action != 'create':
+            raise HTTPException(status_code=404, detail='Rascunho de produto nao encontrado')
+        if admin_slug_exists(db, slug):
+            raise HTTPException(status_code=400, detail='Slug ja esta em uso')
+        draft.payload_json = json.dumps(payload.model_dump(mode='json'), ensure_ascii=False)
+        db.add(draft)
+        db.commit()
+        db.refresh(draft)
+        products = list_admin_products_with_drafts(db)
+        return next((item for item in products if int(item.get('id', 0)) == -int(draft.id)), products[0] if products else {})
+
+    if not product:
+        raise HTTPException(status_code=404, detail='Produto nao encontrado')
     if admin_slug_exists(db, slug, ignore_id=product_id):
         raise HTTPException(status_code=400, detail='Slug ja esta em uso')
 
-    try:
-        product = admin_update_product(db, product, payload)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-    return _serialize_product(product)
+    save_draft(
+        db,
+        entity_type='product',
+        entity_id=product_id,
+        action='update',
+        payload=payload.model_dump(mode='json'),
+    )
+    products = list_admin_products_with_drafts(db)
+    return next((item for item in products if int(item.get('id', 0)) == int(product_id)), products[0] if products else {})
 
 
 @router.patch('/products/{product_id}/status', response_model=AdminProductResponse)
@@ -399,12 +439,26 @@ def set_product_status(
     _: AdminUser = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
+    if product_id < 0:
+        draft = find_draft_by_id(db, abs(product_id))
+        if not draft or draft.entity_type != 'product':
+            raise HTTPException(status_code=404, detail='Rascunho de produto nao encontrado')
+        payload = get_draft_payload(draft)
+        payload['is_active'] = bool(is_active)
+        draft.payload_json = json.dumps(payload, ensure_ascii=False)
+        db.add(draft)
+        db.commit()
+        products = list_admin_products_with_drafts(db)
+        return next((item for item in products if int(item.get('id', 0)) == int(product_id)), products[0] if products else {})
+
     product = admin_get_product_by_id(db, product_id)
     if not product:
         raise HTTPException(status_code=404, detail='Produto nao encontrado')
-
-    product = admin_set_product_status(db, product, is_active)
-    return _serialize_product(product)
+    payload = serialize_product_payload_for_draft(product)
+    payload['is_active'] = bool(is_active)
+    save_draft(db, entity_type='product', entity_id=product_id, action='update', payload=payload)
+    products = list_admin_products_with_drafts(db)
+    return next((item for item in products if int(item.get('id', 0)) == int(product_id)), products[0] if products else {})
 
 
 @router.post('/products/{product_id}/instagram/publish', response_model=AdminProductResponse)
@@ -465,10 +519,18 @@ def delete_category(category_id: int, _: AdminUser = Depends(require_admin), db:
 
 @router.delete('/products/{product_id}', status_code=204)
 def delete_product(product_id: int, _: AdminUser = Depends(require_admin), db: Session = Depends(get_db)):
+    if product_id < 0:
+        draft = find_draft_by_id(db, abs(product_id))
+        if not draft or draft.entity_type != 'product':
+            raise HTTPException(status_code=404, detail='Rascunho de produto nao encontrado')
+        db.delete(draft)
+        db.commit()
+        return
+
     product = admin_get_product_by_id(db, product_id)
     if not product:
         raise HTTPException(status_code=404, detail='Produto nao encontrado')
-    admin_delete_product(db, product)
+    save_draft(db, entity_type='product', entity_id=product_id, action='delete', payload={})
 
 
 @router.get('/reviews', response_model=AdminReviewListResponse)
@@ -605,8 +667,7 @@ def delete_coupon(coupon_id: int, _: AdminUser = Depends(require_admin), db: Ses
 
 @router.get('/promotions', response_model=list[PromotionResponse])
 def list_admin_promotions(_: AdminUser = Depends(require_admin), db: Session = Depends(get_db)):
-    promotions = list_promotions(db)
-    return [serialize_promotion(db, promotion) for promotion in promotions]
+    return list_admin_promotions_with_drafts(db)
 
 
 @router.post('/promotions', response_model=PromotionResponse)
@@ -615,8 +676,9 @@ def create_admin_promotion(
     _: AdminUser = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
-    promotion = create_promotion(db, payload)
-    return serialize_promotion(db, promotion)
+    draft = save_draft(db, entity_type='promotion', action='create', payload=payload.model_dump(mode='json'))
+    promotions = list_admin_promotions_with_drafts(db)
+    return next((item for item in promotions if int(item.get('id', 0)) == -int(draft.id)), promotions[0] if promotions else {})
 
 
 @router.put('/promotions/{promotion_id}', response_model=PromotionResponse)
@@ -626,11 +688,21 @@ def update_admin_promotion(
     _: AdminUser = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
+    if promotion_id < 0:
+        draft = find_draft_by_id(db, abs(promotion_id))
+        if not draft or draft.entity_type != 'promotion' or draft.action != 'create':
+            raise HTTPException(status_code=404, detail='Rascunho de promocao nao encontrado')
+        draft.payload_json = json.dumps(payload.model_dump(mode='json'), ensure_ascii=False)
+        db.add(draft)
+        db.commit()
+        promotions = list_admin_promotions_with_drafts(db)
+        return next((item for item in promotions if int(item.get('id', 0)) == int(promotion_id)), promotions[0] if promotions else {})
     promotion = get_promotion_by_id(db, promotion_id)
     if not promotion:
         raise HTTPException(status_code=404, detail='Promocao nao encontrada')
-    promotion = update_promotion(db, promotion, payload)
-    return serialize_promotion(db, promotion)
+    save_draft(db, entity_type='promotion', entity_id=promotion_id, action='update', payload=payload.model_dump(mode='json'))
+    promotions = list_admin_promotions_with_drafts(db)
+    return next((item for item in promotions if int(item.get('id', 0)) == int(promotion_id)), promotions[0] if promotions else {})
 
 
 @router.patch('/promotions/{promotion_id}/toggle', response_model=PromotionResponse)
@@ -640,11 +712,25 @@ def toggle_admin_promotion(
     _: AdminUser = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
+    if promotion_id < 0:
+        draft = find_draft_by_id(db, abs(promotion_id))
+        if not draft or draft.entity_type != 'promotion':
+            raise HTTPException(status_code=404, detail='Rascunho de promocao nao encontrado')
+        payload = get_draft_payload(draft)
+        payload['is_active'] = bool(is_active)
+        draft.payload_json = json.dumps(payload, ensure_ascii=False)
+        db.add(draft)
+        db.commit()
+        promotions = list_admin_promotions_with_drafts(db)
+        return next((item for item in promotions if int(item.get('id', 0)) == int(promotion_id)), promotions[0] if promotions else {})
     promotion = get_promotion_by_id(db, promotion_id)
     if not promotion:
         raise HTTPException(status_code=404, detail='Promocao nao encontrada')
-    promotion = toggle_promotion(db, promotion, is_active=is_active)
-    return serialize_promotion(db, promotion)
+    payload = serialize_promotion(db, promotion)
+    payload['is_active'] = bool(is_active)
+    save_draft(db, entity_type='promotion', entity_id=promotion_id, action='update', payload=payload)
+    promotions = list_admin_promotions_with_drafts(db)
+    return next((item for item in promotions if int(item.get('id', 0)) == int(promotion_id)), promotions[0] if promotions else {})
 
 
 @router.delete('/promotions/{promotion_id}', status_code=204)
@@ -653,20 +739,29 @@ def delete_admin_promotion(
     _: AdminUser = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
+    if promotion_id < 0:
+        draft = find_draft_by_id(db, abs(promotion_id))
+        if not draft or draft.entity_type != 'promotion':
+            raise HTTPException(status_code=404, detail='Rascunho de promocao nao encontrado')
+        db.delete(draft)
+        db.commit()
+        return
     promotion = get_promotion_by_id(db, promotion_id)
     if not promotion:
         raise HTTPException(status_code=404, detail='Promocao nao encontrada')
-    delete_promotion(db, promotion)
+    save_draft(db, entity_type='promotion', entity_id=promotion_id, action='delete', payload={})
 
 
 @router.get('/banners', response_model=list[BannerResponse])
 def list_banners(_: AdminUser = Depends(require_admin), db: Session = Depends(get_db)):
-    return list_admin_banners(db)
+    return list_admin_banners_with_drafts(db)
 
 
 @router.post('/banners', response_model=BannerResponse)
 def create_banner_endpoint(payload: BannerCreate, _: AdminUser = Depends(require_admin), db: Session = Depends(get_db)):
-    return create_banner(db, payload)
+    draft = save_draft(db, entity_type='banner', action='create', payload=payload.model_dump(mode='json'))
+    rows = list_admin_banners_with_drafts(db)
+    return next((item for item in rows if int(item.get('id', 0)) == -int(draft.id)), rows[0] if rows else {})
 
 
 @router.put('/banners/{banner_id}', response_model=BannerResponse)
@@ -676,23 +771,41 @@ def update_banner_endpoint(
     _: AdminUser = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
+    if banner_id < 0:
+        draft = find_draft_by_id(db, abs(banner_id))
+        if not draft or draft.entity_type != 'banner' or draft.action != 'create':
+            raise HTTPException(status_code=404, detail='Rascunho de banner nao encontrado')
+        draft.payload_json = json.dumps(payload.model_dump(mode='json'), ensure_ascii=False)
+        db.add(draft)
+        db.commit()
+        rows = list_admin_banners_with_drafts(db)
+        return next((item for item in rows if int(item.get('id', 0)) == int(banner_id)), rows[0] if rows else {})
     banner = get_banner(db, banner_id)
     if not banner:
         raise HTTPException(status_code=404, detail='Banner nao encontrado')
-    return update_banner(db, banner, payload)
+    save_draft(db, entity_type='banner', entity_id=banner_id, action='update', payload=payload.model_dump(mode='json'))
+    rows = list_admin_banners_with_drafts(db)
+    return next((item for item in rows if int(item.get('id', 0)) == int(banner_id)), rows[0] if rows else {})
 
 
 @router.delete('/banners/{banner_id}', status_code=204)
 def delete_banner_endpoint(banner_id: int, _: AdminUser = Depends(require_admin), db: Session = Depends(get_db)):
+    if banner_id < 0:
+        draft = find_draft_by_id(db, abs(banner_id))
+        if not draft or draft.entity_type != 'banner':
+            raise HTTPException(status_code=404, detail='Rascunho de banner nao encontrado')
+        db.delete(draft)
+        db.commit()
+        return
     banner = get_banner(db, banner_id)
     if not banner:
         raise HTTPException(status_code=404, detail='Banner nao encontrado')
-    delete_banner(db, banner)
+    save_draft(db, entity_type='banner', entity_id=banner_id, action='delete', payload={})
 
 
 @router.get('/highlight-items', response_model=list[HighlightItemResponse])
 def list_highlight_items(_: AdminUser = Depends(require_admin), db: Session = Depends(get_db)):
-    return list_admin_highlight_items(db)
+    return list_admin_highlights_with_drafts(db)
 
 
 @router.post('/highlight-items', response_model=HighlightItemResponse)
@@ -701,7 +814,9 @@ def create_highlight_item_endpoint(
     _: AdminUser = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
-    return create_highlight_item(db, payload)
+    draft = save_draft(db, entity_type='highlight', action='create', payload=payload.model_dump(mode='json'))
+    rows = list_admin_highlights_with_drafts(db)
+    return next((item for item in rows if int(item.get('id', 0)) == -int(draft.id)), rows[0] if rows else {})
 
 
 @router.put('/highlight-items/{item_id}', response_model=HighlightItemResponse)
@@ -711,10 +826,21 @@ def update_highlight_item_endpoint(
     _: AdminUser = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
+    if item_id < 0:
+        draft = find_draft_by_id(db, abs(item_id))
+        if not draft or draft.entity_type != 'highlight' or draft.action != 'create':
+            raise HTTPException(status_code=404, detail='Rascunho de card de destaque nao encontrado')
+        draft.payload_json = json.dumps(payload.model_dump(mode='json'), ensure_ascii=False)
+        db.add(draft)
+        db.commit()
+        rows = list_admin_highlights_with_drafts(db)
+        return next((item for item in rows if int(item.get('id', 0)) == int(item_id)), rows[0] if rows else {})
     item = get_highlight_item_by_id(db, item_id)
     if not item:
         raise HTTPException(status_code=404, detail='Card de destaque nao encontrado')
-    return update_highlight_item(db, item, payload)
+    save_draft(db, entity_type='highlight', entity_id=item_id, action='update', payload=payload.model_dump(mode='json'))
+    rows = list_admin_highlights_with_drafts(db)
+    return next((item for item in rows if int(item.get('id', 0)) == int(item_id)), rows[0] if rows else {})
 
 
 @router.patch('/highlight-items/{item_id}/toggle', response_model=HighlightItemResponse)
@@ -724,10 +850,30 @@ def toggle_highlight_item_endpoint(
     _: AdminUser = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
+    if item_id < 0:
+        draft = find_draft_by_id(db, abs(item_id))
+        if not draft or draft.entity_type != 'highlight':
+            raise HTTPException(status_code=404, detail='Rascunho de card de destaque nao encontrado')
+        payload = get_draft_payload(draft)
+        payload['is_active'] = bool(is_active)
+        draft.payload_json = json.dumps(payload, ensure_ascii=False)
+        db.add(draft)
+        db.commit()
+        rows = list_admin_highlights_with_drafts(db)
+        return next((item for item in rows if int(item.get('id', 0)) == int(item_id)), rows[0] if rows else {})
     item = get_highlight_item_by_id(db, item_id)
     if not item:
         raise HTTPException(status_code=404, detail='Card de destaque nao encontrado')
-    return set_highlight_item_status(db, item, is_active)
+    payload = {
+        'title': item.title,
+        'description': item.description,
+        'icon_name': item.icon_name,
+        'sort_order': item.sort_order,
+        'is_active': bool(is_active),
+    }
+    save_draft(db, entity_type='highlight', entity_id=item_id, action='update', payload=payload)
+    rows = list_admin_highlights_with_drafts(db)
+    return next((item for item in rows if int(item.get('id', 0)) == int(item_id)), rows[0] if rows else {})
 
 
 @router.delete('/highlight-items/{item_id}', status_code=204)
@@ -736,7 +882,105 @@ def delete_highlight_item_endpoint(
     _: AdminUser = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
+    if item_id < 0:
+        draft = find_draft_by_id(db, abs(item_id))
+        if not draft or draft.entity_type != 'highlight':
+            raise HTTPException(status_code=404, detail='Rascunho de card de destaque nao encontrado')
+        db.delete(draft)
+        db.commit()
+        return
     item = get_highlight_item_by_id(db, item_id)
     if not item:
         raise HTTPException(status_code=404, detail='Card de destaque nao encontrado')
-    delete_highlight_item(db, item)
+    save_draft(db, entity_type='highlight', entity_id=item_id, action='delete', payload={})
+
+
+@router.get('/publication/pending', response_model=list[PublicationPendingItemResponse])
+def list_publication_pending(_: AdminUser = Depends(require_admin), db: Session = Depends(get_db)):
+    return get_pending_publication_items(db)
+
+
+@router.get('/publication/preview-data')
+def get_publication_preview_data(_: AdminUser = Depends(require_admin), db: Session = Depends(get_db)):
+    return {
+        'products': build_preview_products(db),
+        'banners': build_preview_banners(db),
+        'highlight_items': build_preview_highlights(db),
+        'promotions': build_preview_promotions(db),
+    }
+
+
+@router.post('/publication/publish', response_model=PublicationActionResponse)
+def publish_all_publication(_: AdminUser = Depends(require_admin), db: Session = Depends(get_db)):
+    result = publish_all_drafts(db)
+    return PublicationActionResponse(
+        ok=bool(result.get('ok')),
+        message='Publicacao concluida com sucesso.' if result.get('ok') else 'Falha na publicacao.',
+        published_count=int(result.get('published_count') or 0),
+        published_at=result.get('published_at'),
+    )
+
+
+@router.post('/publication/publish/{entity}/{entity_id}', response_model=PublicationActionResponse)
+def publish_entity_publication(
+    entity: str,
+    entity_id: int,
+    _: AdminUser = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    ok = publish_draft_by_entity_and_id(db, entity, entity_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail='Rascunho pendente nao encontrado para publicacao.')
+    return PublicationActionResponse(ok=True, message='Publicado com sucesso.', published_count=1, published_at=datetime.utcnow().isoformat())
+
+
+@router.post('/publication/discard/{entity}/{entity_id}', response_model=PublicationActionResponse)
+def discard_entity_publication(
+    entity: str,
+    entity_id: int,
+    _: AdminUser = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    ok = discard_draft_by_entity_and_id(db, entity, entity_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail='Rascunho pendente nao encontrado para descarte.')
+    return PublicationActionResponse(ok=True, message='Rascunho descartado com sucesso.', published_count=0)
+
+
+@router.get('/publication/preview/banners', response_model=list[BannerResponse])
+def preview_banners(_: AdminUser = Depends(require_admin), db: Session = Depends(get_db)):
+    return build_preview_banners(db)
+
+
+@router.get('/publication/preview/highlight-items', response_model=list[HighlightItemResponse])
+def preview_highlight_items(_: AdminUser = Depends(require_admin), db: Session = Depends(get_db)):
+    return build_preview_highlights(db)
+
+
+@router.get('/publication/preview/products', response_model=list[ProductResponse])
+def preview_products(
+    category: str | None = Query(default=None),
+    _: AdminUser = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    return build_preview_products(db, category_slug=category)
+
+
+@router.get('/publication/preview/products/{slug}', response_model=ProductResponse)
+def preview_product_by_slug(slug: str, _: AdminUser = Depends(require_admin), db: Session = Depends(get_db)):
+    product = build_preview_product_by_slug(db, slug)
+    if not product:
+        raise HTTPException(status_code=404, detail='Produto nao encontrado')
+    return product
+
+
+@router.get('/publication/preview/most-ordered', response_model=list[ProductResponse])
+def preview_most_ordered_products(
+    limit: int = Query(default=4, ge=1, le=12),
+    _: AdminUser = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    return build_preview_most_ordered_products(db, limit=limit)
+
+
+
