@@ -283,6 +283,19 @@ class UploadedImage(Base):
     size_bytes = Column(Integer, nullable=False, default=0)
     base64_data = Column(Text, nullable=False)
     created_at = Column(DateTime, nullable=False, server_default=func.now())
+
+
+class HighlightItem(Base):
+    __tablename__ = 'highlight_items'
+
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String(180), nullable=False)
+    description = Column(Text, nullable=False)
+    icon_name = Column(String(60), nullable=False)
+    sort_order = Column(Integer, nullable=False, default=1, index=True)
+    is_active = Column(Boolean, default=True, index=True)
+    created_at = Column(DateTime, nullable=False, server_default=func.now())
+    updated_at = Column(DateTime, nullable=False, server_default=func.now(), onupdate=func.now())
     updated_at = Column(DateTime, nullable=False, server_default=func.now(), onupdate=func.now())
 
 

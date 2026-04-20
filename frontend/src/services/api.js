@@ -103,6 +103,10 @@ export function fetchPublicMetaPixelConfig() {
   return request('/public/meta-pixel/config');
 }
 
+export function fetchPublicHighlightItems() {
+  return request('/public/highlight-items');
+}
+
 export function fetchMostOrderedProducts(limit = 4) {
   return request(`/public/most-ordered?limit=${encodeURIComponent(limit)}`);
 }
@@ -573,6 +577,36 @@ export function saveAdminMetaPixelConfig(payload) {
 export function testAdminMetaPixelConfig() {
   return adminRequest('/admin/meta-pixel/config/test', {
     method: 'POST',
+  });
+}
+
+export function fetchAdminHighlightItems() {
+  return adminRequest('/admin/highlight-items');
+}
+
+export function createAdminHighlightItem(payload) {
+  return adminRequest('/admin/highlight-items', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export function updateAdminHighlightItem(itemId, payload) {
+  return adminRequest(`/admin/highlight-items/${itemId}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  });
+}
+
+export function setAdminHighlightItemStatus(itemId, isActive) {
+  return adminRequest(`/admin/highlight-items/${itemId}/toggle?is_active=${isActive}`, {
+    method: 'PATCH',
+  });
+}
+
+export function deleteAdminHighlightItem(itemId) {
+  return adminRequest(`/admin/highlight-items/${itemId}`, {
+    method: 'DELETE',
   });
 }
 

@@ -3,7 +3,7 @@
 from app.core.config import SEED_DEFAULT_ADMIN, SEED_SAMPLE_DATA
 from app.core.security import hash_password
 from app.db.session import Base, SessionLocal, engine
-from app.models import AdminUser, Banner, Category, Coupon, Product, ProductReview, StoreSettings
+from app.models import AdminUser, Banner, Category, Coupon, HighlightItem, Product, ProductReview, StoreSettings
 
 PRODUCTS = [
 ]
@@ -15,6 +15,30 @@ COUPONS = [
 ]
 
 BANNERS = [
+]
+
+HIGHLIGHTS = [
+    {
+        'title': 'Pronto para uso',
+        'description': 'Design premium com acabamento impecavel',
+        'icon_name': 'badge-check',
+        'sort_order': 1,
+        'is_active': True,
+    },
+    {
+        'title': 'Envio rapido',
+        'description': 'Prazo de 1 dia apos confirmacao do pagamento',
+        'icon_name': 'clock',
+        'sort_order': 2,
+        'is_active': True,
+    },
+    {
+        'title': 'Compra segura',
+        'description': 'Checkout protegido e suporte em todo o processo',
+        'icon_name': 'shield',
+        'sort_order': 3,
+        'is_active': True,
+    },
 ]
 
 
@@ -373,6 +397,10 @@ def init_db() -> None:
         if SEED_SAMPLE_DATA and session.query(Banner).count() == 0:
             for banner in BANNERS:
                 session.add(Banner(**banner))
+
+        if session.query(HighlightItem).count() == 0:
+            for item in HIGHLIGHTS:
+                session.add(HighlightItem(**item))
 
         if SEED_DEFAULT_ADMIN and session.query(AdminUser).filter_by(email='admin@admin.com').first() is None:
             session.add(

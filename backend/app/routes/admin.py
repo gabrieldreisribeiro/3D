@@ -25,6 +25,9 @@ from app.schemas import (
     BannerCreate,
     BannerResponse,
     BannerUpdate,
+    HighlightItemCreate,
+    HighlightItemResponse,
+    HighlightItemUpdate,
     InstagramConnectionTestResponse,
     InstagramSettingsResponse,
     InstagramSettingsUpdate,
@@ -49,6 +52,14 @@ from app.services.coupon_service import (
 )
 from app.services.banner_service import create_banner, delete_banner, get_banner, list_admin_banners, update_banner
 from app.services.banner_upload_service import save_banner_image
+from app.services.highlight_service import (
+    create_highlight_item,
+    delete_highlight_item,
+    get_highlight_item_by_id,
+    list_admin_highlight_items,
+    set_highlight_item_status,
+    update_highlight_item,
+)
 from app.services.analytics_service import analytics_funnel, analytics_products, analytics_summary, parse_period
 from app.services.logo_service import save_logo
 from app.services.product_upload_service import save_product_image
@@ -677,3 +688,55 @@ def delete_banner_endpoint(banner_id: int, _: AdminUser = Depends(require_admin)
     if not banner:
         raise HTTPException(status_code=404, detail='Banner nao encontrado')
     delete_banner(db, banner)
+
+
+@router.get('/highlight-items', response_model=list[HighlightItemResponse])
+def list_highlight_items(_: AdminUser = Depends(require_admin), db: Session = Depends(get_db)):
+    return list_admin_highlight_items(db)
+
+
+@router.post('/highlight-items', response_model=HighlightItemResponse)
+def create_highlight_item_endpoint(
+    payload: HighlightItemCreate,
+    _: AdminUser = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    return create_highlight_item(db, payload)
+
+
+@router.put('/highlight-items/{item_id}', response_model=HighlightItemResponse)
+def update_highlight_item_endpoint(
+    item_id: int,
+    payload: HighlightItemUpdate,
+    _: AdminUser = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    item = get_highlight_item_by_id(db, item_id)
+    if not item:
+        raise HTTPException(status_code=404, detail='Card de destaque nao encontrado')
+    return update_highlight_item(db, item, payload)
+
+
+@router.patch('/highlight-items/{item_id}/toggle', response_model=HighlightItemResponse)
+def toggle_highlight_item_endpoint(
+    item_id: int,
+    is_active: bool,
+    _: AdminUser = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    item = get_highlight_item_by_id(db, item_id)
+    if not item:
+        raise HTTPException(status_code=404, detail='Card de destaque nao encontrado')
+    return set_highlight_item_status(db, item, is_active)
+
+
+@router.delete('/highlight-items/{item_id}', status_code=204)
+def delete_highlight_item_endpoint(
+    item_id: int,
+    _: AdminUser = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    item = get_highlight_item_by_id(db, item_id)
+    if not item:
+        raise HTTPException(status_code=404, detail='Card de destaque nao encontrado')
+    delete_highlight_item(db, item)

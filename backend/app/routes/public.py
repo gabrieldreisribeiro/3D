@@ -2,8 +2,9 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.core.security import get_db
-from app.schemas import BannerResponse, LogoResponse, MetaPixelPublicConfigResponse, ProductResponse, StoreSettingsResponse
+from app.schemas import BannerResponse, HighlightItemResponse, LogoResponse, MetaPixelPublicConfigResponse, ProductResponse, StoreSettingsResponse
 from app.services.banner_service import list_public_banners
+from app.services.highlight_service import list_public_highlight_items
 from app.services.logo_service import get_public_logo_url
 from app.services.order_service import list_most_ordered_products
 from app.services.product_service import (
@@ -49,6 +50,11 @@ def read_public_meta_pixel_config(db: Session = Depends(get_db)):
         track_whatsapp_as_lead=bool(settings.meta_pixel_track_whatsapp_as_lead),
         track_order_created=bool(settings.meta_pixel_track_order_created),
     )
+
+
+@router.get('/highlight-items', response_model=list[HighlightItemResponse])
+def read_public_highlight_items(db: Session = Depends(get_db)):
+    return list_public_highlight_items(db)
 
 
 @router.get('/most-ordered', response_model=list[ProductResponse])

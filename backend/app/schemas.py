@@ -134,6 +134,35 @@ class BannerResponse(BaseModel):
     show_in_carousel: bool
     created_at: Optional[datetime]
 
+
+class HighlightItemBase(BaseModel):
+    title: str = Field(..., min_length=1, max_length=180)
+    description: str = Field(..., min_length=1, max_length=1000)
+    icon_name: str = Field(..., min_length=2, max_length=60)
+    sort_order: int = Field(default=1, ge=1, le=3)
+    is_active: bool = True
+
+
+class HighlightItemCreate(HighlightItemBase):
+    pass
+
+
+class HighlightItemUpdate(HighlightItemBase):
+    pass
+
+
+class HighlightItemResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    title: str
+    description: str
+    icon_name: str
+    sort_order: int
+    is_active: bool
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
 class AdminProductBase(BaseModel):
     title: str = Field(..., min_length=2, max_length=160)
     slug: str = Field(..., min_length=2, max_length=160)
