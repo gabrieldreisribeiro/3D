@@ -31,31 +31,27 @@ function ProductGallery({ images, selected, onSelect }) {
   return (
     <div className="space-y-3">
       <div
-        className={`h-[320px] overflow-hidden rounded-[16px] border border-[#E6EAF0] bg-[#F3F4F6] transition-shadow sm:h-[420px] ${
-          isZoomed ? 'shadow-md' : 'shadow-sm'
+        className={`min-h-[320px] rounded-2xl border border-slate-100 bg-slate-50 shadow-sm transition-shadow sm:min-h-[420px] lg:min-h-[560px] ${
+          isZoomed ? 'shadow-md' : ''
         }`}
         style={heroStyle}
         onMouseEnter={() => setIsZoomed(true)}
         onMouseLeave={() => setIsZoomed(false)}
         onMouseMove={handleMouseMove}
       />
-
-      <div className="flex gap-3 overflow-x-auto pb-1">
+      <div className="grid grid-cols-4 gap-2 sm:gap-3">
         {safeImages.map((image, index) => (
           <button
             key={`${image}-${index}`}
-            type="button"
-            className={`h-[72px] w-[72px] shrink-0 overflow-hidden rounded-[10px] border-2 bg-white transition-all duration-200 ${
-              index === selected
-                ? 'border-[#6D28D9] shadow-[0_4px_14px_rgba(109,40,217,0.2)]'
-                : 'border-[#E6EAF0] hover:border-violet-300'
+            className={`aspect-[4/3] overflow-hidden rounded-xl border bg-slate-50 shadow-sm transition hover:border-violet-200 ${
+              index === selected ? 'border-violet-500 ring-2 ring-violet-100' : 'border-slate-200'
             }`}
             onClick={() => onSelect(index)}
           >
             <img
               src={image}
               alt={`Miniatura ${index + 1}`}
-              className="h-full w-full object-cover transition-transform duration-200 hover:scale-[1.03]"
+              className="h-full w-full object-contain object-center p-1"
               loading="lazy"
             />
           </button>

@@ -6,111 +6,15 @@ from app.db.session import Base, SessionLocal, engine
 from app.models import AdminUser, Banner, Category, Coupon, Product, ProductReview, StoreSettings
 
 PRODUCTS = [
-    {
-        'title': 'Estatueta Eliptica',
-        'slug': 'estatueta-eliptica',
-        'short_description': 'Escultura organica de design contemporaneo.',
-        'full_description': 'Peca ideal para decoracao, com linhas suaves e acabamento premium para ambientes sofisticados.',
-        'price': 159.9,
-        'cover_image': 'https://images.unsplash.com/photo-1524758631624-e2822e304c36?auto=format&fit=crop&w=900&q=60',
-        'images': [
-            'https://images.unsplash.com/photo-1524758631624-e2822e304c36?auto=format&fit=crop&w=900&q=60',
-            'https://images.unsplash.com/photo-1519681393784-d120267933ba?auto=format&fit=crop&w=900&q=60',
-            'https://images.unsplash.com/photo-1494253109108-2e30c049369b?auto=format&fit=crop&w=900&q=60',
-        ],
-        'rating_average': 4.8,
-        'rating_count': 32,
-        'category_slug': 'decoracao',
-    },
-    {
-        'title': 'Lampada Modular',
-        'slug': 'lampada-modular',
-        'short_description': 'Iluminacao arquitetonica para mesas e escritorios.',
-        'full_description': 'Design modular que permite combinacoes personalizadas com impressao 3D de qualidade e acabamento suave.',
-        'price': 249.0,
-        'cover_image': 'https://images.unsplash.com/photo-1494422651185-0817bf8bef2f?auto=format&fit=crop&w=900&q=60',
-        'images': [
-            'https://images.unsplash.com/photo-1494422651185-0817bf8bef2f?auto=format&fit=crop&w=900&q=60',
-            'https://images.unsplash.com/photo-1512242342754-62a9d0f86d56?auto=format&fit=crop&w=900&q=60',
-            'https://images.unsplash.com/photo-1512446733611-9099a758e703?auto=format&fit=crop&w=900&q=60',
-        ],
-        'rating_average': 4.7,
-        'rating_count': 28,
-        'category_slug': 'iluminacao',
-    },
-    {
-        'title': 'Organizador Linear',
-        'slug': 'organizador-linear',
-        'short_description': 'Solucao limpa para mesa de trabalho e estudio.',
-        'full_description': 'Organizador eficiente com compartimentos para canetas, cabos e componentes, perfeito para estudios criativos.',
-        'price': 79.5,
-        'cover_image': 'https://images.unsplash.com/photo-1495214783159-3503fd1b572d?auto=format&fit=crop&w=900&q=60',
-        'images': [
-            'https://images.unsplash.com/photo-1495214783159-3503fd1b572d?auto=format&fit=crop&w=900&q=60',
-            'https://images.unsplash.com/photo-1505964259824-e2f6e438e838?auto=format&fit=crop&w=900&q=60',
-            'https://images.unsplash.com/photo-1497366754035-f200968a6e72?auto=format&fit=crop&w=900&q=60',
-        ],
-        'rating_average': 4.6,
-        'rating_count': 21,
-        'category_slug': 'organizacao',
-    },
-    {
-        'title': 'Suporte Curvo',
-        'slug': 'suporte-curvo',
-        'short_description': 'Peca funcional com estetica futurista.',
-        'full_description': 'Suporte para eletronicos ou decoracoes, com curvas suaves e excelente encaixe para itens delicados.',
-        'price': 129.0,
-        'cover_image': 'https://images.unsplash.com/photo-1545239704-bf25a8246f6b?auto=format&fit=crop&w=900&q=60',
-        'images': [
-            'https://images.unsplash.com/photo-1545239704-bf25a8246f6b?auto=format&fit=crop&w=900&q=60',
-            'https://images.unsplash.com/photo-1497366754035-f200968a6e72?auto=format&fit=crop&w=900&q=60',
-            'https://images.unsplash.com/photo-1512436991641-6745cdb1723f?auto=format&fit=crop&w=900&q=60',
-        ],
-        'rating_average': 4.9,
-        'rating_count': 44,
-        'category_slug': 'suportes',
-    },
 ]
 
 CATEGORIES = [
-    {'name': 'Decoracao', 'slug': 'decoracao', 'is_active': True},
-    {'name': 'Iluminacao', 'slug': 'iluminacao', 'is_active': True},
-    {'name': 'Organizacao', 'slug': 'organizacao', 'is_active': True},
-    {'name': 'Suportes', 'slug': 'suportes', 'is_active': True},
 ]
 
 COUPONS = [
-    {'code': 'DESCONTO10', 'type': 'percent', 'value': 10.0, 'is_active': True},
 ]
 
 BANNERS = [
-    {
-        'title': 'Colecao Premium 3D',
-        'subtitle': 'Modelos autorais para ambientes criativos',
-        'image_url': 'https://images.unsplash.com/photo-1519710164239-da123dc03ef4?auto=format&fit=crop&w=1800&q=70',
-        'target_url': '/',
-        'sort_order': 1,
-        'is_active': True,
-        'show_in_carousel': True,
-    },
-    {
-        'title': 'Novas Pecas de Decoracao',
-        'subtitle': 'Acabamento premium e entrega rapida',
-        'image_url': 'https://images.unsplash.com/photo-1513519245088-0e12902e5a38?auto=format&fit=crop&w=1800&q=70',
-        'target_url': '/#produtos',
-        'sort_order': 2,
-        'is_active': True,
-        'show_in_carousel': True,
-    },
-    {
-        'title': 'Descontos em Kits',
-        'subtitle': 'Monte seu setup com pecas selecionadas',
-        'image_url': 'https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=1800&q=70',
-        'target_url': '/cart',
-        'sort_order': 3,
-        'is_active': True,
-        'show_in_carousel': True,
-    },
 ]
 
 
