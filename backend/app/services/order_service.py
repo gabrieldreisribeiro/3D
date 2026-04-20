@@ -139,59 +139,88 @@ def admin_total_sold(db: Session) -> float:
     return db.query(func.coalesce(func.sum(Order.total), 0.0)).scalar() or 0.0
 
 
-def dashboard_orders_last_days(db: Session, days: int = 7):
-    today = datetime.now().date()
-    start = today - timedelta(days=days - 1)
-
-    rows = (
-        db.query(func.date(Order.created_at).label('day'), func.count(Order.id))
-        .filter(Order.created_at >= start)
-        .group_by(func.date(Order.created_at))
-        .all()
-    )
+def _build_daily_series(rows, start: datetime.date, end: datetime.date):
     mapped = {row[0]: row[1] for row in rows}
-
     series = []
-    for index in range(days):
-        day = start + timedelta(days=index)
-        key = day.isoformat()
-        series.append({'label': day.strftime('%d/%m'), 'value': float(mapped.get(key, 0))})
+    cursor = start
+    while cursor <= end:
+        key = cursor.isoformat()
+        series.append({'label': cursor.strftime('%d/%m'), 'value': float(mapped.get(key, 0) or 0)})
+        cursor += timedelta(days=1)
     return series
 
 
-def dashboard_sales_last_days(db: Session, days: int = 7):
-    today = datetime.now().date()
-    start = today - timedelta(days=days - 1)
+def dashboard_orders_last_days(
+    db: Session,
+    days: int = 7,
+    date_from: datetime | None = None,
+    date_to: datetime | None = None,
+):
+    if date_from or date_to:
+        start = (date_from.date() if date_from else (date_to.date() - timedelta(days=days - 1) if date_to else datetime.now().date()))
+        end = (date_to.date() if date_to else datetime.now().date())
+    else:
+        end = datetime.now().date()
+        start = end - timedelta(days=days - 1)
 
-    rows = (
-        db.query(func.date(Order.created_at).label('day'), func.coalesce(func.sum(Order.total), 0.0))
-        .filter(Order.created_at >= start)
-        .group_by(func.date(Order.created_at))
-        .all()
-    )
-    mapped = {row[0]: float(row[1]) for row in rows}
-
-    series = []
-    for index in range(days):
-        day = start + timedelta(days=index)
-        key = day.isoformat()
-        series.append({'label': day.strftime('%d/%m'), 'value': float(mapped.get(key, 0.0))})
-    return series
+    query = db.query(func.date(Order.created_at).label('day'), func.count(Order.id))
+    if date_from:
+        query = query.filter(Order.created_at >= date_from)
+    else:
+        query = query.filter(Order.created_at >= start)
+    if date_to:
+        query = query.filter(Order.created_at <= date_to)
+    rows = query.group_by(func.date(Order.created_at)).all()
+    return _build_daily_series(rows, start, end)
 
 
-def dashboard_top_products(db: Session, limit: int = 5):
-    rows = (
-        db.query(OrderItem.title, func.sum(OrderItem.quantity).label('qty'))
-        .group_by(OrderItem.title)
-        .order_by(func.sum(OrderItem.quantity).desc())
-        .limit(limit)
-        .all()
-    )
+def dashboard_sales_last_days(
+    db: Session,
+    days: int = 7,
+    date_from: datetime | None = None,
+    date_to: datetime | None = None,
+):
+    if date_from or date_to:
+        start = (date_from.date() if date_from else (date_to.date() - timedelta(days=days - 1) if date_to else datetime.now().date()))
+        end = (date_to.date() if date_to else datetime.now().date())
+    else:
+        end = datetime.now().date()
+        start = end - timedelta(days=days - 1)
+
+    query = db.query(func.date(Order.created_at).label('day'), func.coalesce(func.sum(Order.total), 0.0))
+    if date_from:
+        query = query.filter(Order.created_at >= date_from)
+    else:
+        query = query.filter(Order.created_at >= start)
+    if date_to:
+        query = query.filter(Order.created_at <= date_to)
+    rows = query.group_by(func.date(Order.created_at)).all()
+    mapped_rows = [(row[0], float(row[1] or 0.0)) for row in rows]
+    return _build_daily_series(mapped_rows, start, end)
+
+
+def dashboard_top_products(
+    db: Session,
+    limit: int = 5,
+    date_from: datetime | None = None,
+    date_to: datetime | None = None,
+):
+    query = db.query(OrderItem.title, func.sum(OrderItem.quantity).label('qty')).join(Order, Order.id == OrderItem.order_id)
+    if date_from:
+        query = query.filter(Order.created_at >= date_from)
+    if date_to:
+        query = query.filter(Order.created_at <= date_to)
+    rows = query.group_by(OrderItem.title).order_by(func.sum(OrderItem.quantity).desc()).limit(limit).all()
     return [{'title': row[0], 'quantity': int(row[1])} for row in rows]
 
 
-def dashboard_order_status(db: Session):
-    rows = db.query(Order.payment_status, func.count(Order.id)).group_by(Order.payment_status).all()
+def dashboard_order_status(db: Session, date_from: datetime | None = None, date_to: datetime | None = None):
+    query = db.query(Order.payment_status, func.count(Order.id))
+    if date_from:
+        query = query.filter(Order.created_at >= date_from)
+    if date_to:
+        query = query.filter(Order.created_at <= date_to)
+    rows = query.group_by(Order.payment_status).all()
     mapped = {str(status or 'pending').lower(): int(count) for status, count in rows}
     return [
         {'status': 'Pago', 'value': mapped.get('paid', 0)},

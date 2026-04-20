@@ -372,8 +372,12 @@ export async function downloadAdminUploadsZip() {
   window.URL.revokeObjectURL(url);
 }
 
-export function fetchAdminSummary() {
-  return adminRequest('/admin/dashboard/summary');
+export function fetchAdminSummary(params = {}) {
+  const search = new URLSearchParams();
+  if (params.date_from) search.set('date_from', params.date_from);
+  if (params.date_to) search.set('date_to', params.date_to);
+  const query = search.toString();
+  return adminRequest(`/admin/dashboard/summary${query ? `?${query}` : ''}`);
 }
 
 export function fetchAdminAnalyticsSummary() {

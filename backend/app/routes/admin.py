@@ -49,7 +49,7 @@ from app.services.coupon_service import (
 )
 from app.services.banner_service import create_banner, delete_banner, get_banner, list_admin_banners, update_banner
 from app.services.banner_upload_service import save_banner_image
-from app.services.analytics_service import analytics_funnel, analytics_products, analytics_summary
+from app.services.analytics_service import analytics_funnel, analytics_products, analytics_summary, parse_period
 from app.services.logo_service import save_logo
 from app.services.product_upload_service import save_product_image
 from app.services.order_service import (
@@ -300,20 +300,26 @@ def upload_product_image(file: UploadFile = File(...), _: AdminUser = Depends(re
 
 
 @router.get('/dashboard/summary', response_model=AdminDashboardSummary)
-def dashboard_summary(_: AdminUser = Depends(require_admin), db: Session = Depends(get_db)):
-    summary = analytics_summary(db)
-    products_stats = analytics_products(db)
-    funnel_points = analytics_funnel(db)
+def dashboard_summary(
+    date_from: str | None = Query(default=None),
+    date_to: str | None = Query(default=None),
+    _: AdminUser = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    start, end = parse_period(date_from, date_to)
+    summary = analytics_summary(db, date_from=start, date_to=end)
+    products_stats = analytics_products(db, date_from=start, date_to=end)
+    funnel_points = analytics_funnel(db, date_from=start, date_to=end)
     return AdminDashboardSummary(
         total_products=len(admin_list_products(db)),
         total_orders=summary['total_orders'] if summary else admin_total_orders(db),
-        total_sold=admin_total_sold(db),
+        total_sold=summary.get('estimated_total_value', 0.0),
         total_items_sold=summary.get('total_items_sold', 0),
         conversion_add_to_whatsapp=summary.get('conversion_add_to_whatsapp', 0),
-        sales_series=dashboard_sales_last_days(db),
-        orders_series=dashboard_orders_last_days(db),
-        top_products=dashboard_top_products(db),
-        order_status=dashboard_order_status(db),
+        sales_series=dashboard_sales_last_days(db, date_from=start, date_to=end),
+        orders_series=dashboard_orders_last_days(db, date_from=start, date_to=end),
+        top_products=dashboard_top_products(db, date_from=start, date_to=end),
+        order_status=dashboard_order_status(db, date_from=start, date_to=end),
         funnel=[{'label': item['step'], 'value': float(item['value'])} for item in funnel_points],
         most_viewed_products=[
             {'title': item['product_title'], 'quantity': int(item['value']), 'total_value': item.get('total_value')}

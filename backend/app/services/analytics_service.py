@@ -72,39 +72,57 @@ def parse_metadata(raw: str | None) -> dict:
         return {}
 
 
-def analytics_summary(db: Session) -> dict:
-    total_orders = int(db.query(func.count(Order.id)).scalar() or 0)
-    total_items_sold = int(db.query(func.coalesce(func.sum(OrderItem.quantity), 0)).scalar() or 0)
-    estimated_total_value = float(db.query(func.coalesce(func.sum(Order.total), 0.0)).scalar() or 0.0)
+def analytics_summary(db: Session, date_from: datetime | None = None, date_to: datetime | None = None) -> dict:
+    orders_query = db.query(Order)
+    order_items_query = db.query(OrderItem).join(Order, Order.id == OrderItem.order_id)
+    if date_from:
+        orders_query = orders_query.filter(Order.created_at >= date_from)
+        order_items_query = order_items_query.filter(Order.created_at >= date_from)
+    if date_to:
+        orders_query = orders_query.filter(Order.created_at <= date_to)
+        order_items_query = order_items_query.filter(Order.created_at <= date_to)
 
-    add_sessions = {
-        row[0]
-        for row in db.query(UserEvent.session_id)
-        .filter(UserEvent.event_type.in_(_aliases('add_to_cart')))
-        .distinct()
-        .all()
-        if row[0]
-    }
-    whatsapp_sessions = {
-        row[0]
-        for row in db.query(UserEvent.session_id)
-        .filter(UserEvent.event_type.in_(_aliases('whatsapp_click')))
-        .distinct()
-        .all()
-        if row[0]
-    }
+    total_orders = int(orders_query.with_entities(func.count(Order.id)).scalar() or 0)
+    total_items_sold = int(order_items_query.with_entities(func.coalesce(func.sum(OrderItem.quantity), 0)).scalar() or 0)
+    estimated_total_value = float(orders_query.with_entities(func.coalesce(func.sum(Order.total), 0.0)).scalar() or 0.0)
+
+    add_query = db.query(UserEvent.session_id).filter(UserEvent.event_type.in_(_aliases('add_to_cart')))
+    whatsapp_query = db.query(UserEvent.session_id).filter(UserEvent.event_type.in_(_aliases('whatsapp_click')))
+    if date_from:
+        add_query = add_query.filter(UserEvent.created_at >= date_from)
+        whatsapp_query = whatsapp_query.filter(UserEvent.created_at >= date_from)
+    if date_to:
+        add_query = add_query.filter(UserEvent.created_at <= date_to)
+        whatsapp_query = whatsapp_query.filter(UserEvent.created_at <= date_to)
+
+    add_sessions = {row[0] for row in add_query.distinct().all() if row[0]}
+    whatsapp_sessions = {row[0] for row in whatsapp_query.distinct().all() if row[0]}
     conversion = 0.0
     if add_sessions:
         conversion = (len(add_sessions & whatsapp_sessions) / len(add_sessions)) * 100
 
     # Localidade por sessao (ultimo evento conhecido da sessao).
     location_by_session: dict[str, tuple[str, str, str]] = {}
-    session_events = (
-        db.query(UserEvent.session_id, UserEvent.country, UserEvent.state, UserEvent.city, UserEvent.created_at)
-        .filter(UserEvent.session_id.isnot(None))
-        .order_by(UserEvent.created_at.asc())
-        .all()
-    )
+    columns = {column.name for column in UserEvent.__table__.columns}
+    has_geo_columns = {'country', 'state', 'city'}.issubset(columns)
+    session_query = db.query(UserEvent.session_id, UserEvent.created_at).filter(UserEvent.session_id.isnot(None))
+    if has_geo_columns:
+        session_query = db.query(
+            UserEvent.session_id,
+            UserEvent.country,
+            UserEvent.state,
+            UserEvent.city,
+            UserEvent.created_at,
+        ).filter(UserEvent.session_id.isnot(None))
+    if date_from:
+        session_query = session_query.filter(UserEvent.created_at >= date_from)
+    if date_to:
+        session_query = session_query.filter(UserEvent.created_at <= date_to)
+    session_events = session_query.order_by(UserEvent.created_at.asc()).all()
+
+    if not has_geo_columns:
+        session_events = [(row[0], None, None, None, row[1]) for row in session_events]
+
     for session_id, country, state, city, _created_at in session_events:
         sid = str(session_id or '').strip()
         if not sid:
@@ -141,29 +159,36 @@ def analytics_summary(db: Session) -> dict:
     }
 
 
-def analytics_funnel(db: Session) -> list[dict]:
+def analytics_funnel(db: Session, date_from: datetime | None = None, date_to: datetime | None = None) -> list[dict]:
     points = []
     for event_type, label in FUNNEL_STEPS:
-        value = int(
-            db.query(func.count(func.distinct(UserEvent.session_id)))
-            .filter(UserEvent.event_type.in_(_aliases(event_type)))
-            .scalar()
-            or 0
-        )
+        query = db.query(func.count(func.distinct(UserEvent.session_id))).filter(UserEvent.event_type.in_(_aliases(event_type)))
+        if date_from:
+            query = query.filter(UserEvent.created_at >= date_from)
+        if date_to:
+            query = query.filter(UserEvent.created_at <= date_to)
+        value = int(query.scalar() or 0)
         points.append({'step': label, 'value': value})
     return points
 
 
-def _event_product_ranking(db: Session, event_type: str, limit: int = 10) -> list[dict]:
-    rows = (
+def _event_product_ranking(
+    db: Session,
+    event_type: str,
+    limit: int = 10,
+    date_from: datetime | None = None,
+    date_to: datetime | None = None,
+) -> list[dict]:
+    query = (
         db.query(UserEvent.product_id, Product.title, func.count(UserEvent.id).label('value'))
         .outerjoin(Product, Product.id == UserEvent.product_id)
         .filter(UserEvent.event_type.in_(_aliases(event_type)))
-        .group_by(UserEvent.product_id, Product.title)
-        .order_by(func.count(UserEvent.id).desc())
-        .limit(limit)
-        .all()
     )
+    if date_from:
+        query = query.filter(UserEvent.created_at >= date_from)
+    if date_to:
+        query = query.filter(UserEvent.created_at <= date_to)
+    rows = query.group_by(UserEvent.product_id, Product.title).order_by(func.count(UserEvent.id).desc()).limit(limit).all()
     return [
         {
             'product_id': row[0],
@@ -208,11 +233,11 @@ def _sold_product_ranking(db: Session, limit: int = 10, date_from: datetime | No
     ]
 
 
-def analytics_products(db: Session) -> dict:
+def analytics_products(db: Session, date_from: datetime | None = None, date_to: datetime | None = None) -> dict:
     return {
-        'most_viewed': _event_product_ranking(db, 'product_view', limit=10),
-        'most_added': _event_product_ranking(db, 'add_to_cart', limit=10),
-        'most_sold': _sold_product_ranking(db, limit=10),
+        'most_viewed': _event_product_ranking(db, 'product_view', limit=10, date_from=date_from, date_to=date_to),
+        'most_added': _event_product_ranking(db, 'add_to_cart', limit=10, date_from=date_from, date_to=date_to),
+        'most_sold': _sold_product_ranking(db, limit=10, date_from=date_from, date_to=date_to),
     }
 
 
