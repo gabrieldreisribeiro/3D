@@ -693,7 +693,12 @@ function ProductPage() {
                       </label>
                       <div className="flex min-w-0 flex-1 items-center gap-2">
                         {item.image_url ? (
-                          <img src={resolveImageUrl(item.image_url)} alt={item.title} className="h-10 w-10 rounded-lg border border-[#E6EAF0] object-cover" />
+                          <div className="subitem-image-zoom-wrap">
+                            <img src={resolveImageUrl(item.image_url)} alt={item.title} className="subitem-image-zoom" />
+                            <div className="subitem-image-zoom-pop" aria-hidden="true">
+                              <img src={resolveImageUrl(item.image_url)} alt={item.title} className="subitem-image-zoom-pop-img" />
+                            </div>
+                          </div>
                         ) : null}
                         <div className="min-w-0">
                           <p className="line-clamp-1 text-sm font-medium text-[#111827]">{item.title}</p>
