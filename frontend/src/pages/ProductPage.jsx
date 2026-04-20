@@ -3,7 +3,6 @@ import { useNavigate, useParams } from 'react-router-dom';
 import ProductGallery from '../components/ProductGallery';
 import ProductCard from '../components/ProductCard';
 import QuantitySelector from '../components/QuantitySelector';
-import SectionHeader from '../components/ui/SectionHeader';
 import Button from '../components/ui/Button';
 import Modal from '../components/ui/Modal';
 import {
@@ -635,28 +634,28 @@ function ProductPage() {
   ];
 
   return (
-    <section className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-4 py-4 sm:px-6 lg:gap-10 lg:px-8">
-      <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1.65fr)_minmax(320px,1fr)]">
+    <section className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-4 py-6 sm:px-6 lg:gap-10 lg:px-8">
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1.65fr)_minmax(340px,1fr)]">
         <ProductGallery images={galleryImages} selected={selectedImage} onSelect={setSelectedImage} />
 
-        <aside className="space-y-4 rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
-          <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+        <aside className="space-y-4 rounded-[16px] border border-[#E6EAF0] bg-white p-5 shadow-sm">
+          <span className="inline-flex rounded-full border border-[#E6EAF0] bg-[#F8FAFC] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-[#667085]">
             Produto
           </span>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-[30px]">{product.title}</h1>
-          <p className="text-sm leading-7 text-slate-600">{product.short_description}</p>
+          <h1 className="text-2xl font-bold tracking-tight text-[#111827] sm:text-[32px]">{product.title}</h1>
+          <p className="text-sm leading-7 text-[#667085]">{product.short_description}</p>
 
-          <div className="rounded-xl border border-slate-100 bg-slate-50 px-4 py-3">
-            <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Preco</p>
+          <div className="rounded-xl border border-[#E6EAF0] bg-[#F8FAFC] px-4 py-3">
+            <p className="text-xs font-medium uppercase tracking-wide text-[#667085]">Preco</p>
             {isOnSale ? (
               <div className="mt-1">
-                <p className="text-sm font-medium text-slate-500 line-through">R$ {originalPrice.toFixed(2)}</p>
-                <p className="text-3xl font-semibold tracking-tight text-emerald-700">
+                <p className="text-sm font-medium text-[#98A2B3] line-through">R$ {originalPrice.toFixed(2)}</p>
+                <p className="text-3xl font-semibold tracking-tight text-[#16A34A]">
                   {hasSubItems ? `A partir de R$ ${finalPrice.toFixed(2)}` : `R$ ${finalPrice.toFixed(2)}`}
                 </p>
               </div>
             ) : (
-              <p className="mt-1 text-3xl font-semibold tracking-tight text-slate-900">
+              <p className="mt-1 text-3xl font-semibold tracking-tight text-[#111827]">
                 {hasSubItems ? `A partir de R$ ${finalPrice.toFixed(2)}` : `R$ ${finalPrice.toFixed(2)}`}
               </p>
             )}
@@ -665,17 +664,17 @@ function ProductPage() {
                 {productData.promotion_badge}
               </span>
             ) : null}
-            <p className="mt-1 text-xs text-slate-500">
+            <p className="mt-1 text-xs text-[#667085]">
               {hasSubItems ? 'Selecione os itens para calcular o total final.' : 'Valor unitario'}
             </p>
           </div>
 
           {hasSubItems ? (
-            <div className="space-y-3 rounded-xl border border-slate-100 bg-slate-50 p-3">
-              <h3 className="text-sm font-semibold text-slate-900">Monte o seu kit</h3>
-              <ul className={`space-y-2 text-sm text-slate-600 ${shouldScrollSubItems ? 'subitems-scroll-wrap' : ''}`}>
+            <div className="space-y-3 rounded-xl border border-[#E6EAF0] bg-[#F8FAFC] p-3">
+              <h3 className="text-sm font-semibold text-[#111827]">Monte o seu kit</h3>
+              <ul className={`space-y-2 text-sm text-[#667085] ${shouldScrollSubItems ? 'subitems-scroll-wrap' : ''}`}>
                 {product.sub_items.map((item, index) => (
-                  <li key={`${item.title}-${index}`} className="rounded-xl border border-slate-200 bg-white px-3 py-3">
+                  <li key={`${item.title}-${index}`} className="rounded-xl border border-[#E6EAF0] bg-white px-3 py-3">
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <div className="flex items-center gap-2">
                         {item.image_url ? (
@@ -705,9 +704,9 @@ function ProductPage() {
                           onChange={(value) => handleSubItemQuantity(getSubItemKey(item, index), value)}
                         />
                       </div>
-                      <small className="text-xs text-slate-500">
-                        Prazo: {estimateDaysFromHours(item.lead_time_hours)} dia(s) apos pagamento
-                      </small>
+                          <small className="text-xs text-[#667085]">
+                            Prazo: {estimateDaysFromHours(item.lead_time_hours)} dia(s) apos pagamento
+                          </small>
                       {item.allow_colors && (item.available_colors || []).length > 0 ? (
                         <div className="w-full space-y-2 rounded-[10px] border border-slate-200 bg-white p-2">
                           <p className="text-xs font-semibold text-slate-500">Cor principal</p>
@@ -752,7 +751,7 @@ function ProductPage() {
                 ))}
               </ul>
 
-              <p className="text-xs text-slate-500">Selecione os itens e ajuste quantidades para montar seu pedido.</p>
+              <p className="text-xs text-[#667085]">Selecione os itens e ajuste quantidades para montar seu pedido.</p>
               {supportsNamePersonalization ? (
                 <div className="rounded-[10px] border border-slate-200 bg-white p-3">
                   <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
@@ -814,7 +813,7 @@ function ProductPage() {
               <div className="rounded-[10px] border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700">
                 <strong>Total da composicao: R$ {((finalPrice + selectedSubItemsTotal) * quantity).toFixed(2)}</strong>
               </div>
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-[#667085]">
                 Prazo estimado: {customizedLeadTimeDays} dia(s) apos confirmacao do pagamento.
               </p>
 
@@ -843,7 +842,7 @@ function ProductPage() {
               </div>
             </div>
           ) : (
-            <div className="space-y-3 rounded-xl border border-slate-100 bg-slate-50 p-3">
+            <div className="space-y-3 rounded-xl border border-[#E6EAF0] bg-[#F8FAFC] p-3">
               {product.allow_colors && (product.available_colors || []).length > 0 ? (
                 <div className="space-y-2">
                   <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Cor principal do produto</p>
@@ -880,7 +879,7 @@ function ProductPage() {
                 </div>
               ) : null}
 
-              <p className="text-xs text-slate-500">Prazo estimado: {productLeadTimeDays} dia(s) apos confirmacao do pagamento.</p>
+              <p className="text-xs text-[#667085]">Prazo estimado: {productLeadTimeDays} dia(s) apos confirmacao do pagamento.</p>
               {supportsNamePersonalization ? (
                 <div className="rounded-[10px] border border-slate-200 bg-white p-3">
                   <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
@@ -944,7 +943,7 @@ function ProductPage() {
                   Comprar agora
                 </Button>
                 <Button
-                  className="h-11 w-full border border-emerald-600 bg-emerald-600 text-white hover:border-emerald-700 hover:bg-emerald-700 focus-visible:ring-emerald-200"
+                  className="h-11 w-full border border-[#16A34A] bg-[#16A34A] text-white hover:border-emerald-700 hover:bg-emerald-700 focus-visible:ring-emerald-200"
                   onClick={handleOpenCustomizationWhatsapp}
                 >
                   Nao encontrou a opcao? Personalize no WhatsApp
@@ -955,8 +954,8 @@ function ProductPage() {
         </aside>
       </div>
 
-      <section className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm sm:p-5 lg:p-6">
-        <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 pb-3">
+      <section className="rounded-[16px] border border-[#E6EAF0] bg-white p-4 shadow-sm sm:p-5 lg:p-6">
+        <div className="flex flex-wrap items-center gap-2 border-b border-[#E6EAF0] pb-3">
           <button
             type="button"
             onClick={() => setActiveDetailTab('description')}
@@ -999,7 +998,10 @@ function ProductPage() {
       </section>
 
       <section className="space-y-3">
-        <SectionHeader title="Relacionados" subtitle="Sugestoes para complementar seu pedido" />
+        <div>
+          <h2 className="text-[28px] font-bold tracking-tight text-[#111827]">Relacionados</h2>
+          <p className="mt-1 text-sm text-[#667085]">Sugestoes para complementar seu pedido.</p>
+        </div>
         <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
           {related.map((item) => (
             <ProductCard key={item.id} product={item} onAdd={addToCart} compact />
@@ -1007,7 +1009,7 @@ function ProductPage() {
         </div>
       </section>
 
-      <section className="rounded-2xl border border-slate-100 bg-slate-50 p-4 shadow-sm sm:p-5 lg:p-6">
+      <section className="rounded-[16px] border border-[#E6EAF0] bg-[#F8FAFC] p-4 shadow-sm sm:p-5 lg:p-6">
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(260px,0.38fr)_minmax(0,1fr)]">
           <aside className="space-y-4">
             <div className="flex items-start justify-between gap-3">

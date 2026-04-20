@@ -79,7 +79,9 @@ function ProductCard({ product, onAdd, highlightLabel = '', compact = false }) {
           )}
         </div>
 
-        {/* <p className="product-card-installments">em ate 12x sem juros</p> */}
+        <p className="product-card-installments">
+          {hasSubItems ? 'Monte seu pedido com variacoes' : 'Compra segura e envio para todo o Brasil'}
+        </p>
 
         <div className="product-card-actions">
           {hasSubItems ? (

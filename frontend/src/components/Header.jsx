@@ -4,6 +4,14 @@ import { fetchPublicLogo, resolveAssetUrl, trackEvent } from '../services/api';
 import { useCart } from '../services/cart';
 import { getLogoSizeConfig, getLogoSizeKey } from '../services/logoSettings';
 
+const marketNav = [
+  { label: 'Categorias', to: '/#produtos' },
+  { label: 'Destaques', to: '/#mais-pedidos' },
+  { label: 'Vitrine', to: '/#catalogo' },
+  { label: 'Promocoes', to: '/#catalogo' },
+  { label: 'Personalizados', to: '/#catalogo' },
+];
+
 function Header() {
   const { items } = useCart();
   const [searchParams] = useSearchParams();
@@ -44,9 +52,9 @@ function Header() {
   const logoSize = getLogoSizeConfig(logoSizeKey);
 
   return (
-    <header className="sticky top-0 z-50 border-b border-slate-200/80 bg-white/90 backdrop-blur-md">
-      <div className="mx-auto flex h-[70px] w-full max-w-7xl items-center gap-4 px-4 sm:px-6 lg:px-8">
-        <Link to="/" className="flex min-w-[160px] items-center gap-2">
+    <header className="sticky top-0 z-50 border-b border-[#E6EAF0] bg-white shadow-[0_3px_14px_rgba(15,23,42,0.06)]">
+      <div className="mx-auto grid h-[74px] w-full max-w-7xl grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 px-4 sm:gap-4 sm:px-6 lg:px-8">
+        <Link to="/" className="flex min-w-[124px] items-center">
           {logoUrl ? (
             <img
               src={logoUrl}
@@ -55,29 +63,39 @@ function Header() {
               style={{ height: `${logoSize.headerHeight}px`, maxWidth: `${logoSize.headerMaxWidth}px` }}
             />
           ) : (
-            <span className="text-sm font-semibold tracking-tight text-slate-900">PLA Studio</span>
+            <span className="text-sm font-bold tracking-tight text-[#111827] sm:text-base">PLA Studio</span>
           )}
         </Link>
 
-        <form onSubmit={onSearch} className="hidden flex-1 md:block">
+        <form onSubmit={onSearch} className="w-full">
           <div className="relative">
             <input
               type="search"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Buscar suporte, organizador, acessorio..."
-              className="h-10 w-full rounded-full border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 outline-none transition focus:border-violet-400 focus:bg-white focus:ring-2 focus:ring-violet-100"
+              placeholder="Busque por produtos, modelos, organizadores, decoracao..."
+              className="h-11 w-full rounded-[10px] border border-[#E6EAF0] bg-[#F5F7FA] pl-4 pr-12 text-sm text-[#111827] outline-none transition focus:border-[#6D28D9] focus:bg-white focus:ring-2 focus:ring-violet-100"
             />
+            <button
+              type="submit"
+              className="absolute right-1.5 top-1/2 inline-flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-[8px] bg-[#6D28D9] text-white transition hover:bg-[#5B21B6]"
+              aria-label="Buscar"
+            >
+              <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                <circle cx="11" cy="11" r="7" />
+                <path d="m20 20-3.5-3.5" />
+              </svg>
+            </button>
           </div>
         </form>
 
-        <nav className="ml-auto flex items-center gap-2 sm:gap-3">
+        <div className="flex items-center gap-2">
           <NavLink
             to="/"
             end
             className={({ isActive }) =>
-              `rounded-full px-3 py-2 text-xs font-medium transition ${
-                isActive ? 'bg-violet-50 text-violet-700' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'
+              `hidden rounded-[10px] px-3 py-2 text-xs font-semibold transition md:inline-flex ${
+                isActive ? 'bg-violet-50 text-[#6D28D9]' : 'text-[#667085] hover:bg-[#F5F7FA] hover:text-[#111827]'
               }`
             }
           >
@@ -86,44 +104,39 @@ function Header() {
           <NavLink
             to="/cart"
             className={({ isActive }) =>
-              `inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-medium transition ${
+              `inline-flex items-center gap-2 rounded-[10px] border px-3 py-2 text-xs font-semibold transition ${
                 isActive
-                  ? 'border-violet-200 bg-violet-50 text-violet-700'
-                  : 'border-slate-200 bg-white text-slate-600 hover:border-violet-200 hover:text-violet-700'
+                  ? 'border-violet-200 bg-violet-50 text-[#6D28D9]'
+                  : 'border-[#E6EAF0] bg-white text-[#475467] hover:border-violet-200 hover:text-[#6D28D9]'
               }`
             }
           >
-            <svg
-              viewBox="0 0 24 24"
-              aria-hidden="true"
-              className="h-4 w-4 text-current"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.8"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
+            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round">
               <circle cx="9" cy="20" r="1.5" />
               <circle cx="18" cy="20" r="1.5" />
               <path d="M3 4h2l2.2 10.2a1 1 0 0 0 1 .8h8.9a1 1 0 0 0 1-.8L20 7H7.2" />
             </svg>
-            <span>Carrinho</span>
-            <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-violet-500 px-1 text-[10px] font-semibold text-white">
+            <span className="hidden sm:inline">Carrinho</span>
+            <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[#6D28D9] px-1 text-[10px] font-semibold text-white">
               {itemCount}
             </span>
           </NavLink>
-        </nav>
+        </div>
       </div>
 
-      <form onSubmit={onSearch} className="border-t border-slate-100 px-4 py-3 md:hidden">
-        <input
-          type="search"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder="Buscar produtos PLA"
-          className="h-10 w-full rounded-full border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 outline-none transition focus:border-violet-400 focus:bg-white focus:ring-2 focus:ring-violet-100"
-        />
-      </form>
+      <div className="border-t border-[#E6EAF0] bg-[#F9FAFB]">
+        <div className="mx-auto flex w-full max-w-7xl gap-2 overflow-x-auto px-4 py-2.5 text-sm text-[#667085] sm:px-6 lg:px-8">
+          {marketNav.map((item) => (
+            <a
+              key={item.label}
+              href={item.to}
+              className="whitespace-nowrap rounded-[10px] px-3 py-1.5 font-medium transition hover:bg-white hover:text-[#111827]"
+            >
+              {item.label}
+            </a>
+          ))}
+        </div>
+      </div>
     </header>
   );
 }

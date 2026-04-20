@@ -31,7 +31,7 @@ function ProductGallery({ images, selected, onSelect }) {
   return (
     <div className="space-y-3">
       <div
-        className={`min-h-[320px] rounded-2xl border border-slate-100 bg-slate-50 shadow-sm transition-shadow sm:min-h-[420px] lg:min-h-[560px] ${
+        className={`min-h-[320px] rounded-[16px] border border-[#E6EAF0] bg-white shadow-sm transition-shadow sm:min-h-[430px] lg:min-h-[560px] ${
           isZoomed ? 'shadow-md' : ''
         }`}
         style={heroStyle}
@@ -43,8 +43,8 @@ function ProductGallery({ images, selected, onSelect }) {
         {safeImages.map((image, index) => (
           <button
             key={`${image}-${index}`}
-            className={`aspect-[4/3] overflow-hidden rounded-xl border bg-slate-50 shadow-sm transition hover:border-violet-200 ${
-              index === selected ? 'border-violet-500 ring-2 ring-violet-100' : 'border-slate-200'
+            className={`aspect-[4/3] overflow-hidden rounded-xl border bg-white shadow-sm transition hover:border-violet-200 ${
+              index === selected ? 'border-violet-500 ring-2 ring-violet-100' : 'border-[#E6EAF0]'
             }`}
             onClick={() => onSelect(index)}
           >
