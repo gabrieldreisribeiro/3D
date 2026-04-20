@@ -1260,7 +1260,7 @@ function AdminProductsPage() {
               {(form.sub_items || []).map((subItem, index) => (
                 <div key={`sub-item-${index}`} className="rounded-xl border border-slate-200 bg-slate-50 p-4">
                   <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                    <strong className="text-sm text-slate-900">Sub item {index + 1}</strong>
+                    <strong className="text-sm text-slate-900">{subItem.title} {index + 1}</strong>
                     <div className="flex flex-wrap items-center gap-2">
                       <Button
                         type="button"
