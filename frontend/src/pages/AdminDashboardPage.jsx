@@ -1,20 +1,69 @@
 import { useEffect, useState } from 'react';
 import ChartCard from '../components/charts/ChartCard';
 import MiniBarChart from '../components/charts/MiniBarChart';
+import Button from '../components/ui/Button';
 import MetricCard from '../components/ui/MetricCard';
 import SectionHeader from '../components/ui/SectionHeader';
 import { fetchAdminSummary } from '../services/api';
+
+function pad(value) {
+  return String(value).padStart(2, '0');
+}
+
+function toDateRange(filterMode, day, month, year) {
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const safeYear = Number(year) || currentYear;
+
+  if (filterMode === 'day') {
+    if (!day) return { date_from: null, date_to: null };
+    return { date_from: day, date_to: day };
+  }
+
+  if (filterMode === 'month') {
+    const source = month || `${currentYear}-${pad(now.getMonth() + 1)}`;
+    const [yRaw, mRaw] = source.split('-');
+    const y = Number(yRaw);
+    const m = Number(mRaw);
+    if (!y || !m) return { date_from: null, date_to: null };
+    const lastDay = new Date(y, m, 0).getDate();
+    return {
+      date_from: `${y}-${pad(m)}-01`,
+      date_to: `${y}-${pad(m)}-${pad(lastDay)}`,
+    };
+  }
+
+  return {
+    date_from: `${safeYear}-01-01`,
+    date_to: `${safeYear}-12-31`,
+  };
+}
 
 function AdminDashboardPage() {
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [filterMode, setFilterMode] = useState('month');
+  const [dayFilter, setDayFilter] = useState(() => new Date().toISOString().slice(0, 10));
+  const [monthFilter, setMonthFilter] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${pad(now.getMonth() + 1)}`;
+  });
+  const [yearFilter, setYearFilter] = useState(() => String(new Date().getFullYear()));
 
-  useEffect(() => {
-    fetchAdminSummary()
+  const loadSummary = () => {
+    setLoading(true);
+    setError('');
+    const period = toDateRange(filterMode, dayFilter, monthFilter, yearFilter);
+    fetchAdminSummary(period)
       .then(setSummary)
       .catch((requestError) => setError(requestError.message || 'Falha ao carregar dashboard.'))
       .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    loadSummary();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
@@ -22,8 +71,55 @@ function AdminDashboardPage() {
       <SectionHeader
         eyebrow="Visao geral"
         title="Dashboard"
-        subtitle="Métricas executivas para acompanhar saude comercial"
+        subtitle="Metricas executivas para acompanhar saude comercial"
       />
+
+      <div className="rounded-xl border border-slate-200 bg-white p-3">
+        <div className="admin-filter-bar">
+          <select
+            value={filterMode}
+            onChange={(event) => setFilterMode(event.target.value)}
+            className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-xs text-slate-700 outline-none focus:border-violet-300"
+          >
+            <option value="day">Filtrar por dia</option>
+            <option value="month">Filtrar por mes</option>
+            <option value="year">Filtrar por ano</option>
+          </select>
+
+          {filterMode === 'day' ? (
+            <input
+              type="date"
+              value={dayFilter}
+              onChange={(event) => setDayFilter(event.target.value)}
+              className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-xs text-slate-700 outline-none focus:border-violet-300"
+            />
+          ) : null}
+
+          {filterMode === 'month' ? (
+            <input
+              type="month"
+              value={monthFilter}
+              onChange={(event) => setMonthFilter(event.target.value)}
+              className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-xs text-slate-700 outline-none focus:border-violet-300"
+            />
+          ) : null}
+
+          {filterMode === 'year' ? (
+            <input
+              type="number"
+              min="2020"
+              max="2100"
+              value={yearFilter}
+              onChange={(event) => setYearFilter(event.target.value)}
+              className="h-9 w-28 rounded-lg border border-slate-200 bg-white px-3 text-xs text-slate-700 outline-none focus:border-violet-300"
+            />
+          ) : null}
+
+          <Button variant="secondary" onClick={loadSummary} loading={loading}>
+            Aplicar filtro
+          </Button>
+        </div>
+      </div>
 
       {loading ? <div className="rounded-xl border border-slate-200 bg-white p-8 text-sm text-slate-500">Carregando...</div> : null}
       {error ? <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">{error}</div> : null}
@@ -134,5 +230,3 @@ function AdminDashboardPage() {
 }
 
 export default AdminDashboardPage;
-
-
