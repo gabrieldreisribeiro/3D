@@ -134,6 +134,7 @@ from app.services.publication_service import (
     list_admin_promotions_with_drafts,
     list_entity_create_drafts,
     get_draft_payload,
+    get_entity_draft,
     publish_all_drafts,
     publish_draft,
     publish_draft_by_entity_and_id,
@@ -565,11 +566,12 @@ def create_admin_product(payload: AdminProductCreate, _: AdminUser = Depends(req
     payload.slug = slug
     if admin_slug_exists(db, slug):
         raise HTTPException(status_code=400, detail='Slug ja esta em uso')
+    payload_dict = payload.model_dump(mode='json', exclude_none=True)
     draft = save_draft(
         db,
         entity_type='product',
         action='create',
-        payload=payload.model_dump(mode='json'),
+        payload=payload_dict,
     )
     products = list_admin_products_with_drafts(db)
     return next((item for item in products if int(item.get('id', 0)) == -int(draft.id)), products[0] if products else {})
@@ -585,13 +587,16 @@ def update_admin_product(
     product = admin_get_product_by_id(db, product_id)
     slug = payload.slug.strip().lower()
     payload.slug = slug
+    payload_dict = payload.model_dump(mode='json', exclude_none=True)
     if product_id < 0:
         draft = find_draft_by_id(db, abs(product_id))
         if not draft or draft.entity_type != 'product' or draft.action != 'create':
             raise HTTPException(status_code=404, detail='Rascunho de produto nao encontrado')
         if admin_slug_exists(db, slug):
             raise HTTPException(status_code=400, detail='Slug ja esta em uso')
-        draft.payload_json = json.dumps(payload.model_dump(mode='json'), ensure_ascii=False)
+        merged_payload = get_draft_payload(draft)
+        merged_payload.update(payload_dict)
+        draft.payload_json = json.dumps(merged_payload, ensure_ascii=False)
         db.add(draft)
         db.commit()
         db.refresh(draft)
@@ -603,13 +608,25 @@ def update_admin_product(
     if admin_slug_exists(db, slug, ignore_id=product_id):
         raise HTTPException(status_code=400, detail='Slug ja esta em uso')
 
-    save_draft(
-        db,
-        entity_type='product',
-        entity_id=product_id,
-        action='update',
-        payload=payload.model_dump(mode='json'),
-    )
+    existing_draft = get_entity_draft(db, 'product', product_id)
+    if existing_draft and existing_draft.action == 'update':
+        merged_payload = get_draft_payload(existing_draft)
+        merged_payload.update(payload_dict)
+        save_draft(
+            db,
+            entity_type='product',
+            entity_id=product_id,
+            action='update',
+            payload=merged_payload,
+        )
+    else:
+        save_draft(
+            db,
+            entity_type='product',
+            entity_id=product_id,
+            action='update',
+            payload=payload_dict,
+        )
     products = list_admin_products_with_drafts(db)
     return next((item for item in products if int(item.get('id', 0)) == int(product_id)), products[0] if products else {})
 
@@ -636,7 +653,11 @@ def set_product_status(
     product = admin_get_product_by_id(db, product_id)
     if not product:
         raise HTTPException(status_code=404, detail='Produto nao encontrado')
-    payload = serialize_product_payload_for_draft(product)
+    existing_draft = get_entity_draft(db, 'product', product_id)
+    if existing_draft and existing_draft.action == 'update':
+        payload = get_draft_payload(existing_draft)
+    else:
+        payload = serialize_product_payload_for_draft(product)
     payload['is_active'] = bool(is_active)
     save_draft(db, entity_type='product', entity_id=product_id, action='update', payload=payload)
     products = list_admin_products_with_drafts(db)
