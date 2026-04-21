@@ -1032,13 +1032,6 @@ function ProductPage() {
           >
             Especificacoes
           </button>
-          <button
-            type="button"
-            onClick={() => navigate(`${previewPrefix}/product/${product.slug}/models`)}
-            className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-violet-200 hover:text-violet-700"
-          >
-            Ver modelos 3D
-          </button>
         </div>
 
         {activeDetailTab === 'description' ? (

@@ -211,10 +211,6 @@ export function fetchProduct(slug) {
   return request(previewPath(`/products/${slug}`, `/admin/publication/preview/products/${slug}`));
 }
 
-export function fetchPublicProductModels(slug) {
-  return request(`/public/products/${encodeURIComponent(slug)}/models`);
-}
-
 export function trackEvent(payload) {
   const referrer = typeof document !== 'undefined' ? document.referrer || null : null;
   const pageUrl = typeof window !== 'undefined' ? `${window.location.pathname}${window.location.search}` : null;
@@ -847,6 +843,46 @@ export function fetchAdminProduct3DModels(productId) {
   return adminRequest(`/admin/products/${productId}/3d-models`);
 }
 
+export function fetchAdmin3DModels(params = {}) {
+  const search = new URLSearchParams();
+  if (params.search) search.set('search', params.search);
+  if (params.product_id) search.set('product_id', String(params.product_id));
+  if (params.created_from) search.set('created_from', params.created_from);
+  if (params.created_to) search.set('created_to', params.created_to);
+  if (params.is_active !== undefined && params.is_active !== null && params.is_active !== 'all') {
+    search.set('is_active', String(params.is_active));
+  }
+  if (params.allow_download !== undefined && params.allow_download !== null && params.allow_download !== 'all') {
+    search.set('allow_download', String(params.allow_download));
+  }
+  const query = search.toString();
+  return adminRequest(`/admin/3d-models${query ? `?${query}` : ''}`);
+}
+
+export function fetchAdmin3DModelById(modelId) {
+  return adminRequest(`/admin/3d-models/${modelId}`);
+}
+
+export function createAdmin3DModel(payload) {
+  return adminRequest('/admin/3d-models', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export function updateAdmin3DModel(modelId, payload) {
+  return adminRequest(`/admin/3d-models/${modelId}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  });
+}
+
+export function deleteAdmin3DModel(modelId) {
+  return adminRequest(`/admin/3d-models/${modelId}`, {
+    method: 'DELETE',
+  });
+}
+
 export function createAdminProduct3DModel(productId, payload) {
   return adminRequest(`/admin/products/${productId}/3d-models`, {
     method: 'POST',
@@ -1117,6 +1153,64 @@ export async function downloadAdminDatabaseExport(path, filename) {
   const anchor = document.createElement('a');
   anchor.href = url;
   anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  window.URL.revokeObjectURL(url);
+}
+
+export async function downloadAdmin3DModelOriginal(modelId) {
+  return downloadAdminDatabaseExport(`/admin/3d-models/${modelId}/download/original`, `modelo_${modelId}_original`);
+}
+
+export async function downloadAdmin3DModelPreview(modelId) {
+  return downloadAdminDatabaseExport(`/admin/3d-models/${modelId}/download/preview`, `modelo_${modelId}_preview`);
+}
+
+export async function downloadAllAdmin3DModels(params = {}) {
+  const token = localStorage.getItem(ADMIN_TOKEN_KEY);
+  const fingerprint = getClientFingerprint();
+  const search = new URLSearchParams();
+  if (params.search) search.set('search', params.search);
+  if (params.product_id) search.set('product_id', String(params.product_id));
+  if (params.created_from) search.set('created_from', params.created_from);
+  if (params.created_to) search.set('created_to', params.created_to);
+  if (params.is_active !== undefined && params.is_active !== null && params.is_active !== 'all') {
+    search.set('is_active', String(params.is_active));
+  }
+  if (params.allow_download !== undefined && params.allow_download !== null && params.allow_download !== 'all') {
+    search.set('allow_download', String(params.allow_download));
+  }
+  if (params.include_preview !== undefined) {
+    search.set('include_preview', String(Boolean(params.include_preview)));
+  }
+  const query = search.toString();
+  const response = await fetch(buildApiUrl(`/admin/3d-models/download/all${query ? `?${query}` : ''}`), {
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(fingerprint ? { 'X-Client-Fingerprint': fingerprint } : {}),
+    },
+  });
+
+  if (!response.ok) {
+    let detail = 'Erro ao baixar modelos 3D';
+    try {
+      const body = await response.json();
+      detail = body?.detail || body?.message || detail;
+    } catch {
+      // ignore
+    }
+    throw new Error(detail);
+  }
+
+  const contentDisposition = response.headers.get('content-disposition') || '';
+  const fileNameMatch = contentDisposition.match(/filename="?([^"]+)"?/i);
+  const fileName = fileNameMatch?.[1] || 'modelos_3d.zip';
+  const blob = await response.blob();
+  const url = window.URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = fileName;
   document.body.appendChild(anchor);
   anchor.click();
   anchor.remove();

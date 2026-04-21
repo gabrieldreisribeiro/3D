@@ -8,7 +8,6 @@ import { CartProvider } from './services/cart';
 import MetaPixelProvider from './components/MetaPixelProvider';
 import HomePage from './pages/HomePage';
 import ProductPage from './pages/ProductPage';
-import ProductModelsPage from './pages/ProductModelsPage';
 import CartPage from './pages/CartPage';
 import AdminLoginPage from './pages/AdminLoginPage';
 import AdminDashboardPage from './pages/AdminDashboardPage';
@@ -30,6 +29,7 @@ import AdminPromotionsPage from './pages/AdminPromotionsPage';
 import AdminHighlightsPage from './pages/AdminHighlightsPage';
 import AdminPublicationPage from './pages/AdminPublicationPage';
 import AdminUsersPage from './pages/AdminUsersPage';
+import Admin3DModelsPage from './pages/Admin3DModelsPage';
 import { getAdminToken, trackEvent } from './services/api';
 
 function PreviewGuard({ children }) {
@@ -77,6 +77,7 @@ function AppContent() {
             <Route path="leads-conversao" element={<AdminLeadsConversionPage />} />
             <Route path="banco" element={<AdminDatabasePage />} />
             <Route path="uploads" element={<AdminUploadsPage />} />
+            <Route path="modelos-3d" element={<Admin3DModelsPage />} />
             <Route path="relatorios" element={<AdminReportsPage />} />
             <Route path="usuarios" element={<AdminUsersPage />} />
           </Route>
@@ -91,11 +92,9 @@ function AppContent() {
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/product/:slug" element={<ProductPage />} />
-        <Route path="/product/:slug/models" element={<ProductModelsPage />} />
         <Route path="/cart" element={<CartPage />} />
         <Route path="/preview" element={<PreviewGuard><HomePage /></PreviewGuard>} />
         <Route path="/preview/product/:slug" element={<PreviewGuard><ProductPage /></PreviewGuard>} />
-        <Route path="/preview/product/:slug/models" element={<PreviewGuard><ProductModelsPage /></PreviewGuard>} />
         <Route path="/preview/cart" element={<PreviewGuard><CartPage /></PreviewGuard>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

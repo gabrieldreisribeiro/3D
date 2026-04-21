@@ -1,14 +1,16 @@
 import base64
 import json
 import struct
+from datetime import datetime
 from pathlib import Path
 from uuid import uuid4
 
 from fastapi import HTTPException, UploadFile
-from sqlalchemy.orm import Session
+from sqlalchemy import or_
+from sqlalchemy.orm import Session, joinedload
 
-from app.core.config import MODELS_3D_ORIGINAL_UPLOADS_DIR, MODELS_3D_PREVIEW_UPLOADS_DIR
-from app.models import Product3DModel
+from app.core.config import MODELS_3D_ORIGINAL_UPLOADS_DIR, MODELS_3D_PREVIEW_UPLOADS_DIR, UPLOADS_DIR
+from app.models import Product, Product3DModel
 
 ALLOWED_ORIGINAL_EXTENSIONS = {'.3mf', '.stl', '.gcode', '.glb', '.obj', '.step', '.stp'}
 ALLOWED_PREVIEW_EXTENSIONS = {'.stl', '.glb'}
@@ -250,6 +252,70 @@ def list_product_3d_models(db: Session, product_id: int, *, active_only: bool = 
 
 def get_product_3d_model(db: Session, model_id: int) -> Product3DModel | None:
     return db.query(Product3DModel).filter(Product3DModel.id == int(model_id)).first()
+
+
+def list_all_3d_models(
+    db: Session,
+    *,
+    search: str | None = None,
+    product_id: int | None = None,
+    is_active: bool | None = None,
+    allow_download: bool | None = None,
+    created_from: str | None = None,
+    created_to: str | None = None,
+) -> list[Product3DModel]:
+    query = db.query(Product3DModel).options(joinedload(Product3DModel.product))
+    if product_id is not None:
+        query = query.filter(Product3DModel.product_id == int(product_id))
+    if is_active is not None:
+        query = query.filter(Product3DModel.is_active == bool(is_active))
+    if allow_download is not None:
+        query = query.filter(Product3DModel.allow_download == bool(allow_download))
+    if created_from:
+        try:
+            start = datetime.fromisoformat(str(created_from))
+            query = query.filter(Product3DModel.created_at >= start)
+        except ValueError:
+            pass
+    if created_to:
+        try:
+            end = datetime.fromisoformat(str(created_to))
+            query = query.filter(Product3DModel.created_at <= end)
+        except ValueError:
+            pass
+    text = str(search or '').strip()
+    if text:
+        like = f'%{text}%'
+        query = query.join(Product, Product.id == Product3DModel.product_id).filter(
+            or_(
+                Product3DModel.name.ilike(like),
+                Product3DModel.description.ilike(like),
+                Product.title.ilike(like),
+                Product.slug.ilike(like),
+            )
+        )
+    return query.order_by(Product3DModel.created_at.desc(), Product3DModel.id.desc()).all()
+
+
+def url_to_upload_path(public_url: str | None) -> Path | None:
+    value = str(public_url or '').strip()
+    if not value:
+        return None
+    clean = value.split('?', 1)[0].split('#', 1)[0].strip()
+    if not clean.startswith('/uploads/'):
+        return None
+    relative = clean[len('/uploads/'):].strip('/\\')
+    if not relative:
+        return None
+    path = (UPLOADS_DIR / relative).resolve()
+    uploads_root = UPLOADS_DIR.resolve()
+    try:
+        path.relative_to(uploads_root)
+    except ValueError:
+        return None
+    if not path.exists() or not path.is_file():
+        return None
+    return path
 
 
 def get_primary_model_dimensions_map(db: Session, product_ids: list[int]) -> dict[int, tuple[float, float, float]]:

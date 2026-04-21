@@ -520,6 +520,21 @@ class Product3DModelUploadResponse(BaseModel):
     dimensions_extracted: bool = False
 
 
+class Admin3DModelResponse(Product3DModelResponse):
+    product_title: Optional[str] = None
+    product_slug: Optional[str] = None
+    original_file_name: Optional[str] = None
+    preview_file_name: Optional[str] = None
+
+
+class Admin3DModelCreateRequest(Product3DModelCreate):
+    product_id: int = Field(..., ge=1)
+
+
+class Admin3DModelUpdateRequest(Product3DModelUpdate):
+    product_id: int = Field(..., ge=1)
+
+
 class AdminOrderItemResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
