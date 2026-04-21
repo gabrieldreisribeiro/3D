@@ -1148,11 +1148,34 @@ export async function downloadAdminDatabaseExport(path, filename) {
     throw new Error(detail);
   }
 
+  const contentDisposition = response.headers.get('content-disposition') || '';
+  const utf8Match = contentDisposition.match(/filename\*\s*=\s*UTF-8''([^;]+)/i);
+  const basicMatch = contentDisposition.match(/filename\s*=\s*"?([^"]+)"?/i);
+  const headerFileName = utf8Match?.[1]
+    ? decodeURIComponent(utf8Match[1])
+    : basicMatch?.[1];
+
   const blob = await response.blob();
+  const inferExtension = () => {
+    const mime = String(blob.type || '').toLowerCase();
+    if (mime.includes('stl')) return '.stl';
+    if (mime.includes('gltf')) return '.glb';
+    if (mime.includes('zip')) return '.zip';
+    if (mime.includes('octet-stream')) return '';
+    return '';
+  };
+  const normalizeName = (rawName) => {
+    const value = String(rawName || '').trim();
+    if (!value) return 'arquivo';
+    if (/\.[a-z0-9]{2,10}$/i.test(value)) return value;
+    const ext = inferExtension();
+    return `${value}${ext}`;
+  };
+  const finalName = normalizeName(headerFileName || filename);
   const url = window.URL.createObjectURL(blob);
   const anchor = document.createElement('a');
   anchor.href = url;
-  anchor.download = filename;
+  anchor.download = finalName;
   document.body.appendChild(anchor);
   anchor.click();
   anchor.remove();

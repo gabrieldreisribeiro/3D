@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import Modal from '../components/ui/Modal';
@@ -40,6 +40,11 @@ const isPreviewImage = (url) => {
   return ['.png', '.jpg', '.jpeg', '.webp', '.gif', '.svg', '.avif'].some((ext) => value.endsWith(ext));
 };
 
+const is3DPreviewFile = (url) => {
+  const ext = fileExtensionFromUrl(url);
+  return ext === '.stl' || ext === '.glb' || ext === '.gltf';
+};
+
 function toOptionalNumber(value) {
   const text = String(value ?? '').trim();
   if (!text) return null;
@@ -70,28 +75,164 @@ function fileExtensionFromUrl(url) {
   return value.slice(index);
 }
 
+function Model3DPreview({ src, className = '', interactive = false }) {
+  const mountRef = useRef(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    setFailed(false);
+    if (!src || !mountRef.current || !is3DPreviewFile(src)) return undefined;
+
+    let disposed = false;
+    let animationId = null;
+    let cleanup = null;
+
+    const setup = async () => {
+      try {
+        const THREE = await import('three');
+        const [{ OrbitControls }, { GLTFLoader }, { STLLoader }] = await Promise.all([
+          import('three/examples/jsm/controls/OrbitControls.js'),
+          import('three/examples/jsm/loaders/GLTFLoader.js'),
+          import('three/examples/jsm/loaders/STLLoader.js'),
+        ]);
+        if (disposed || !mountRef.current) return;
+
+        const container = mountRef.current;
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color('#f8fafc');
+
+        const camera = new THREE.PerspectiveCamera(40, container.clientWidth / Math.max(container.clientHeight, 1), 0.1, 2000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+        renderer.setSize(container.clientWidth, container.clientHeight);
+        container.innerHTML = '';
+        container.appendChild(renderer.domElement);
+
+        const ambient = new THREE.AmbientLight('#ffffff', 0.9);
+        const key = new THREE.DirectionalLight('#ffffff', 1);
+        key.position.set(2, 4, 6);
+        const fill = new THREE.DirectionalLight('#ffffff', 0.45);
+        fill.position.set(-4, -2, 3);
+        scene.add(ambient, key, fill);
+
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enablePan = Boolean(interactive);
+        controls.enableZoom = Boolean(interactive);
+        controls.enableRotate = true;
+        controls.enableDamping = Boolean(interactive);
+        controls.dampingFactor = 0.08;
+        controls.autoRotate = !interactive;
+        controls.autoRotateSpeed = 1.2;
+
+        const ext = fileExtensionFromUrl(src);
+        const applyObject = (object) => {
+          const group = new THREE.Group();
+          group.add(object);
+          scene.add(group);
+
+          const box = new THREE.Box3().setFromObject(group);
+          const size = box.getSize(new THREE.Vector3());
+          const center = box.getCenter(new THREE.Vector3());
+          group.position.sub(center);
+
+          const maxDim = Math.max(size.x || 1, size.y || 1, size.z || 1);
+          const distance = maxDim * 1.9;
+          camera.position.set(distance, distance * 0.7, distance);
+          camera.lookAt(0, 0, 0);
+          controls.target.set(0, 0, 0);
+          controls.update();
+
+          const renderFrame = () => {
+            if (disposed) return;
+            if (interactive) {
+              controls.update();
+              renderer.render(scene, camera);
+              animationId = window.requestAnimationFrame(renderFrame);
+              return;
+            }
+            controls.update();
+            renderer.render(scene, camera);
+          };
+          renderFrame();
+        };
+
+        if (ext === '.stl') {
+          const loader = new STLLoader();
+          loader.load(
+            src,
+            (geometry) => {
+              if (disposed) return;
+              geometry.computeVertexNormals();
+              const material = new THREE.MeshStandardMaterial({ color: '#94a3b8', roughness: 0.35, metalness: 0.1 });
+              const mesh = new THREE.Mesh(geometry, material);
+              applyObject(mesh);
+            },
+            undefined,
+            () => setFailed(true),
+          );
+        } else {
+          const loader = new GLTFLoader();
+          loader.load(
+            src,
+            (gltf) => {
+              if (disposed) return;
+              applyObject(gltf.scene);
+            },
+            undefined,
+            () => setFailed(true),
+          );
+        }
+
+        const handleResize = () => {
+          if (!container || !renderer || !camera) return;
+          const w = container.clientWidth;
+          const h = Math.max(container.clientHeight, 1);
+          renderer.setSize(w, h);
+          camera.aspect = w / h;
+          camera.updateProjectionMatrix();
+          renderer.render(scene, camera);
+        };
+        const observer = new ResizeObserver(handleResize);
+        observer.observe(container);
+
+        cleanup = () => {
+          observer.disconnect();
+          controls.dispose();
+          renderer.dispose();
+          renderer.forceContextLoss();
+          if (renderer.domElement && renderer.domElement.parentNode === container) {
+            container.removeChild(renderer.domElement);
+          }
+        };
+      } catch {
+        setFailed(true);
+      }
+    };
+
+    setup();
+
+    return () => {
+      disposed = true;
+      if (animationId) window.cancelAnimationFrame(animationId);
+      if (cleanup) cleanup();
+    };
+  }, [src, interactive]);
+
+  return (
+    <div className={`relative overflow-hidden rounded-xl border border-slate-200 bg-slate-50 ${className}`.trim()}>
+      <div ref={mountRef} className="h-full w-full" />
+      {failed ? (
+        <div className="absolute inset-0 flex items-center justify-center bg-slate-50/95 text-xs font-semibold text-slate-500">
+          Nao foi possivel renderizar
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function ModelThumbnail({ item }) {
   const previewUrl = resolveAssetUrl(item.preview_file_url || '') || item.preview_file_url || '';
   const isImage = isPreviewImage(previewUrl);
-  const extension = fileExtensionFromUrl(previewUrl);
-  const canRenderGlb = extension === '.glb' && typeof customElements !== 'undefined' && customElements.get('model-viewer');
-
-  if (canRenderGlb && previewUrl) {
-    return (
-      <div className="group relative aspect-square overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
-        <model-viewer
-          src={previewUrl}
-          camera-controls
-          disable-zoom
-          interaction-prompt="none"
-          exposure="1"
-          shadow-intensity="0.8"
-          environment-image="neutral"
-          style={{ width: '100%', height: '100%', '--poster-color': 'transparent' }}
-        />
-      </div>
-    );
-  }
 
   if (isImage && previewUrl) {
     return (
@@ -104,6 +245,9 @@ function ModelThumbnail({ item }) {
         />
       </div>
     );
+  }
+  if (is3DPreviewFile(previewUrl)) {
+    return <Model3DPreview src={previewUrl} className="aspect-square" />;
   }
   return (
     <div className="group relative flex aspect-square items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
@@ -137,17 +281,6 @@ function Admin3DModelsPage() {
   const [detailModel, setDetailModel] = useState(null);
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState(emptyForm);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    if (window.customElements && window.customElements.get('model-viewer')) return;
-    if (document.querySelector('script[data-model-viewer="true"]')) return;
-    const script = document.createElement('script');
-    script.type = 'module';
-    script.src = 'https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js';
-    script.setAttribute('data-model-viewer', 'true');
-    document.head.appendChild(script);
-  }, []);
 
   const flashNotice = (message) => {
     setNotice(message);
@@ -460,7 +593,8 @@ function Admin3DModelsPage() {
                   return (
                     <div
                       key={item.id}
-                      className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md"
+                      className="cursor-pointer rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md"
+                      onClick={() => openDetail(item.id)}
                     >
                       <ModelThumbnail item={item} />
 
@@ -481,7 +615,7 @@ function Admin3DModelsPage() {
                         {!item.is_active ? <StatusBadge tone="danger">Inativo</StatusBadge> : null}
                       </div>
 
-                      <div className="mt-4 grid grid-cols-5 gap-1">
+                      <div className="mt-4 grid grid-cols-5 gap-1" onClick={(event) => event.stopPropagation()}>
                         <button type="button" title="Detalhes" onClick={() => openDetail(item.id)} className="rounded-lg border border-slate-200 bg-white p-2 text-slate-600 transition hover:border-violet-200 hover:text-violet-700">i</button>
                         <button type="button" title="Baixar original" onClick={() => handleDownloadOriginal(item)} className="rounded-lg border border-slate-200 bg-white p-2 text-slate-600 transition hover:border-violet-200 hover:text-violet-700">O</button>
                         <button type="button" title="Baixar preview" onClick={() => handleDownloadPreview(item)} className="rounded-lg border border-slate-200 bg-white p-2 text-slate-600 transition hover:border-violet-200 hover:text-violet-700">P</button>
@@ -556,6 +690,23 @@ function Admin3DModelsPage() {
       >
         {detailModel ? (
           <div className="grid grid-cols-1 gap-3 text-sm text-slate-700 md:grid-cols-2">
+            <div className="md:col-span-2">
+              {isPreviewImage(detailModel.preview_file_url) ? (
+                <div className="overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
+                  <img
+                    src={resolveAssetUrl(detailModel.preview_file_url) || detailModel.preview_file_url}
+                    alt={detailModel.name}
+                    className="h-[320px] w-full object-contain"
+                  />
+                </div>
+              ) : (
+                <Model3DPreview
+                  src={resolveAssetUrl(detailModel.preview_file_url) || detailModel.preview_file_url}
+                  interactive
+                  className="h-[320px]"
+                />
+              )}
+            </div>
             <p><strong>Nome:</strong> {detailModel.name}</p>
             <p><strong>Produto:</strong> {detailModel.product_title || `#${detailModel.product_id}`}</p>
             <p><strong>Subitem:</strong> {detailModel.sub_item_title || 'Principal do produto'}</p>
