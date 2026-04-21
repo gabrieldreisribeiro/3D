@@ -125,6 +125,50 @@ function fileBaseName(value) {
   return name.replace(/\.[^/.]+$/, '');
 }
 
+function fileExtension(value) {
+  const name = String(value || '').toLowerCase().trim();
+  const index = name.lastIndexOf('.');
+  if (index < 0) return '';
+  return name.slice(index);
+}
+
+const MODEL3D_PREVIEW_EXTENSIONS = new Set(['.stl', '.glb']);
+const MODEL3D_ORIGINAL_EXTENSIONS = new Set(['.3mf', '.stl', '.gcode', '.glb', '.obj', '.step', '.stp']);
+
+function isModel3dPreviewExtension(ext) {
+  return MODEL3D_PREVIEW_EXTENSIONS.has(String(ext || '').toLowerCase());
+}
+
+function isModel3dOriginalExtension(ext) {
+  return MODEL3D_ORIGINAL_EXTENSIONS.has(String(ext || '').toLowerCase());
+}
+
+function createBatch3dQueueItem(file, defaultProductId = '') {
+  const extension = fileExtension(file?.name || '');
+  return {
+    id: (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : `m3d_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    file,
+    file_name: String(file?.name || '').trim(),
+    extension,
+    signature: `${file?.name || 'file'}|${file?.size || 0}|${file?.lastModified || 0}`,
+    name: fileBaseName(file?.name || ''),
+    description: '',
+    product_id: defaultProductId ? String(defaultProductId) : '',
+    sub_item_id: '',
+    original_file_url: '',
+    preview_file_url: '',
+    width_mm: '',
+    height_mm: '',
+    depth_mm: '',
+    dimensions_source: 'auto',
+    allow_download: false,
+    sort_order: '',
+    is_active: true,
+    status: 'pending',
+    error_message: '',
+  };
+}
+
 function parseColors(value) {
   if (Array.isArray(value)) {
     return value
@@ -366,6 +410,29 @@ function getInstagramStatusLabel(status) {
   return 'Nao publicado';
 }
 
+function getBatch3dStatusLabel(status) {
+  if (status === 'uploading') return 'Enviando';
+  if (status === 'ready') return 'Pronto';
+  if (status === 'saving') return 'Salvando';
+  if (status === 'saved') return 'Salvo';
+  if (status === 'needs_preview') return 'Falta preview';
+  if (status === 'error') return 'Erro';
+  return 'Pendente';
+}
+
+function getBatch3dStatusClasses(status) {
+  if (status === 'ready' || status === 'saved') {
+    return 'border-emerald-200 bg-emerald-50 text-emerald-700';
+  }
+  if (status === 'error') {
+    return 'border-rose-200 bg-rose-50 text-rose-700';
+  }
+  if (status === 'needs_preview') {
+    return 'border-amber-200 bg-amber-50 text-amber-700';
+  }
+  return 'border-slate-200 bg-slate-100 text-slate-700';
+}
+
 function ProductFormSection({ title, subtitle = null, children }) {
   return (
     <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -394,6 +461,11 @@ function AdminProductsPage() {
   const [model3dSortTouched, setModel3dSortTouched] = useState(false);
   const [uploading3dOriginal, setUploading3dOriginal] = useState(false);
   const [uploading3dPreview, setUploading3dPreview] = useState(false);
+  const [batch3dQueue, setBatch3dQueue] = useState([]);
+  const [batch3dActiveId, setBatch3dActiveId] = useState('');
+  const [batch3dUploading, setBatch3dUploading] = useState(false);
+  const [batch3dSaving, setBatch3dSaving] = useState(false);
+  const [batch3dResult, setBatch3dResult] = useState(null);
 /*  */  const [form, setForm] = usePersistentState('modal:admin-products:form', initialForm);
   const [error, setError] = useState('');
   const [isModalOpen, setIsModalOpen] = usePersistentState('modal:admin-products:open', false);
@@ -580,6 +652,145 @@ function AdminProductsPage() {
       loadProducts();
     } catch (deleteError) {
       setError(deleteError.message || 'Falha ao excluir produto.');
+    }
+  };
+
+  const updateBatch3dQueueItem = (itemId, updater) => {
+    setBatch3dQueue((current) =>
+      current.map((item) => {
+        if (item.id !== itemId) return item;
+        const nextPatch = typeof updater === 'function' ? updater(item) : updater;
+        return { ...item, ...(nextPatch || {}) };
+      })
+    );
+  };
+
+  const removeBatch3dQueueItem = (itemId) => {
+    setBatch3dQueue((current) => current.filter((item) => item.id !== itemId));
+    setBatch3dActiveId((current) => (current === itemId ? '' : current));
+  };
+
+  const handleBatch3dUploadFiles = async (incomingFiles) => {
+    const files = Array.from(incomingFiles || []);
+    if (!files.length) return;
+
+    const currentSignatures = new Set(batch3dQueue.map((item) => item.signature));
+    const defaultProductId = selectedProduct?.id ? String(selectedProduct.id) : '';
+    const validItems = files
+      .map((file) => createBatch3dQueueItem(file, defaultProductId))
+      .filter((item) => isModel3dOriginalExtension(item.extension) && !currentSignatures.has(item.signature));
+
+    if (!validItems.length) {
+      setError('Nenhum arquivo novo valido para importar. Use .stl/.glb/.3mf/.obj/.step/.stp/.gcode.');
+      return;
+    }
+
+    setBatch3dQueue((current) => [...current, ...validItems]);
+    if (!batch3dActiveId) {
+      setBatch3dActiveId(validItems[0].id);
+    }
+    setBatch3dResult(null);
+    setBatch3dUploading(true);
+    setError('');
+
+    for (const queueItem of validItems) {
+      updateBatch3dQueueItem(queueItem.id, { status: 'uploading', error_message: '' });
+      try {
+        const original = await uploadAdmin3DOriginalFile(queueItem.file, queueItem.file_name);
+        const nextPatch = {
+          original_file_url: original?.url || '',
+          status: 'ready',
+        };
+        if (isModel3dPreviewExtension(queueItem.extension)) {
+          const preview = await uploadAdmin3DPreviewFile(queueItem.file, queueItem.file_name);
+          nextPatch.preview_file_url = preview?.url || '';
+          nextPatch.width_mm = preview?.width_mm == null ? '' : String(preview.width_mm);
+          nextPatch.height_mm = preview?.height_mm == null ? '' : String(preview.height_mm);
+          nextPatch.depth_mm = preview?.depth_mm == null ? '' : String(preview.depth_mm);
+          nextPatch.dimensions_source = preview?.dimensions_extracted ? 'auto' : 'manual';
+          if (!nextPatch.preview_file_url) {
+            nextPatch.status = 'error';
+            nextPatch.error_message = 'Upload de preview nao retornou URL.';
+          }
+        } else {
+          nextPatch.status = 'needs_preview';
+          nextPatch.error_message = 'Arquivo original enviado. Falta um preview .glb/.stl para salvar.';
+        }
+        updateBatch3dQueueItem(queueItem.id, nextPatch);
+      } catch (uploadError) {
+        updateBatch3dQueueItem(queueItem.id, {
+          status: 'error',
+          error_message: uploadError?.message || 'Falha no upload do arquivo.',
+        });
+      }
+    }
+
+    setBatch3dUploading(false);
+  };
+
+  const saveBatch3dQueue = async () => {
+    const itemsToSave = batch3dQueue.filter(
+      (item) => item.status === 'ready' && item.preview_file_url && Number(item.product_id || 0) > 0
+    );
+    if (!itemsToSave.length) {
+      setError('Nenhum item pronto para salvar. Verifique preview e produto de destino.');
+      return;
+    }
+
+    setBatch3dSaving(true);
+    setBatch3dResult(null);
+    setError('');
+
+    const sortByKey = new Map();
+    (product3dModels || []).forEach((model) => {
+      const key = `${selectedProduct?.id || 0}|${String(model?.sub_item_id || '').trim()}`;
+      sortByKey.set(key, Math.max(sortByKey.get(key) || 0, Number(model?.sort_order || 0)));
+    });
+
+    let successCount = 0;
+    let errorCount = 0;
+
+    for (const item of itemsToSave) {
+      updateBatch3dQueueItem(item.id, { status: 'saving', error_message: '' });
+      try {
+        const productId = Number(item.product_id || 0);
+        const subItemId = String(item.sub_item_id || '').trim();
+        const sortKey = `${productId}|${subItemId}`;
+        const currentMax = Number(sortByKey.get(sortKey) || 0);
+        const providedSort = Number(item.sort_order || 0);
+        const sortOrder = providedSort > 0 ? providedSort : currentMax + 1;
+        sortByKey.set(sortKey, Math.max(currentMax, sortOrder));
+
+        await createAdminProduct3DModel(productId, {
+          sub_item_id: subItemId || null,
+          name: String(item.name || '').trim() || fileBaseName(item.file_name),
+          description: String(item.description || '').trim() || null,
+          original_file_url: String(item.original_file_url || '').trim() || null,
+          preview_file_url: String(item.preview_file_url || '').trim(),
+          width_mm: toOptionalNumber(item.width_mm),
+          height_mm: toOptionalNumber(item.height_mm),
+          depth_mm: toOptionalNumber(item.depth_mm),
+          dimensions_source: item.dimensions_source === 'manual' ? 'manual' : 'auto',
+          allow_download: Boolean(item.allow_download),
+          sort_order: sortOrder,
+          is_active: Boolean(item.is_active),
+        });
+        updateBatch3dQueueItem(item.id, { status: 'saved', sort_order: sortOrder, error_message: '' });
+        successCount += 1;
+      } catch (saveError) {
+        updateBatch3dQueueItem(item.id, {
+          status: 'error',
+          error_message: saveError?.message || 'Falha ao salvar modelo 3D.',
+        });
+        errorCount += 1;
+      }
+    }
+
+    setBatch3dSaving(false);
+    setBatch3dResult({ success: successCount, failed: errorCount });
+    loadProducts();
+    if (selectedProduct?.id) {
+      load3dModels(selectedProduct.id);
     }
   };
 
@@ -784,6 +995,9 @@ function AdminProductsPage() {
     if (currentPage > totalPages) setCurrentPage(totalPages);
   }, [currentPage, totalPages]);
   const categoryOptions = [{ value: '', label: 'Sem categoria' }, ...categories.map((category) => ({ value: String(category.id), label: category.name }))];
+  const activeBatch3dItem = batch3dQueue.find((item) => item.id === batch3dActiveId) || null;
+  const activeBatchProduct = products.find((item) => String(item.id) === String(activeBatch3dItem?.product_id || '')) || null;
+  const activeBatchSubItems = Array.isArray(activeBatchProduct?.sub_items) ? activeBatchProduct.sub_items : [];
 
   const updateSubItem = (index, field, value) => {
     setForm((current) => ({
@@ -1805,6 +2019,205 @@ function AdminProductsPage() {
             <p className="md:col-span-2 text-xs text-slate-500">
               Se "Usar modelo principal" estiver ativo, o sistema busca as dimensoes do modelo 3D ativo com menor ordem.
             </p>
+          </ProductFormSection>
+
+          <ProductFormSection
+            title="Importacao em lote 3D"
+            subtitle="Envie varios arquivos de uma vez, clique no card para atribuir produto/sub item e salve em lote."
+          >
+            <div className="md:col-span-2 flex flex-wrap items-center gap-2">
+              <label className="inline-flex cursor-pointer items-center rounded-[10px] border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:border-violet-200 hover:text-violet-700">
+                <input
+                  type="file"
+                  multiple
+                  accept=".3mf,.stl,.gcode,.glb,.obj,.step,.stp"
+                  className="hidden"
+                  onChange={(event) => {
+                    void handleBatch3dUploadFiles(event.target.files);
+                    event.target.value = '';
+                  }}
+                />
+                Adicionar arquivos para fila
+              </label>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={saveBatch3dQueue}
+                disabled={!batch3dQueue.some((item) => item.status === 'ready') || batch3dSaving || batch3dUploading}
+                loading={batch3dSaving}
+              >
+                Salvar itens prontos
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => {
+                  setBatch3dQueue((current) => current.filter((item) => item.status !== 'saved'));
+                  setBatch3dResult(null);
+                }}
+                disabled={!batch3dQueue.some((item) => item.status === 'saved')}
+              >
+                Limpar salvos
+              </Button>
+              {batch3dUploading ? <small className="text-xs text-slate-500">Enviando arquivos da fila...</small> : null}
+            </div>
+
+            <div className="md:col-span-2 grid grid-cols-1 gap-4 lg:grid-cols-[1.2fr_1fr]">
+              <div className="space-y-2">
+                {batch3dQueue.length === 0 ? (
+                  <p className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-xs text-slate-500">
+                    Nenhum item na fila. Adicione varios arquivos para importar em lote.
+                  </p>
+                ) : (
+                  batch3dQueue.map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => setBatch3dActiveId(item.id)}
+                      className={`w-full rounded-xl border p-3 text-left transition ${
+                        batch3dActiveId === item.id
+                          ? 'border-violet-300 bg-violet-50'
+                          : 'border-slate-200 bg-white hover:border-violet-200 hover:bg-violet-50/30'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <p className="text-sm font-semibold text-slate-900">{item.name || item.file_name}</p>
+                          <p className="text-xs text-slate-500">{item.file_name}</p>
+                          <p className="text-xs text-slate-500">
+                            {item.width_mm || '-'} x {item.height_mm || '-'} x {item.depth_mm || '-'} mm
+                          </p>
+                        </div>
+                        <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${getBatch3dStatusClasses(item.status)}`}>
+                          {getBatch3dStatusLabel(item.status)}
+                        </span>
+                      </div>
+                      {item.error_message ? <p className="mt-2 text-xs text-rose-600">{item.error_message}</p> : null}
+                    </button>
+                  ))
+                )}
+              </div>
+
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                {activeBatch3dItem ? (
+                  <div className="space-y-3">
+                    <p className="text-sm font-semibold text-slate-900">Atribuicao rapida do item</p>
+                    <Input
+                      label="Nome do modelo"
+                      value={activeBatch3dItem.name}
+                      onChange={(event) => updateBatch3dQueueItem(activeBatch3dItem.id, { name: event.target.value })}
+                    />
+                    <label className="flex flex-col gap-1.5">
+                      <span className="text-xs font-medium uppercase tracking-wide text-slate-500">Produto</span>
+                      <select
+                        value={activeBatch3dItem.product_id}
+                        onChange={(event) =>
+                          updateBatch3dQueueItem(activeBatch3dItem.id, {
+                            product_id: event.target.value,
+                            sub_item_id: '',
+                          })
+                        }
+                        className="h-11 rounded-[10px] border border-slate-200 bg-white px-3 text-sm text-slate-700"
+                      >
+                        <option value="">Selecione um produto</option>
+                        {products.map((item) => (
+                          <option key={item.id} value={item.id}>
+                            {item.title}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="flex flex-col gap-1.5">
+                      <span className="text-xs font-medium uppercase tracking-wide text-slate-500">Sub item (opcional)</span>
+                      <select
+                        value={activeBatch3dItem.sub_item_id}
+                        onChange={(event) => updateBatch3dQueueItem(activeBatch3dItem.id, { sub_item_id: event.target.value })}
+                        className="h-11 rounded-[10px] border border-slate-200 bg-white px-3 text-sm text-slate-700"
+                        disabled={!activeBatchProduct}
+                      >
+                        <option value="">Produto principal</option>
+                        {activeBatchSubItems.map((subItem, index) => (
+                          <option key={subItem.id || `batch-subitem-${index}`} value={subItem.id || ''}>
+                            {subItem.title || `Sub item ${index + 1}`}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <TextArea
+                      label="Descricao"
+                      rows="2"
+                      value={activeBatch3dItem.description}
+                      onChange={(event) => updateBatch3dQueueItem(activeBatch3dItem.id, { description: event.target.value })}
+                    />
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <Input
+                        label="Largura (mm)"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={activeBatch3dItem.width_mm}
+                        onChange={(event) => updateBatch3dQueueItem(activeBatch3dItem.id, { width_mm: event.target.value, dimensions_source: 'manual' })}
+                      />
+                      <Input
+                        label="Altura (mm)"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={activeBatch3dItem.height_mm}
+                        onChange={(event) => updateBatch3dQueueItem(activeBatch3dItem.id, { height_mm: event.target.value, dimensions_source: 'manual' })}
+                      />
+                      <Input
+                        label="Profundidade (mm)"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={activeBatch3dItem.depth_mm}
+                        onChange={(event) => updateBatch3dQueueItem(activeBatch3dItem.id, { depth_mm: event.target.value, dimensions_source: 'manual' })}
+                      />
+                      <Input
+                        label="Ordem (opcional)"
+                        type="number"
+                        min="1"
+                        step="1"
+                        value={activeBatch3dItem.sort_order}
+                        onChange={(event) => updateBatch3dQueueItem(activeBatch3dItem.id, { sort_order: event.target.value })}
+                      />
+                    </div>
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                      <label className="inline-flex items-center gap-2 rounded-[10px] border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700">
+                        <input
+                          type="checkbox"
+                          checked={Boolean(activeBatch3dItem.allow_download)}
+                          onChange={(event) => updateBatch3dQueueItem(activeBatch3dItem.id, { allow_download: event.target.checked })}
+                        />
+                        <span>Permitir download</span>
+                      </label>
+                      <label className="inline-flex items-center gap-2 rounded-[10px] border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700">
+                        <input
+                          type="checkbox"
+                          checked={Boolean(activeBatch3dItem.is_active)}
+                          onChange={(event) => updateBatch3dQueueItem(activeBatch3dItem.id, { is_active: event.target.checked })}
+                        />
+                        <span>Modelo ativo</span>
+                      </label>
+                    </div>
+                    <div className="flex justify-end">
+                      <Button type="button" variant="danger" onClick={() => removeBatch3dQueueItem(activeBatch3dItem.id)}>
+                        Remover da fila
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-xs text-slate-500">Clique em um card para ajustar produto, sub item e dados antes de salvar.</p>
+                )}
+              </div>
+            </div>
+
+            {batch3dResult ? (
+              <div className="md:col-span-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600">
+                Resultado do lote: {batch3dResult.success} salvo(s), {batch3dResult.failed} com erro.
+              </div>
+            ) : null}
           </ProductFormSection>
 
           <ProductFormSection
