@@ -20,6 +20,8 @@ import {
 } from '../services/api';
 
 const PAGE_SIZE = 24;
+const MODEL3D_PREVIEW_EXTENSIONS = new Set(['.stl', '.glb']);
+const MODEL3D_ORIGINAL_EXTENSIONS = new Set(['.3mf', '.stl', '.gcode', '.glb', '.obj', '.step', '.stp']);
 
 const emptyForm = {
   product_id: '',
@@ -84,6 +86,68 @@ function fileNameFromUrl(url) {
   if (!value) return '';
   const parts = value.split('/');
   return parts[parts.length - 1] || '';
+}
+
+function fileExtensionFromName(name) {
+  const value = String(name || '').toLowerCase();
+  const index = value.lastIndexOf('.');
+  if (index < 0) return '';
+  return value.slice(index);
+}
+
+function fileBaseName(name) {
+  return String(name || '').replace(/\.[^/.]+$/, '');
+}
+
+function isPreviewExtension(ext) {
+  return MODEL3D_PREVIEW_EXTENSIONS.has(String(ext || '').toLowerCase());
+}
+
+function isOriginalExtension(ext) {
+  return MODEL3D_ORIGINAL_EXTENSIONS.has(String(ext || '').toLowerCase());
+}
+
+function createBatchQueueItem(file, defaultProductId = '') {
+  const extension = fileExtensionFromName(file?.name || '');
+  return {
+    id: (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : `queue_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    file,
+    file_name: String(file?.name || '').trim(),
+    extension,
+    signature: `${file?.name || 'file'}|${file?.size || 0}|${file?.lastModified || 0}`,
+    product_id: defaultProductId ? String(defaultProductId) : '',
+    sub_item_id: '',
+    name: fileBaseName(file?.name || ''),
+    description: '',
+    sort_order: '',
+    original_file_url: '',
+    preview_file_url: '',
+    width_mm: '',
+    height_mm: '',
+    depth_mm: '',
+    dimensions_source: 'auto',
+    allow_download: false,
+    is_active: true,
+    status: 'pending',
+    error_message: '',
+  };
+}
+
+function batchStatusLabel(status) {
+  if (status === 'uploading') return 'Enviando';
+  if (status === 'ready') return 'Pronto';
+  if (status === 'saving') return 'Salvando';
+  if (status === 'saved') return 'Salvo';
+  if (status === 'needs_preview') return 'Falta preview';
+  if (status === 'error') return 'Erro';
+  return 'Pendente';
+}
+
+function batchStatusClass(status) {
+  if (status === 'ready' || status === 'saved') return 'border-emerald-200 bg-emerald-50 text-emerald-700';
+  if (status === 'needs_preview') return 'border-amber-200 bg-amber-50 text-amber-700';
+  if (status === 'error') return 'border-rose-200 bg-rose-50 text-rose-700';
+  return 'border-slate-200 bg-slate-100 text-slate-700';
 }
 
 function Model3DPreview({ src, className = '', interactive = false }) {
@@ -297,6 +361,10 @@ function Admin3DModelsPage() {
   const [previewUploadFile, setPreviewUploadFile] = useState(null);
   const [uploadingOriginal, setUploadingOriginal] = useState(false);
   const [uploadingPreview, setUploadingPreview] = useState(false);
+  const [batchQueue, setBatchQueue] = useState([]);
+  const [activeBatchId, setActiveBatchId] = useState('');
+  const [batchUploading, setBatchUploading] = useState(false);
+  const [batchSaving, setBatchSaving] = useState(false);
 
   const flashNotice = (message) => {
     setNotice(message);
@@ -399,6 +467,172 @@ function Admin3DModelsPage() {
     });
     const maxOrder = candidates.reduce((max, item) => Math.max(max, Number(item.sort_order || 0)), 0);
     return Math.max(1, maxOrder + 1);
+  };
+
+  const activeBatchItem = batchQueue.find((item) => item.id === activeBatchId) || null;
+  const batchProduct = products.find((item) => String(item.id) === String(activeBatchItem?.product_id || '')) || null;
+  const batchSubItemOptions = Array.isArray(batchProduct?.sub_items)
+    ? batchProduct.sub_items
+      .map((item) => ({ value: String(item?.id || '').trim(), label: item?.title || 'Sub item' }))
+      .filter((item) => item.value)
+    : [];
+
+  const updateBatchItem = (itemId, patch) => {
+    setBatchQueue((current) =>
+      current.map((item) => {
+        if (item.id !== itemId) return item;
+        const nextPatch = typeof patch === 'function' ? patch(item) : patch;
+        return { ...item, ...(nextPatch || {}) };
+      })
+    );
+  };
+
+  const removeBatchItem = (itemId) => {
+    setBatchQueue((current) => current.filter((item) => item.id !== itemId));
+    setActiveBatchId((current) => (current === itemId ? '' : current));
+  };
+
+  const handleBatchFilesSelected = async (incomingFiles) => {
+    const files = Array.from(incomingFiles || []);
+    if (!files.length) return;
+    const defaultProductId = productFilter !== 'all' ? String(productFilter) : '';
+    const signatures = new Set(batchQueue.map((item) => item.signature));
+    const queueItems = files
+      .map((file) => createBatchQueueItem(file, defaultProductId))
+      .filter((item) => isOriginalExtension(item.extension) && !signatures.has(item.signature));
+
+    if (!queueItems.length) {
+      setError('Nenhum arquivo novo valido para upload em lote.');
+      return;
+    }
+
+    setBatchQueue((current) => [...current, ...queueItems]);
+    if (!activeBatchId) setActiveBatchId(queueItems[0].id);
+    setBatchUploading(true);
+    setError('');
+
+    for (const item of queueItems) {
+      updateBatchItem(item.id, { status: 'uploading', error_message: '' });
+      try {
+        const original = await uploadAdmin3DOriginalFile(item.file, item.file_name);
+        const nextPatch = {
+          original_file_url: original?.url || '',
+          status: 'ready',
+          error_message: '',
+        };
+
+        if (isPreviewExtension(item.extension)) {
+          const preview = await uploadAdmin3DPreviewFile(item.file, item.file_name);
+          nextPatch.preview_file_url = preview?.url || '';
+          nextPatch.width_mm = preview?.width_mm == null ? '' : String(preview.width_mm);
+          nextPatch.height_mm = preview?.height_mm == null ? '' : String(preview.height_mm);
+          nextPatch.depth_mm = preview?.depth_mm == null ? '' : String(preview.depth_mm);
+          nextPatch.dimensions_source = preview?.dimensions_extracted ? 'auto' : 'manual';
+          if (!nextPatch.preview_file_url) {
+            nextPatch.status = 'error';
+            nextPatch.error_message = 'Preview nao retornou URL.';
+          }
+        } else {
+          nextPatch.status = 'needs_preview';
+          nextPatch.error_message = 'Envie um arquivo preview (.stl/.glb) para este item.';
+        }
+
+        updateBatchItem(item.id, nextPatch);
+      } catch (uploadError) {
+        updateBatchItem(item.id, {
+          status: 'error',
+          error_message: uploadError?.message || 'Falha no upload.',
+        });
+      }
+    }
+
+    setBatchUploading(false);
+    flashNotice('Upload em lote concluido. Clique no card para vincular ao produto.');
+  };
+
+  const uploadBatchPreview = async (itemId, file) => {
+    if (!file) return;
+    updateBatchItem(itemId, { status: 'uploading', error_message: '' });
+    setError('');
+    try {
+      const result = await uploadAdmin3DPreviewFile(file, file.name);
+      updateBatchItem(itemId, (current) => ({
+        preview_file_url: result?.url || current.preview_file_url,
+        width_mm: result?.width_mm == null ? current.width_mm : String(result.width_mm),
+        height_mm: result?.height_mm == null ? current.height_mm : String(result.height_mm),
+        depth_mm: result?.depth_mm == null ? current.depth_mm : String(result.depth_mm),
+        dimensions_source: result?.dimensions_extracted ? 'auto' : current.dimensions_source,
+        status: result?.url ? 'ready' : 'error',
+        error_message: result?.url ? '' : 'Falha ao gerar preview.',
+      }));
+    } catch (uploadError) {
+      updateBatchItem(itemId, {
+        status: 'error',
+        error_message: uploadError?.message || 'Falha no upload do preview.',
+      });
+    }
+  };
+
+  const saveBatchQueue = async () => {
+    const readyItems = batchQueue.filter(
+      (item) => item.status === 'ready' && item.preview_file_url && Number(item.product_id || 0) > 0
+    );
+    if (!readyItems.length) {
+      setError('Nenhum item pronto para salvar. Verifique produto e preview.');
+      return;
+    }
+
+    setBatchSaving(true);
+    setError('');
+
+    const sortMap = new Map();
+    rows.forEach((row) => {
+      const key = `${Number(row.product_id || 0)}|${String(row.sub_item_id || '').trim()}`;
+      sortMap.set(key, Math.max(Number(sortMap.get(key) || 0), Number(row.sort_order || 0)));
+    });
+
+    let ok = 0;
+    let fail = 0;
+    for (const item of readyItems) {
+      updateBatchItem(item.id, { status: 'saving', error_message: '' });
+      try {
+        const productId = Number(item.product_id || 0);
+        const subItemId = String(item.sub_item_id || '').trim();
+        const key = `${productId}|${subItemId}`;
+        const maxSort = Number(sortMap.get(key) || 0);
+        const providedSort = Number(item.sort_order || 0);
+        const nextSort = providedSort > 0 ? providedSort : maxSort + 1;
+        sortMap.set(key, Math.max(maxSort, nextSort));
+
+        await createAdmin3DModel({
+          product_id: productId,
+          sub_item_id: subItemId || null,
+          name: String(item.name || '').trim() || fileBaseName(item.file_name),
+          description: String(item.description || '').trim() || null,
+          sort_order: nextSort,
+          original_file_url: String(item.original_file_url || '').trim() || null,
+          preview_file_url: String(item.preview_file_url || '').trim(),
+          width_mm: toOptionalNumber(item.width_mm),
+          height_mm: toOptionalNumber(item.height_mm),
+          depth_mm: toOptionalNumber(item.depth_mm),
+          dimensions_source: item.dimensions_source === 'manual' ? 'manual' : 'auto',
+          allow_download: Boolean(item.allow_download),
+          is_active: Boolean(item.is_active),
+        });
+        ok += 1;
+        updateBatchItem(item.id, { status: 'saved', sort_order: nextSort, error_message: '' });
+      } catch (saveError) {
+        fail += 1;
+        updateBatchItem(item.id, {
+          status: 'error',
+          error_message: saveError?.message || 'Falha ao salvar item.',
+        });
+      }
+    }
+
+    setBatchSaving(false);
+    flashNotice(`Lote salvo: ${ok} sucesso, ${fail} erro(s).`);
+    loadData();
   };
 
   useEffect(() => {
@@ -638,6 +872,187 @@ function Admin3DModelsPage() {
 
       {error ? <p className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p> : null}
       {notice ? <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{notice}</p> : null}
+
+      <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          <label className="inline-flex cursor-pointer items-center rounded-[10px] border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:border-violet-200 hover:text-violet-700">
+            <input
+              type="file"
+              multiple
+              accept=".3mf,.stl,.gcode,.glb,.obj,.step,.stp"
+              className="hidden"
+              onChange={(event) => {
+                void handleBatchFilesSelected(event.target.files);
+                event.target.value = '';
+              }}
+            />
+            Upload em lote 3D
+          </label>
+          <Button
+            variant="secondary"
+            onClick={saveBatchQueue}
+            loading={batchSaving}
+            disabled={!batchQueue.some((item) => item.status === 'ready') || batchUploading}
+          >
+            Salvar lote
+          </Button>
+          <Button
+            variant="ghost"
+            onClick={() => setBatchQueue((current) => current.filter((item) => item.status !== 'saved'))}
+            disabled={!batchQueue.some((item) => item.status === 'saved')}
+          >
+            Limpar salvos
+          </Button>
+          {batchUploading ? <small className="text-xs text-slate-500">Processando uploads da fila...</small> : null}
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.15fr_1fr]">
+          <div className="space-y-2">
+            {batchQueue.length === 0 ? (
+              <p className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-xs text-slate-500">
+                Envie varios arquivos. Depois clique no card para vincular ao produto.
+              </p>
+            ) : (
+              batchQueue.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  className={`w-full rounded-xl border p-3 text-left transition ${
+                    activeBatchId === item.id
+                      ? 'border-violet-300 bg-violet-50'
+                      : 'border-slate-200 bg-white hover:border-violet-200'
+                  }`}
+                  onClick={() => setActiveBatchId(item.id)}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900">{item.name || item.file_name}</p>
+                      <p className="text-xs text-slate-500">{item.file_name}</p>
+                      <p className="text-xs text-slate-500">
+                        {item.width_mm || '-'} x {item.height_mm || '-'} x {item.depth_mm || '-'} mm
+                      </p>
+                    </div>
+                    <span className={`inline-flex rounded-full border px-2 py-0.5 text-[11px] font-medium ${batchStatusClass(item.status)}`}>
+                      {batchStatusLabel(item.status)}
+                    </span>
+                  </div>
+                  {item.error_message ? <p className="mt-2 text-xs text-rose-600">{item.error_message}</p> : null}
+                </button>
+              ))
+            )}
+          </div>
+
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+            {activeBatchItem ? (
+              <div className="space-y-3">
+                <p className="text-sm font-semibold text-slate-900">Vincular card selecionado</p>
+                <Input
+                  label="Nome"
+                  value={activeBatchItem.name}
+                  onChange={(event) => updateBatchItem(activeBatchItem.id, { name: event.target.value })}
+                />
+                <label className="flex flex-col gap-1.5">
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Produto</span>
+                  <select
+                    value={activeBatchItem.product_id}
+                    onChange={(event) => updateBatchItem(activeBatchItem.id, { product_id: event.target.value, sub_item_id: '' })}
+                    className="h-11 rounded-xl border border-slate-200 px-3 text-sm"
+                  >
+                    <option value="">Selecione</option>
+                    {productOptions.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+                  </select>
+                </label>
+                <label className="flex flex-col gap-1.5">
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Subitem (opcional)</span>
+                  <select
+                    value={activeBatchItem.sub_item_id}
+                    onChange={(event) => updateBatchItem(activeBatchItem.id, { sub_item_id: event.target.value })}
+                    className="h-11 rounded-xl border border-slate-200 px-3 text-sm"
+                    disabled={!batchProduct}
+                  >
+                    <option value="">Principal do produto</option>
+                    {batchSubItemOptions.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+                  </select>
+                </label>
+                <Input
+                  label="Ordem (opcional)"
+                  type="number"
+                  min="1"
+                  step="1"
+                  value={activeBatchItem.sort_order}
+                  onChange={(event) => updateBatchItem(activeBatchItem.id, { sort_order: event.target.value })}
+                />
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  <Input
+                    label="Largura (mm)"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={activeBatchItem.width_mm}
+                    onChange={(event) => updateBatchItem(activeBatchItem.id, { width_mm: event.target.value, dimensions_source: 'manual' })}
+                  />
+                  <Input
+                    label="Altura (mm)"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={activeBatchItem.height_mm}
+                    onChange={(event) => updateBatchItem(activeBatchItem.id, { height_mm: event.target.value, dimensions_source: 'manual' })}
+                  />
+                  <Input
+                    label="Profundidade (mm)"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={activeBatchItem.depth_mm}
+                    onChange={(event) => updateBatchItem(activeBatchItem.id, { depth_mm: event.target.value, dimensions_source: 'manual' })}
+                  />
+                </div>
+                <Input
+                  label="Descricao"
+                  value={activeBatchItem.description}
+                  onChange={(event) => updateBatchItem(activeBatchItem.id, { description: event.target.value })}
+                />
+                <label className="flex flex-col gap-1.5">
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Preview manual (.glb/.stl)</span>
+                  <input
+                    type="file"
+                    accept=".glb,.stl"
+                    onChange={(event) => {
+                      void uploadBatchPreview(activeBatchItem.id, event.target.files?.[0] || null);
+                      event.target.value = '';
+                    }}
+                    className="max-w-full text-sm"
+                  />
+                </label>
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  <label className="inline-flex items-center gap-2 rounded-[10px] border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(activeBatchItem.allow_download)}
+                      onChange={(event) => updateBatchItem(activeBatchItem.id, { allow_download: event.target.checked })}
+                    />
+                    Permitir download
+                  </label>
+                  <label className="inline-flex items-center gap-2 rounded-[10px] border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(activeBatchItem.is_active)}
+                      onChange={(event) => updateBatchItem(activeBatchItem.id, { is_active: event.target.checked })}
+                    />
+                    Modelo ativo
+                  </label>
+                </div>
+                <div className="flex justify-end">
+                  <Button variant="danger" onClick={() => removeBatchItem(activeBatchItem.id)}>Remover card</Button>
+                </div>
+              </div>
+            ) : (
+              <p className="text-xs text-slate-500">Selecione um card da fila para vincular ao produto.</p>
+            )}
+          </div>
+        </div>
+      </section>
 
       <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         <div className="flex flex-col gap-3">
