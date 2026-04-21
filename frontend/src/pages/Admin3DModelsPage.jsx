@@ -150,6 +150,17 @@ function batchStatusClass(status) {
   return 'border-slate-200 bg-slate-100 text-slate-700';
 }
 
+function filterSelectOptions(options, query, selectedValue = '') {
+  const text = String(query || '').trim().toLowerCase();
+  if (!text) return options;
+  const selected = String(selectedValue || '').trim();
+  const filtered = options.filter((option) => String(option.label || '').toLowerCase().includes(text));
+  if (!selected) return filtered;
+  if (filtered.some((option) => String(option.value) === selected)) return filtered;
+  const selectedOption = options.find((option) => String(option.value) === selected);
+  return selectedOption ? [selectedOption, ...filtered] : filtered;
+}
+
 function Model3DPreview({ src, className = '', interactive = false }) {
   const mountRef = useRef(null);
   const [failed, setFailed] = useState(false);
@@ -365,6 +376,10 @@ function Admin3DModelsPage() {
   const [activeBatchId, setActiveBatchId] = useState('');
   const [batchUploading, setBatchUploading] = useState(false);
   const [batchSaving, setBatchSaving] = useState(false);
+  const [batchProductSearch, setBatchProductSearch] = useState('');
+  const [batchSubItemSearch, setBatchSubItemSearch] = useState('');
+  const [modalProductSearch, setModalProductSearch] = useState('');
+  const [modalSubItemSearch, setModalSubItemSearch] = useState('');
 
   const flashNotice = (message) => {
     setNotice(message);
@@ -456,6 +471,34 @@ function Admin3DModelsPage() {
       .filter((item) => item.value);
   }, [selectedProduct]);
 
+  const activeBatchItem = batchQueue.find((item) => item.id === activeBatchId) || null;
+  const batchProduct = products.find((item) => String(item.id) === String(activeBatchItem?.product_id || '')) || null;
+  const batchSubItemOptions = Array.isArray(batchProduct?.sub_items)
+    ? batchProduct.sub_items
+      .map((item) => ({ value: String(item?.id || '').trim(), label: item?.title || 'Sub item' }))
+      .filter((item) => item.value)
+    : [];
+
+  const filteredBatchProductOptions = useMemo(
+    () => filterSelectOptions(productOptions, batchProductSearch, activeBatchItem?.product_id),
+    [productOptions, batchProductSearch, activeBatchItem?.product_id]
+  );
+
+  const filteredBatchSubItemOptions = useMemo(
+    () => filterSelectOptions(batchSubItemOptions, batchSubItemSearch, activeBatchItem?.sub_item_id),
+    [batchSubItemOptions, batchSubItemSearch, activeBatchItem?.sub_item_id]
+  );
+
+  const filteredModalProductOptions = useMemo(
+    () => filterSelectOptions(productOptions, modalProductSearch, form.product_id),
+    [productOptions, modalProductSearch, form.product_id]
+  );
+
+  const filteredModalSubItemOptions = useMemo(
+    () => filterSelectOptions(subItemOptions, modalSubItemSearch, form.sub_item_id),
+    [subItemOptions, modalSubItemSearch, form.sub_item_id]
+  );
+
   const computeNextSortOrder = (productId, subItemId) => {
     const pid = Number(productId || 0);
     if (!pid) return 1;
@@ -468,14 +511,6 @@ function Admin3DModelsPage() {
     const maxOrder = candidates.reduce((max, item) => Math.max(max, Number(item.sort_order || 0)), 0);
     return Math.max(1, maxOrder + 1);
   };
-
-  const activeBatchItem = batchQueue.find((item) => item.id === activeBatchId) || null;
-  const batchProduct = products.find((item) => String(item.id) === String(activeBatchItem?.product_id || '')) || null;
-  const batchSubItemOptions = Array.isArray(batchProduct?.sub_items)
-    ? batchProduct.sub_items
-      .map((item) => ({ value: String(item?.id || '').trim(), label: item?.title || 'Sub item' }))
-      .filter((item) => item.value)
-    : [];
 
   const updateBatchItem = (itemId, patch) => {
     setBatchQueue((current) =>
@@ -646,6 +681,8 @@ function Admin3DModelsPage() {
     setSortOrderTouched(false);
     setOriginalUploadFile(null);
     setPreviewUploadFile(null);
+    setModalProductSearch('');
+    setModalSubItemSearch('');
     setForm(emptyForm);
     setModalOpen(true);
   };
@@ -655,6 +692,8 @@ function Admin3DModelsPage() {
     setSortOrderTouched(true);
     setOriginalUploadFile(null);
     setPreviewUploadFile(null);
+    setModalProductSearch('');
+    setModalSubItemSearch('');
     setForm({
       product_id: String(item.product_id),
       sub_item_id: String(item.sub_item_id || ''),
@@ -907,7 +946,7 @@ function Admin3DModelsPage() {
         </div>
 
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.15fr_1fr]">
-          <div className="space-y-2">
+          <div className="max-h-[620px] space-y-2 overflow-y-auto pr-1">
             {batchQueue.length === 0 ? (
               <p className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-xs text-slate-500">
                 Envie varios arquivos. Depois clique no card para vincular ao produto.
@@ -951,17 +990,32 @@ function Admin3DModelsPage() {
                   value={activeBatchItem.name}
                   onChange={(event) => updateBatchItem(activeBatchItem.id, { name: event.target.value })}
                 />
+                <Input
+                  label="Buscar produto"
+                  value={batchProductSearch}
+                  onChange={(event) => setBatchProductSearch(event.target.value)}
+                  placeholder="Digite para filtrar produtos"
+                />
                 <label className="flex flex-col gap-1.5">
                   <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Produto</span>
                   <select
                     value={activeBatchItem.product_id}
-                    onChange={(event) => updateBatchItem(activeBatchItem.id, { product_id: event.target.value, sub_item_id: '' })}
+                    onChange={(event) => {
+                      setBatchSubItemSearch('');
+                      updateBatchItem(activeBatchItem.id, { product_id: event.target.value, sub_item_id: '' });
+                    }}
                     className="h-11 rounded-xl border border-slate-200 px-3 text-sm"
                   >
                     <option value="">Selecione</option>
-                    {productOptions.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+                    {filteredBatchProductOptions.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
                   </select>
                 </label>
+                <Input
+                  label="Buscar subitem"
+                  value={batchSubItemSearch}
+                  onChange={(event) => setBatchSubItemSearch(event.target.value)}
+                  placeholder="Digite para filtrar subitens"
+                />
                 <label className="flex flex-col gap-1.5">
                   <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Subitem (opcional)</span>
                   <select
@@ -971,7 +1025,7 @@ function Admin3DModelsPage() {
                     disabled={!batchProduct}
                   >
                     <option value="">Principal do produto</option>
-                    {batchSubItemOptions.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+                    {filteredBatchSubItemOptions.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
                   </select>
                 </label>
                 <Input
@@ -1182,6 +1236,13 @@ function Admin3DModelsPage() {
         )}
       >
         <form className="grid grid-cols-1 gap-4 md:grid-cols-2" onSubmit={saveModel}>
+          <Input
+            label="Buscar produto na lista"
+            className="md:col-span-2"
+            value={modalProductSearch}
+            onChange={(event) => setModalProductSearch(event.target.value)}
+            placeholder="Digite para filtrar produtos"
+          />
           <label className="flex flex-col gap-1.5">
             <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Produto vinculado</span>
             <select
@@ -1193,9 +1254,15 @@ function Admin3DModelsPage() {
               className="h-11 rounded-xl border border-slate-200 px-3 text-sm"
             >
               <option value="">Selecione</option>
-              {productOptions.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+              {filteredModalProductOptions.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
             </select>
           </label>
+          <Input
+            label="Buscar subitem na lista"
+            value={modalSubItemSearch}
+            onChange={(event) => setModalSubItemSearch(event.target.value)}
+            placeholder="Digite para filtrar subitens"
+          />
           <label className="flex flex-col gap-1.5">
             <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Subitem vinculado (opcional)</span>
             <select
@@ -1207,7 +1274,7 @@ function Admin3DModelsPage() {
               className="h-11 rounded-xl border border-slate-200 px-3 text-sm"
             >
               <option value="">Principal do produto</option>
-              {subItemOptions.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+              {filteredModalSubItemOptions.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
             </select>
           </label>
           <Input label="Nome" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} required />
