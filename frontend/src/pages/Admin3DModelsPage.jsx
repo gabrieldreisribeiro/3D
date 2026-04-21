@@ -580,7 +580,7 @@ function Admin3DModelsPage() {
 
   const handleDownloadOriginal = async (item) => {
     try {
-      const name = String(item.original_file_name || '').trim();
+      const name = String(item.original_file_name || fileNameFromUrl(item.original_file_url) || '').trim();
       await downloadAdmin3DModelOriginal(item.id, name || null);
       flashNotice(`Download original: ${item.name}`);
     } catch (downloadError) {
@@ -590,7 +590,7 @@ function Admin3DModelsPage() {
 
   const handleDownloadPreview = async (item) => {
     try {
-      const name = String(item.preview_file_name || '').trim();
+      const name = String(item.preview_file_name || fileNameFromUrl(item.preview_file_url) || '').trim();
       await downloadAdmin3DModelPreview(item.id, name || null);
       flashNotice(`Download preview: ${item.name}`);
     } catch (downloadError) {

@@ -56,6 +56,14 @@ def _resolve_target_with_name(directory: Path, extension: str, preferred_name: s
         index += 1
 
 
+def _exact_target_with_name(directory: Path, extension: str, preferred_name: str | None, fallback_prefix: str) -> Path:
+    safe_ext = str(extension or '').lower().strip()
+    base = _sanitize_filename_base(preferred_name or '')
+    if not base:
+        base = f'{fallback_prefix}-{uuid4().hex[:8]}'
+    return directory / f'{base}{safe_ext}'
+
+
 def _normalize_dimensions(width: float, height: float, depth: float) -> tuple[float, float, float] | None:
     values = [float(width or 0), float(height or 0), float(depth or 0)]
     if any(value < 0 for value in values):
@@ -248,10 +256,14 @@ def save_original_model_file(file: UploadFile, preferred_name: str | None = None
     ext = _extension(file.filename)
     if ext not in ALLOWED_ORIGINAL_EXTENSIONS:
         raise HTTPException(status_code=400, detail='Formato de arquivo original nao suportado.')
-    target = _resolve_target_with_name(MODELS_3D_ORIGINAL_UPLOADS_DIR, ext, preferred_name or file.filename, 'model')
     content = file.file.read()
     if not content:
         raise HTTPException(status_code=400, detail='Arquivo original vazio.')
+    preferred_target = _exact_target_with_name(MODELS_3D_ORIGINAL_UPLOADS_DIR, ext, preferred_name or file.filename, 'model')
+    # If same filename already exists with the same content, reuse it instead of duplicating.
+    if preferred_target.exists() and preferred_target.read_bytes() == content:
+        return _public_url_for(preferred_target)
+    target = preferred_target if not preferred_target.exists() else _resolve_target_with_name(MODELS_3D_ORIGINAL_UPLOADS_DIR, ext, preferred_name or file.filename, 'model')
     target.write_bytes(content)
     return _public_url_for(target)
 
@@ -260,10 +272,15 @@ def save_preview_model_file(file: UploadFile, preferred_name: str | None = None)
     ext = _extension(file.filename)
     if ext not in ALLOWED_PREVIEW_EXTENSIONS:
         raise HTTPException(status_code=400, detail='Formato de arquivo de preview nao suportado. Use .glb ou .stl.')
-    target = _resolve_target_with_name(MODELS_3D_PREVIEW_UPLOADS_DIR, ext, preferred_name or file.filename, 'preview')
     content = file.file.read()
     if not content:
         raise HTTPException(status_code=400, detail='Arquivo de preview vazio.')
+    preferred_target = _exact_target_with_name(MODELS_3D_PREVIEW_UPLOADS_DIR, ext, preferred_name or file.filename, 'preview')
+    # Reuse identical file when same name + same bytes were already uploaded.
+    if preferred_target.exists() and preferred_target.read_bytes() == content:
+        dimensions = extract_dimensions_from_preview(preferred_target)
+        return _public_url_for(preferred_target), dimensions
+    target = preferred_target if not preferred_target.exists() else _resolve_target_with_name(MODELS_3D_PREVIEW_UPLOADS_DIR, ext, preferred_name or file.filename, 'preview')
     target.write_bytes(content)
     dimensions = extract_dimensions_from_preview(target)
     return _public_url_for(target), dimensions

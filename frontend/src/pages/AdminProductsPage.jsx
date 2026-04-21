@@ -120,6 +120,11 @@ function toOptionalNumber(value) {
   return Number.isNaN(parsed) ? null : parsed;
 }
 
+function fileBaseName(value) {
+  const name = String(value || '').split('/').pop() || '';
+  return name.replace(/\.[^/.]+$/, '');
+}
+
 function parseColors(value) {
   if (Array.isArray(value)) {
     return value
@@ -386,6 +391,7 @@ function AdminProductsPage() {
   const [model3dModalOpen, setModel3dModalOpen] = useState(false);
   const [model3dForm, setModel3dForm] = useState(createEmpty3dModelForm());
   const [editing3dModelId, setEditing3dModelId] = useState(null);
+  const [model3dSortTouched, setModel3dSortTouched] = useState(false);
   const [uploading3dOriginal, setUploading3dOriginal] = useState(false);
   const [uploading3dPreview, setUploading3dPreview] = useState(false);
 /*  */  const [form, setForm] = usePersistentState('modal:admin-products:form', initialForm);
@@ -577,14 +583,24 @@ function AdminProductsPage() {
     }
   };
 
+  const computeNext3dSortOrder = (subItemId = '') => {
+    const target = String(subItemId || '').trim();
+    const matches = (product3dModels || []).filter((item) => String(item?.sub_item_id || '').trim() === target);
+    const maxOrder = matches.reduce((acc, item) => Math.max(acc, Number(item?.sort_order || 0)), 0);
+    return Math.max(1, maxOrder + 1);
+  };
+
   const openCreate3dModel = () => {
     setEditing3dModelId(null);
-    setModel3dForm(createEmpty3dModelForm());
+    setModel3dSortTouched(false);
+    const nextOrder = computeNext3dSortOrder('');
+    setModel3dForm({ ...createEmpty3dModelForm(), sort_order: nextOrder });
     setModel3dModalOpen(true);
   };
 
   const openEdit3dModel = (model) => {
     setEditing3dModelId(model.id);
+    setModel3dSortTouched(true);
     setModel3dForm({
       sub_item_id: String(model.sub_item_id || ''),
       name: model.name || '',
@@ -601,6 +617,14 @@ function AdminProductsPage() {
     });
     setModel3dModalOpen(true);
   };
+
+  useEffect(() => {
+    if (!model3dModalOpen || editing3dModelId || model3dSortTouched) return;
+    setModel3dForm((current) => ({
+      ...current,
+      sort_order: computeNext3dSortOrder(current.sub_item_id),
+    }));
+  }, [model3dModalOpen, editing3dModelId, model3dSortTouched, model3dForm.sub_item_id, product3dModels]);
 
   const submit3dModelForm = async (event) => {
     event.preventDefault();
@@ -638,6 +662,7 @@ function AdminProductsPage() {
       }
       setModel3dModalOpen(false);
       setEditing3dModelId(null);
+      setModel3dSortTouched(false);
       setModel3dForm(createEmpty3dModelForm());
       load3dModels(selectedProduct.id);
       loadProducts();
@@ -683,8 +708,12 @@ function AdminProductsPage() {
     setUploading3dOriginal(true);
     setError('');
     try {
-      const result = await uploadAdmin3DOriginalFile(file);
-      setModel3dForm((current) => ({ ...current, original_file_url: result?.url || '' }));
+      const result = await uploadAdmin3DOriginalFile(file, file.name);
+      setModel3dForm((current) => ({
+        ...current,
+        original_file_url: result?.url || current.original_file_url,
+        name: current.name || fileBaseName(file.name),
+      }));
     } catch (uploadError) {
       setError(uploadError.message || 'Falha no upload do arquivo original 3D.');
     } finally {
@@ -697,10 +726,11 @@ function AdminProductsPage() {
     setUploading3dPreview(true);
     setError('');
     try {
-      const result = await uploadAdmin3DPreviewFile(file);
+      const result = await uploadAdmin3DPreviewFile(file, file.name);
       setModel3dForm((current) => ({
         ...current,
         preview_file_url: result?.url || '',
+        name: current.name || fileBaseName(file.name),
         width_mm: result?.width_mm == null ? current.width_mm : String(result.width_mm),
         height_mm: result?.height_mm == null ? current.height_mm : String(result.height_mm),
         depth_mm: result?.depth_mm == null ? current.depth_mm : String(result.depth_mm),
@@ -1908,7 +1938,10 @@ function AdminProductsPage() {
             <span className="text-xs font-medium uppercase tracking-wide text-slate-500">Destino do modelo</span>
             <select
               value={model3dForm.sub_item_id}
-              onChange={(event) => setModel3dForm({ ...model3dForm, sub_item_id: event.target.value })}
+              onChange={(event) => {
+                setModel3dSortTouched(false);
+                setModel3dForm({ ...model3dForm, sub_item_id: event.target.value });
+              }}
               className="h-11 rounded-[10px] border border-slate-200 bg-white px-3 text-sm text-slate-700"
             >
               <option value="">Produto principal</option>
@@ -1920,7 +1953,17 @@ function AdminProductsPage() {
             </select>
           </label>
           <Input label="Nome do modelo" value={model3dForm.name} onChange={(event) => setModel3dForm({ ...model3dForm, name: event.target.value })} required />
-          <Input label="Ordem" type="number" min="1" step="1" value={model3dForm.sort_order} onChange={(event) => setModel3dForm({ ...model3dForm, sort_order: event.target.value })} />
+          <Input
+            label="Ordem"
+            type="number"
+            min="1"
+            step="1"
+            value={model3dForm.sort_order}
+            onChange={(event) => {
+              setModel3dSortTouched(true);
+              setModel3dForm({ ...model3dForm, sort_order: event.target.value });
+            }}
+          />
           <TextArea
             label="Descricao"
             className="md:col-span-2"

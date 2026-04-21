@@ -1165,7 +1165,11 @@ export async function downloadAdminDatabaseExport(path, filename) {
   const inferExtension = () => {
     const mime = String(blob.type || '').toLowerCase();
     if (mime.includes('stl')) return '.stl';
-    if (mime.includes('gltf')) return '.glb';
+    if (mime.includes('gltf') || mime.includes('glb')) return '.glb';
+    if (mime.includes('model/obj') || mime.includes('text/plain')) return '.obj';
+    if (mime.includes('step')) return '.step';
+    if (mime.includes('3mf')) return '.3mf';
+    if (mime.includes('gcode')) return '.gcode';
     if (mime.includes('zip')) return '.zip';
     if (mime.includes('octet-stream')) return '';
     return '';

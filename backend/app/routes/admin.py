@@ -1,5 +1,6 @@
 import json
 import io
+import mimetypes
 import zipfile
 from datetime import datetime
 from pathlib import Path
@@ -764,7 +765,8 @@ def download_admin_3d_model_original(model_id: int, _: AdminUser = Depends(requi
     path = url_to_upload_path(model.original_file_url)
     if not path:
         raise HTTPException(status_code=404, detail='Arquivo original nao encontrado')
-    return FileResponse(path=path, filename=path.name, media_type='application/octet-stream')
+    media_type = mimetypes.guess_type(path.name)[0] or 'application/octet-stream'
+    return FileResponse(path=path, filename=path.name, media_type=media_type)
 
 
 @router.get('/3d-models/{model_id}/download/preview')
@@ -775,7 +777,8 @@ def download_admin_3d_model_preview(model_id: int, _: AdminUser = Depends(requir
     path = url_to_upload_path(model.preview_file_url)
     if not path:
         raise HTTPException(status_code=404, detail='Arquivo de preview nao encontrado')
-    return FileResponse(path=path, filename=path.name, media_type='application/octet-stream')
+    media_type = mimetypes.guess_type(path.name)[0] or 'application/octet-stream'
+    return FileResponse(path=path, filename=path.name, media_type=media_type)
 
 
 @router.get('/3d-models/download/all')
