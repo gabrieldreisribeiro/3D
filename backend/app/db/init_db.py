@@ -356,8 +356,12 @@ def _ensure_product_3d_models_columns(session):
         return
 
     session.execute(text("UPDATE product_3d_models SET dimensions_source = COALESCE(NULLIF(dimensions_source, ''), 'auto')"))
-    session.execute(text("UPDATE product_3d_models SET allow_download = COALESCE(allow_download, 0)"))
-    session.execute(text("UPDATE product_3d_models SET is_active = COALESCE(is_active, 1)"))
+    if session.bind.dialect.name.startswith('postgres'):
+        session.execute(text("UPDATE product_3d_models SET allow_download = COALESCE(allow_download, FALSE)"))
+        session.execute(text("UPDATE product_3d_models SET is_active = COALESCE(is_active, TRUE)"))
+    else:
+        session.execute(text("UPDATE product_3d_models SET allow_download = COALESCE(allow_download, 0)"))
+        session.execute(text("UPDATE product_3d_models SET is_active = COALESCE(is_active, 1)"))
     session.execute(text("UPDATE product_3d_models SET sort_order = COALESCE(sort_order, 1)"))
     session.commit()
 
