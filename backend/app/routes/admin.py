@@ -14,7 +14,7 @@ from app.core.security import (
     require_super_admin,
     verify_password,
 )
-from app.models import AdminUser
+from app.models import AdminUser, PublicationDraft
 from app.schemas import (
     AdminAuthUserResponse,
     AdminCategoryCreate,
@@ -712,7 +712,16 @@ def delete_product(product_id: int, _: AdminUser = Depends(require_admin), db: S
     product = admin_get_product_by_id(db, product_id)
     if not product:
         raise HTTPException(status_code=404, detail='Produto nao encontrado')
-    save_draft(db, entity_type='product', entity_id=product_id, action='delete', payload={})
+
+    # Exclusao imediata do produto publicado.
+    # Tambem remove rascunhos pendentes vinculados para evitar lixo e estados inconsistentes.
+    (
+        db.query(PublicationDraft)
+        .filter(PublicationDraft.entity_type == 'product', PublicationDraft.entity_id == product_id)
+        .delete(synchronize_session=False)
+    )
+    db.delete(product)
+    db.commit()
 
 
 @router.get('/reviews', response_model=AdminReviewListResponse)
