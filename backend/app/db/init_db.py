@@ -299,7 +299,10 @@ def _ensure_admin_users_columns(session):
 
     session.execute(text("UPDATE admin_users SET name = COALESCE(NULLIF(name, ''), 'Administrador')"))
     session.execute(text("UPDATE admin_users SET role = COALESCE(NULLIF(role, ''), 'super_admin')"))
-    session.execute(text("UPDATE admin_users SET is_blocked = COALESCE(is_blocked, 0)"))
+    if session.bind.dialect.name.startswith('postgres'):
+        session.execute(text("UPDATE admin_users SET is_blocked = COALESCE(is_blocked, FALSE)"))
+    else:
+        session.execute(text("UPDATE admin_users SET is_blocked = COALESCE(is_blocked, 0)"))
     session.commit()
 
 
