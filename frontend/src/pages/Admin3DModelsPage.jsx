@@ -1,12 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import Button from '../components/ui/Button';
-import DataCard from '../components/ui/DataCard';
-import EmptyState from '../components/ui/EmptyState';
 import Input from '../components/ui/Input';
 import Modal from '../components/ui/Modal';
 import SectionHeader from '../components/ui/SectionHeader';
 import StatusBadge from '../components/ui/StatusBadge';
-import Table from '../components/ui/Table';
 import {
   createAdmin3DModel,
   deleteAdmin3DModel,
@@ -16,8 +13,11 @@ import {
   fetchAdmin3DModelById,
   fetchAdmin3DModels,
   fetchAdminProducts,
+  resolveAssetUrl,
   updateAdmin3DModel,
 } from '../services/api';
+
+const PAGE_SIZE = 24;
 
 const emptyForm = {
   product_id: '',
@@ -35,11 +35,61 @@ const emptyForm = {
   is_active: true,
 };
 
+const isPreviewImage = (url) => {
+  const value = String(url || '').toLowerCase().split('?')[0].split('#')[0];
+  return ['.png', '.jpg', '.jpeg', '.webp', '.gif', '.svg', '.avif'].some((ext) => value.endsWith(ext));
+};
+
 function toOptionalNumber(value) {
   const text = String(value ?? '').trim();
   if (!text) return null;
   const parsed = Number(text.replace(',', '.'));
   return Number.isNaN(parsed) ? null : parsed;
+}
+
+function formatDims(item) {
+  return `${item.width_mm ?? '-'} x ${item.height_mm ?? '-'} x ${item.depth_mm ?? '-'} mm`;
+}
+
+function ModelCardSkeleton() {
+  return (
+    <div className="animate-pulse rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="mb-3 aspect-square rounded-xl bg-slate-100" />
+      <div className="h-4 w-2/3 rounded bg-slate-100" />
+      <div className="mt-2 h-3 w-full rounded bg-slate-100" />
+      <div className="mt-2 h-3 w-4/5 rounded bg-slate-100" />
+      <div className="mt-3 h-8 w-full rounded bg-slate-100" />
+    </div>
+  );
+}
+
+function ModelThumbnail({ item }) {
+  const previewUrl = resolveAssetUrl(item.preview_file_url || '') || item.preview_file_url || '';
+  const isImage = isPreviewImage(previewUrl);
+  if (isImage && previewUrl) {
+    return (
+      <div className="group relative aspect-square overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
+        <img
+          src={previewUrl}
+          alt={item.name}
+          className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]"
+          loading="lazy"
+        />
+      </div>
+    );
+  }
+  return (
+    <div className="group relative flex aspect-square items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
+      <div className="flex flex-col items-center gap-2 text-slate-500 transition duration-300 group-hover:scale-[1.03]">
+        <svg viewBox="0 0 24 24" className="h-10 w-10" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z" />
+          <path d="m4 7.5 8 4.5 8-4.5" />
+          <path d="M12 12v9" />
+        </svg>
+        <span className="px-2 text-center text-[11px] font-medium">Preview 3D</span>
+      </div>
+    </div>
+  );
 }
 
 function Admin3DModelsPage() {
@@ -49,16 +99,22 @@ function Admin3DModelsPage() {
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState('');
   const [productFilter, setProductFilter] = useState('all');
+  const [typeFilter, setTypeFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [downloadFilter, setDownloadFilter] = useState('all');
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [modalOpen, setModalOpen] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailModel, setDetailModel] = useState(null);
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState(emptyForm);
+
+  const flashNotice = (message) => {
+    setNotice(message);
+    window.setTimeout(() => setNotice(''), 2400);
+  };
 
   const loadData = () => {
     setLoading(true);
@@ -66,10 +122,8 @@ function Admin3DModelsPage() {
     Promise.all([
       fetchAdminProducts(),
       fetchAdmin3DModels({
-        search,
+        search: search || undefined,
         product_id: productFilter !== 'all' ? Number(productFilter) : undefined,
-        created_from: dateFrom || undefined,
-        created_to: dateTo || undefined,
         is_active: statusFilter === 'all' ? 'all' : statusFilter === 'active',
         allow_download: downloadFilter === 'all' ? 'all' : downloadFilter === 'yes',
       }),
@@ -86,9 +140,66 @@ function Admin3DModelsPage() {
     loadData();
   }, []);
 
-  const applyFilters = () => {
-    loadData();
-  };
+  const filteredRows = useMemo(() => {
+    const text = String(search || '').trim().toLowerCase();
+    return rows.filter((item) => {
+      const isSubItem = Boolean(item.sub_item_id);
+      if (typeFilter === 'subitem' && !isSubItem) return false;
+      if (typeFilter === 'product' && isSubItem) return false;
+      if (statusFilter === 'active' && !item.is_active) return false;
+      if (statusFilter === 'inactive' && item.is_active) return false;
+      if (downloadFilter === 'yes' && !item.allow_download) return false;
+      if (downloadFilter === 'no' && item.allow_download) return false;
+      if (productFilter !== 'all' && String(item.product_id) !== String(productFilter)) return false;
+      if (!text) return true;
+      const blob = `${item.name || ''} ${item.product_title || ''} ${item.product_slug || ''} ${item.sub_item_title || ''}`.toLowerCase();
+      return blob.includes(text);
+    });
+  }, [rows, search, productFilter, statusFilter, downloadFilter, typeFilter]);
+
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+  }, [search, productFilter, statusFilter, downloadFilter, typeFilter, rows]);
+
+  const visibleRows = useMemo(() => filteredRows.slice(0, visibleCount), [filteredRows, visibleCount]);
+  const hasMore = visibleRows.length < filteredRows.length;
+
+  const groupedRows = useMemo(() => {
+    const map = new Map();
+    visibleRows.forEach((item) => {
+      const key = `${item.product_id}`;
+      if (!map.has(key)) {
+        map.set(key, {
+          key,
+          productId: item.product_id,
+          productTitle: item.product_title || `Produto #${item.product_id}`,
+          items: [],
+        });
+      }
+      map.get(key).items.push(item);
+    });
+    return Array.from(map.values()).sort((a, b) => a.productTitle.localeCompare(b.productTitle));
+  }, [visibleRows]);
+
+  const productOptions = useMemo(
+    () => products.filter((item) => Number(item.id) > 0).map((item) => ({ value: String(item.id), label: item.title })),
+    [products]
+  );
+
+  const selectedProduct = useMemo(
+    () => products.find((item) => String(item.id) === String(form.product_id || '')),
+    [products, form.product_id]
+  );
+
+  const subItemOptions = useMemo(() => {
+    if (!selectedProduct || !Array.isArray(selectedProduct.sub_items)) return [];
+    return selectedProduct.sub_items
+      .map((item) => ({
+        value: String(item?.id || '').trim(),
+        label: item?.title || 'Sub item',
+      }))
+      .filter((item) => item.value);
+  }, [selectedProduct]);
 
   const openCreate = () => {
     setEditingId(null);
@@ -98,8 +209,8 @@ function Admin3DModelsPage() {
 
   const openEdit = (item) => {
     setEditingId(item.id);
-      setForm({
-        product_id: String(item.product_id),
+    setForm({
+      product_id: String(item.product_id),
       sub_item_id: String(item.sub_item_id || ''),
       name: item.name || '',
       description: item.description || '',
@@ -152,8 +263,10 @@ function Admin3DModelsPage() {
 
       if (editingId) {
         await updateAdmin3DModel(editingId, payload);
+        flashNotice('Modelo atualizado com sucesso.');
       } else {
         await createAdmin3DModel(payload);
+        flashNotice('Modelo criado com sucesso.');
       }
       setModalOpen(false);
       setForm(emptyForm);
@@ -166,144 +279,202 @@ function Admin3DModelsPage() {
     }
   };
 
-  const removeModel = async (id, name) => {
-    const confirmed = window.confirm(`Tem certeza que deseja excluir "${name}"?`);
+  const removeModel = async (item) => {
+    const confirmed = window.confirm(`Tem certeza que deseja excluir "${item.name}"?`);
     if (!confirmed) return;
     try {
-      await deleteAdmin3DModel(id);
+      await deleteAdmin3DModel(item.id);
+      flashNotice('Modelo excluido com sucesso.');
       loadData();
     } catch (deleteError) {
       setError(deleteError.message || 'Falha ao excluir modelo 3D.');
     }
   };
 
-  const productOptions = useMemo(
-    () => products.filter((item) => Number(item.id) > 0).map((item) => ({ value: String(item.id), label: item.title })),
-    [products]
-  );
-  const selectedProduct = useMemo(
-    () => products.find((item) => String(item.id) === String(form.product_id || '')),
-    [products, form.product_id]
-  );
-  const subItemOptions = useMemo(() => {
-    if (!selectedProduct || !Array.isArray(selectedProduct.sub_items)) return [];
-    return selectedProduct.sub_items
-      .map((item) => ({
-        value: String(item?.id || '').trim(),
-        label: item?.title || 'Sub item',
-      }))
-      .filter((item) => item.value);
-  }, [selectedProduct]);
+  const handleDownloadOriginal = async (item) => {
+    try {
+      await downloadAdmin3DModelOriginal(item.id);
+      flashNotice(`Download original: ${item.name}`);
+    } catch (downloadError) {
+      setError(downloadError.message || 'Falha ao baixar arquivo original.');
+    }
+  };
+
+  const handleDownloadPreview = async (item) => {
+    try {
+      await downloadAdmin3DModelPreview(item.id);
+      flashNotice(`Download preview: ${item.name}`);
+    } catch (downloadError) {
+      setError(downloadError.message || 'Falha ao baixar preview.');
+    }
+  };
+
+  const handleDownloadAll = async () => {
+    try {
+      await downloadAllAdmin3DModels({
+        search: search || undefined,
+        product_id: productFilter !== 'all' ? Number(productFilter) : undefined,
+        is_active: statusFilter === 'all' ? 'all' : statusFilter === 'active',
+        allow_download: downloadFilter === 'all' ? 'all' : downloadFilter === 'yes',
+      });
+      flashNotice('Download em lote iniciado.');
+    } catch (downloadError) {
+      setError(downloadError.message || 'Falha ao baixar modelos.');
+    }
+  };
+
+  const quickPillClass = (active) =>
+    `h-9 rounded-full border px-3 text-xs font-semibold transition ${
+      active
+        ? 'border-violet-600 bg-violet-600 text-white'
+        : 'border-slate-200 bg-white text-slate-600 hover:border-violet-200 hover:text-violet-700'
+    }`;
 
   return (
     <section className="admin-page space-y-6">
       <SectionHeader
         eyebrow="Interno"
         title="Modelos 3D"
-        subtitle="Gestao completa dos modelos 3D internos. Nao exibido para clientes finais."
-        action={
-          <div className="flex flex-wrap gap-2">
-            <Button variant="secondary" onClick={() => downloadAllAdmin3DModels({ search, product_id: productFilter !== 'all' ? Number(productFilter) : undefined, created_from: dateFrom || undefined, created_to: dateTo || undefined })}>
-              Baixar todos
-            </Button>
-            <Button onClick={openCreate}>Novo modelo</Button>
+        subtitle="Gerencie todos os modelos 3D vinculados aos seus produtos."
+        action={(
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600">
+              Total: {filteredRows.length} modelos
+            </span>
+            <Button variant="secondary" onClick={handleDownloadAll}>Baixar todos</Button>
+            <Button onClick={openCreate}>+ Novo modelo</Button>
           </div>
-        }
+        )}
       />
 
-      <DataCard title="Filtros">
-        <div className="admin-filter-bar flex flex-wrap gap-2">
-          <input
-            type="text"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="Buscar por nome, descricao ou produto"
-            className="h-10 min-w-[220px] rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-violet-300"
-          />
-          <select value={productFilter} onChange={(event) => setProductFilter(event.target.value)} className="h-10 rounded-lg border border-slate-200 px-3 text-sm">
-            <option value="all">Todos produtos</option>
-            {productOptions.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
-          </select>
-          <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="h-10 rounded-lg border border-slate-200 px-3 text-sm">
-            <option value="all">Todos status</option>
-            <option value="active">Ativo</option>
-            <option value="inactive">Inativo</option>
-          </select>
-          <select value={downloadFilter} onChange={(event) => setDownloadFilter(event.target.value)} className="h-10 rounded-lg border border-slate-200 px-3 text-sm">
-            <option value="all">Download (todos)</option>
-            <option value="yes">Download permitido</option>
-            <option value="no">Download bloqueado</option>
-          </select>
-          <input type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} className="h-10 rounded-lg border border-slate-200 px-3 text-sm" />
-          <input type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} className="h-10 rounded-lg border border-slate-200 px-3 text-sm" />
-          <Button variant="secondary" onClick={applyFilters}>Aplicar</Button>
-        </div>
-      </DataCard>
+      {error ? <p className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p> : null}
+      {notice ? <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{notice}</p> : null}
 
-      <DataCard title="Modelos cadastrados">
-        {error ? <p className="mb-3 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p> : null}
-        {loading ? (
-          <p className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-600">Carregando modelos 3D...</p>
-        ) : (
-          <Table
-            columns={['Modelo', 'Produto/Subitem', 'Ordem', 'Dimensoes', 'Arquivos', 'Download', 'Status', 'Criado em', 'Acoes']}
-            rows={rows}
-            empty={<EmptyState title="Sem modelos 3D" description="Cadastre modelos para comecar." />}
-            renderRow={(item) => (
-              <tr key={item.id}>
-                <td>{item.name}</td>
-                <td>
-                  <div className="flex flex-col text-xs text-slate-700">
-                    <span>{item.product_title || `Produto #${item.product_id}`}</span>
-                    <span className="text-slate-500">
-                      {item.sub_item_title ? `Subitem: ${item.sub_item_title}` : 'Principal do produto'}
-                    </span>
-                  </div>
-                </td>
-                <td>{item.sort_order}</td>
-                <td>{item.width_mm ?? '-'} x {item.height_mm ?? '-'} x {item.depth_mm ?? '-'} mm</td>
-                <td>
-                  <div className="flex flex-col text-xs text-slate-600">
-                    <span>Original: {item.original_file_name || '-'}</span>
-                    <span>Preview: {item.preview_file_name || '-'}</span>
-                  </div>
-                </td>
-                <td>
-                  <StatusBadge tone={item.allow_download ? 'success' : 'warning'}>
-                    {item.allow_download ? 'Permitido' : 'Bloqueado'}
-                  </StatusBadge>
-                </td>
-                <td>
-                  <StatusBadge tone={item.is_active ? 'success' : 'danger'}>
-                    {item.is_active ? 'Ativo' : 'Inativo'}
-                  </StatusBadge>
-                </td>
-                <td>{item.created_at ? new Date(item.created_at).toLocaleString('pt-BR') : '-'}</td>
-                <td>
-                  <div className="flex flex-wrap gap-2">
-                    <Button variant="secondary" onClick={() => openDetail(item.id)}>Detalhe</Button>
-                    <Button variant="secondary" onClick={() => openEdit(item)}>Editar</Button>
-                    <Button variant="ghost" onClick={() => downloadAdmin3DModelOriginal(item.id)}>Baixar original</Button>
-                    <Button variant="ghost" onClick={() => downloadAdmin3DModelPreview(item.id)}>Baixar preview</Button>
-                    <Button variant="danger" onClick={() => removeModel(item.id, item.name)}>Excluir</Button>
-                  </div>
-                </td>
-              </tr>
-            )}
-          />
-        )}
-      </DataCard>
+      <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <Input
+              label="Busca"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Nome, produto ou subitem"
+              className="min-w-[220px]"
+            />
+            <label className="flex flex-col gap-1.5">
+              <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Produto</span>
+              <select value={productFilter} onChange={(event) => setProductFilter(event.target.value)} className="h-11 rounded-xl border border-slate-200 px-3 text-sm">
+                <option value="all">Todos</option>
+                {productOptions.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+              </select>
+            </label>
+            <Button variant="secondary" onClick={loadData}>Atualizar</Button>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <button type="button" className={quickPillClass(typeFilter === 'all')} onClick={() => setTypeFilter('all')}>Tipo: todos</button>
+            <button type="button" className={quickPillClass(typeFilter === 'product')} onClick={() => setTypeFilter('product')}>Produto</button>
+            <button type="button" className={quickPillClass(typeFilter === 'subitem')} onClick={() => setTypeFilter('subitem')}>Subitem</button>
+            <button type="button" className={quickPillClass(statusFilter === 'all')} onClick={() => setStatusFilter('all')}>Status: todos</button>
+            <button type="button" className={quickPillClass(statusFilter === 'active')} onClick={() => setStatusFilter('active')}>Ativos</button>
+            <button type="button" className={quickPillClass(statusFilter === 'inactive')} onClick={() => setStatusFilter('inactive')}>Inativos</button>
+            <button type="button" className={quickPillClass(downloadFilter === 'all')} onClick={() => setDownloadFilter('all')}>Download: todos</button>
+            <button type="button" className={quickPillClass(downloadFilter === 'yes')} onClick={() => setDownloadFilter('yes')}>Download ativo</button>
+            <button type="button" className={quickPillClass(downloadFilter === 'no')} onClick={() => setDownloadFilter('no')}>Sem download</button>
+          </div>
+        </div>
+      </section>
+
+      {loading ? (
+        <section className="space-y-4">
+          <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700">Carregando modelos...</div>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+            {Array.from({ length: 8 }).map((_, index) => <ModelCardSkeleton key={`skeleton-${index}`} />)}
+          </div>
+        </section>
+      ) : groupedRows.length === 0 ? (
+        <section className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center">
+          <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-white text-slate-500 shadow-sm">
+            <svg viewBox="0 0 24 24" className="h-7 w-7" fill="none" stroke="currentColor" strokeWidth="1.8">
+              <path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z" />
+              <path d="m4 7.5 8 4.5 8-4.5" />
+              <path d="M12 12v9" />
+            </svg>
+          </div>
+          <h3 className="text-base font-semibold text-slate-800">Nenhum modelo 3D cadastrado ainda</h3>
+          <p className="mt-1 text-sm text-slate-500">Crie o primeiro modelo para comecar a organizar sua biblioteca.</p>
+          <div className="mt-4">
+            <Button onClick={openCreate}>Criar primeiro modelo</Button>
+          </div>
+        </section>
+      ) : (
+        <section className="space-y-6">
+          {groupedRows.map((group) => (
+            <article key={group.key} className="space-y-3">
+              <header className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+                <h3 className="text-sm font-semibold text-slate-800">
+                  {group.productTitle} <span className="text-slate-500">({group.items.length} modelos)</span>
+                </h3>
+              </header>
+
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+                {group.items.map((item) => {
+                  const isPrincipal = !item.sub_item_id && Number(item.sort_order || 9999) === 1;
+                  return (
+                    <div
+                      key={item.id}
+                      className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md"
+                    >
+                      <ModelThumbnail item={item} />
+
+                      <div className="mt-3 space-y-2">
+                        <h4 className="line-clamp-1 text-sm font-semibold text-slate-900">{item.name}</h4>
+                        <p className="line-clamp-1 text-xs text-slate-500">{item.product_title || `Produto #${item.product_id}`}</p>
+                        <p className="line-clamp-1 text-xs text-slate-500">
+                          {item.sub_item_title ? `Subitem: ${item.sub_item_title}` : 'Vinculo: produto principal'}
+                        </p>
+                        <p className="text-xs font-medium text-slate-700">Dimensoes: {formatDims(item)}</p>
+                        <p className="text-xs text-slate-500">Ordem: {item.sort_order}</p>
+                      </div>
+
+                      <div className="mt-3 flex flex-wrap gap-1.5">
+                        {isPrincipal ? <StatusBadge tone="info">Principal</StatusBadge> : null}
+                        <StatusBadge tone={item.sub_item_id ? 'info' : 'neutral'}>{item.sub_item_id ? 'Subitem' : 'Produto'}</StatusBadge>
+                        {item.allow_download ? <StatusBadge tone="success">Download ativo</StatusBadge> : null}
+                        {!item.is_active ? <StatusBadge tone="danger">Inativo</StatusBadge> : null}
+                      </div>
+
+                      <div className="mt-4 grid grid-cols-5 gap-1">
+                        <button type="button" title="Detalhes" onClick={() => openDetail(item.id)} className="rounded-lg border border-slate-200 bg-white p-2 text-slate-600 transition hover:border-violet-200 hover:text-violet-700">i</button>
+                        <button type="button" title="Baixar original" onClick={() => handleDownloadOriginal(item)} className="rounded-lg border border-slate-200 bg-white p-2 text-slate-600 transition hover:border-violet-200 hover:text-violet-700">O</button>
+                        <button type="button" title="Baixar preview" onClick={() => handleDownloadPreview(item)} className="rounded-lg border border-slate-200 bg-white p-2 text-slate-600 transition hover:border-violet-200 hover:text-violet-700">P</button>
+                        <button type="button" title="Editar" onClick={() => openEdit(item)} className="rounded-lg border border-slate-200 bg-white p-2 text-slate-600 transition hover:border-violet-200 hover:text-violet-700">E</button>
+                        <button type="button" title="Excluir" onClick={() => removeModel(item)} className="rounded-lg border border-rose-200 bg-rose-50 p-2 text-rose-700 transition hover:border-rose-300 hover:bg-rose-100">X</button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </article>
+          ))}
+
+          {hasMore ? (
+            <div className="flex justify-center">
+              <Button variant="secondary" onClick={() => setVisibleCount((current) => current + PAGE_SIZE)}>Carregar mais</Button>
+            </div>
+          ) : null}
+        </section>
+      )}
 
       <Modal
         open={modalOpen}
         title={editingId ? 'Editar modelo 3D' : 'Novo modelo 3D'}
         onClose={() => setModalOpen(false)}
-        footer={
+        footer={(
           <>
             <Button variant="secondary" onClick={() => setModalOpen(false)}>Cancelar</Button>
             <Button loading={saving} onClick={saveModel}>{editingId ? 'Salvar alteracoes' : 'Criar modelo'}</Button>
           </>
-        }
+        )}
       >
         <form className="grid grid-cols-1 gap-4 md:grid-cols-2" onSubmit={saveModel}>
           <label className="flex flex-col gap-1.5">
@@ -346,16 +517,16 @@ function Admin3DModelsPage() {
         footer={<Button variant="secondary" onClick={() => setDetailOpen(false)}>Fechar</Button>}
       >
         {detailModel ? (
-          <div className="space-y-2 text-sm text-slate-700">
+          <div className="grid grid-cols-1 gap-3 text-sm text-slate-700 md:grid-cols-2">
             <p><strong>Nome:</strong> {detailModel.name}</p>
             <p><strong>Produto:</strong> {detailModel.product_title || `#${detailModel.product_id}`}</p>
             <p><strong>Subitem:</strong> {detailModel.sub_item_title || 'Principal do produto'}</p>
-            <p><strong>Descricao:</strong> {detailModel.description || '-'}</p>
             <p><strong>Ordem:</strong> {detailModel.sort_order}</p>
-            <p><strong>Dimensoes:</strong> {detailModel.width_mm ?? '-'} x {detailModel.height_mm ?? '-'} x {detailModel.depth_mm ?? '-'} mm ({detailModel.dimensions_source})</p>
+            <p className="md:col-span-2"><strong>Descricao:</strong> {detailModel.description || '-'}</p>
+            <p className="md:col-span-2"><strong>Dimensoes:</strong> {formatDims(detailModel)} ({detailModel.dimensions_source})</p>
             <p><strong>Original:</strong> {detailModel.original_file_name || '-'}</p>
             <p><strong>Preview:</strong> {detailModel.preview_file_name || '-'}</p>
-            <p><strong>Download permitido:</strong> {detailModel.allow_download ? 'Sim' : 'Nao'}</p>
+            <p><strong>Download:</strong> {detailModel.allow_download ? 'Permitido' : 'Bloqueado'}</p>
             <p><strong>Status:</strong> {detailModel.is_active ? 'Ativo' : 'Inativo'}</p>
             <p><strong>Criado em:</strong> {detailModel.created_at ? new Date(detailModel.created_at).toLocaleString('pt-BR') : '-'}</p>
             <p><strong>Atualizado em:</strong> {detailModel.updated_at ? new Date(detailModel.updated_at).toLocaleString('pt-BR') : '-'}</p>
