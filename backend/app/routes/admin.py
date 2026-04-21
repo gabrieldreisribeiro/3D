@@ -291,6 +291,8 @@ def _normalize_sub_item_id(value: str | None) -> str | None:
 def _ensure_valid_model_target(product, sub_item_id: str | None) -> None:
     if not sub_item_id:
         return
+    if product is None:
+        raise HTTPException(status_code=400, detail='Subitem so pode ser vinculado quando houver produto informado.')
     sub_items = parse_sub_items_from_storage(product.sub_items)
     exists = any(str(item.get('id') or '').strip() == sub_item_id for item in sub_items)
     if not exists:
@@ -687,13 +689,14 @@ def create_admin_3d_model(
     _: AdminUser = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
-    product = admin_get_product_by_id(db, payload.product_id)
-    if not product:
+    product_id = int(payload.product_id) if payload.product_id is not None else None
+    product = admin_get_product_by_id(db, product_id) if product_id else None
+    if product_id and not product:
         raise HTTPException(status_code=404, detail='Produto nao encontrado')
     sub_item_id = _normalize_sub_item_id(payload.sub_item_id)
     _ensure_valid_model_target(product, sub_item_id)
     model = Product3DModel(
-        product_id=int(payload.product_id),
+        product_id=product_id,
         sub_item_id=sub_item_id,
         name=payload.name.strip(),
         description=(payload.description or '').strip() or None,
@@ -723,13 +726,14 @@ def update_admin_3d_model(
     model = get_product_3d_model(db, model_id)
     if not model:
         raise HTTPException(status_code=404, detail='Modelo 3D nao encontrado')
-    product = admin_get_product_by_id(db, payload.product_id)
-    if not product:
+    product_id = int(payload.product_id) if payload.product_id is not None else None
+    product = admin_get_product_by_id(db, product_id) if product_id else None
+    if product_id and not product:
         raise HTTPException(status_code=404, detail='Produto nao encontrado')
     sub_item_id = _normalize_sub_item_id(payload.sub_item_id)
     _ensure_valid_model_target(product, sub_item_id)
 
-    model.product_id = int(payload.product_id)
+    model.product_id = product_id
     model.sub_item_id = sub_item_id
     model.name = payload.name.strip()
     model.description = (payload.description or '').strip() or None
@@ -808,7 +812,7 @@ def download_all_admin_3d_models(
     memory_file = io.BytesIO()
     with zipfile.ZipFile(memory_file, 'w', zipfile.ZIP_DEFLATED) as zip_out:
         for row in rows:
-            product_folder = (row.product.title if row.product else f'produto_{row.product_id}').strip() or f'produto_{row.product_id}'
+            product_folder = (row.product.title if row.product else 'nao_atribuido').strip() or 'nao_atribuido'
             safe_folder = ''.join(ch if ch.isalnum() or ch in {' ', '_', '-'} else '_' for ch in product_folder).strip().replace(' ', '_')
 
             original_path = url_to_upload_path(row.original_file_url)

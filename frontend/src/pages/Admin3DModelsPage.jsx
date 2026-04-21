@@ -437,12 +437,12 @@ function Admin3DModelsPage() {
   const groupedRows = useMemo(() => {
     const map = new Map();
     visibleRows.forEach((item) => {
-      const key = `${item.product_id}`;
+      const key = item.product_id == null ? 'unassigned' : `${item.product_id}`;
       if (!map.has(key)) {
         map.set(key, {
           key,
           productId: item.product_id,
-          productTitle: item.product_title || `Produto #${item.product_id}`,
+          productTitle: item.product_title || (item.product_id == null ? 'Nao atribuido' : `Produto #${item.product_id}`),
           items: [],
         });
       }
@@ -500,11 +500,11 @@ function Admin3DModelsPage() {
   );
 
   const computeNextSortOrder = (productId, subItemId) => {
-    const pid = Number(productId || 0);
-    if (!pid) return 1;
+    const hasProduct = Number(productId || 0) > 0;
     const targetSubItem = String(subItemId || '').trim();
     const candidates = rows.filter((item) => {
-      if (Number(item.product_id) !== pid) return false;
+      const sameProduct = hasProduct ? Number(item.product_id || 0) === Number(productId) : item.product_id == null;
+      if (!sameProduct) return false;
       const rowSub = String(item.sub_item_id || '').trim();
       return rowSub === targetSubItem;
     });
@@ -610,10 +610,10 @@ function Admin3DModelsPage() {
 
   const saveBatchQueue = async () => {
     const readyItems = batchQueue.filter(
-      (item) => item.status === 'ready' && item.preview_file_url && Number(item.product_id || 0) > 0
+      (item) => item.status === 'ready' && item.preview_file_url
     );
     if (!readyItems.length) {
-      setError('Nenhum item pronto para salvar. Verifique produto e preview.');
+      setError('Nenhum item pronto para salvar. Verifique o preview.');
       return;
     }
 
@@ -631,8 +631,8 @@ function Admin3DModelsPage() {
     for (const item of readyItems) {
       updateBatchItem(item.id, { status: 'saving', error_message: '' });
       try {
-        const productId = Number(item.product_id || 0);
-        const subItemId = String(item.sub_item_id || '').trim();
+        const productId = Number(item.product_id || 0) > 0 ? Number(item.product_id) : null;
+        const subItemId = productId ? String(item.sub_item_id || '').trim() : '';
         const key = `${productId}|${subItemId}`;
         const maxSort = Number(sortMap.get(key) || 0);
         const providedSort = Number(item.sort_order || 0);
@@ -695,7 +695,7 @@ function Admin3DModelsPage() {
     setModalProductSearch('');
     setModalSubItemSearch('');
     setForm({
-      product_id: String(item.product_id),
+      product_id: item.product_id == null ? '' : String(item.product_id),
       sub_item_id: String(item.sub_item_id || ''),
       name: item.name || '',
       description: item.description || '',
@@ -730,9 +730,10 @@ function Admin3DModelsPage() {
     setSaving(true);
     setError('');
     try {
+      const normalizedProductId = Number(form.product_id || 0) > 0 ? Number(form.product_id) : null;
       const payload = {
-        product_id: Number(form.product_id || 0),
-        sub_item_id: String(form.sub_item_id || '').trim() || null,
+        product_id: normalizedProductId,
+        sub_item_id: normalizedProductId ? (String(form.sub_item_id || '').trim() || null) : null,
         name: String(form.name || '').trim(),
         description: String(form.description || '').trim() || null,
         sort_order: Number(form.sort_order || 1),
@@ -745,7 +746,6 @@ function Admin3DModelsPage() {
         allow_download: Boolean(form.allow_download),
         is_active: Boolean(form.is_active),
       };
-      if (!payload.product_id) throw new Error('Selecione um produto.');
       if (!payload.preview_file_url) throw new Error('Arquivo preview e obrigatorio.');
 
       if (editingId) {
@@ -1006,7 +1006,7 @@ function Admin3DModelsPage() {
                     }}
                     className="h-11 rounded-xl border border-slate-200 px-3 text-sm"
                   >
-                    <option value="">Selecione</option>
+                    <option value="">Nao atribuido</option>
                     {filteredBatchProductOptions.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
                   </select>
                 </label>
@@ -1024,7 +1024,7 @@ function Admin3DModelsPage() {
                     className="h-11 rounded-xl border border-slate-200 px-3 text-sm"
                     disabled={!batchProduct}
                   >
-                    <option value="">Principal do produto</option>
+                    <option value="">{batchProduct ? 'Principal do produto' : 'Sem produto vinculado'}</option>
                     {filteredBatchSubItemOptions.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
                   </select>
                 </label>
@@ -1187,9 +1187,11 @@ function Admin3DModelsPage() {
 
                       <div className="mt-3 space-y-2">
                         <h4 className="line-clamp-1 text-sm font-semibold text-slate-900">{item.name}</h4>
-                        <p className="line-clamp-1 text-xs text-slate-500">{item.product_title || `Produto #${item.product_id}`}</p>
                         <p className="line-clamp-1 text-xs text-slate-500">
-                          {item.sub_item_title ? `Subitem: ${item.sub_item_title}` : 'Vinculo: produto principal'}
+                          {item.product_title || (item.product_id == null ? 'Nao atribuido' : `Produto #${item.product_id}`)}
+                        </p>
+                        <p className="line-clamp-1 text-xs text-slate-500">
+                          {item.sub_item_title ? `Subitem: ${item.sub_item_title}` : (item.product_id == null ? 'Vinculo: nao atribuido' : 'Vinculo: produto principal')}
                         </p>
                         <p className="text-xs font-medium text-slate-700">Dimensoes: {formatDims(item)}</p>
                         <p className="text-xs text-slate-500">Ordem: {item.sort_order}</p>
@@ -1197,7 +1199,9 @@ function Admin3DModelsPage() {
 
                       <div className="mt-3 flex flex-wrap gap-1.5">
                         {isPrincipal ? <StatusBadge tone="info">Principal</StatusBadge> : null}
-                        <StatusBadge tone={item.sub_item_id ? 'info' : 'neutral'}>{item.sub_item_id ? 'Subitem' : 'Produto'}</StatusBadge>
+                        <StatusBadge tone={item.sub_item_id ? 'info' : (item.product_id == null ? 'danger' : 'neutral')}>
+                          {item.sub_item_id ? 'Subitem' : (item.product_id == null ? 'Nao atribuido' : 'Produto')}
+                        </StatusBadge>
                         {item.allow_download ? <StatusBadge tone="success">Download ativo</StatusBadge> : null}
                         {!item.is_active ? <StatusBadge tone="danger">Inativo</StatusBadge> : null}
                       </div>
@@ -1249,11 +1253,12 @@ function Admin3DModelsPage() {
               value={form.product_id}
               onChange={(event) => {
                 setSortOrderTouched(false);
+                setModalSubItemSearch('');
                 setForm({ ...form, product_id: event.target.value });
               }}
               className="h-11 rounded-xl border border-slate-200 px-3 text-sm"
             >
-              <option value="">Selecione</option>
+              <option value="">Nao atribuido</option>
               {filteredModalProductOptions.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
             </select>
           </label>
@@ -1272,8 +1277,9 @@ function Admin3DModelsPage() {
                 setForm({ ...form, sub_item_id: event.target.value });
               }}
               className="h-11 rounded-xl border border-slate-200 px-3 text-sm"
+              disabled={!selectedProduct}
             >
-              <option value="">Principal do produto</option>
+              <option value="">{selectedProduct ? 'Principal do produto' : 'Sem produto vinculado'}</option>
               {filteredModalSubItemOptions.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
             </select>
           </label>
@@ -1368,8 +1374,8 @@ function Admin3DModelsPage() {
               )}
             </div>
             <p><strong>Nome:</strong> {detailModel.name}</p>
-            <p><strong>Produto:</strong> {detailModel.product_title || `#${detailModel.product_id}`}</p>
-            <p><strong>Subitem:</strong> {detailModel.sub_item_title || 'Principal do produto'}</p>
+            <p><strong>Produto:</strong> {detailModel.product_title || (detailModel.product_id == null ? 'Nao atribuido' : `#${detailModel.product_id}`)}</p>
+            <p><strong>Subitem:</strong> {detailModel.sub_item_title || (detailModel.product_id == null ? '-' : 'Principal do produto')}</p>
             <p><strong>Ordem:</strong> {detailModel.sort_order}</p>
             <p className="md:col-span-2"><strong>Descricao:</strong> {detailModel.description || '-'}</p>
             <p className="md:col-span-2"><strong>Dimensoes:</strong> {formatDims(detailModel)} ({detailModel.dimensions_source})</p>

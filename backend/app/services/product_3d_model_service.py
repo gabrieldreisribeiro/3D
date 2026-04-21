@@ -338,7 +338,7 @@ def list_all_3d_models(
     text = str(search or '').strip()
     if text:
         like = f'%{text}%'
-        query = query.join(Product, Product.id == Product3DModel.product_id).filter(
+        query = query.outerjoin(Product, Product.id == Product3DModel.product_id).filter(
             or_(
                 Product3DModel.name.ilike(like),
                 Product3DModel.description.ilike(like),

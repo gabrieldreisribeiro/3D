@@ -360,6 +360,77 @@ def _ensure_product_3d_models_columns(session):
     session.commit()
 
 
+def _ensure_product_3d_models_product_nullable(session):
+    dialect = session.bind.dialect.name
+    if dialect == 'sqlite':
+        table = session.execute(
+            text("SELECT name FROM sqlite_master WHERE type='table' AND name='product_3d_models'")
+        ).fetchone()
+        if not table:
+            return
+        columns = session.execute(text("PRAGMA table_info('product_3d_models')")).fetchall()
+        target = next((column for column in columns if column[1] == 'product_id'), None)
+        if not target:
+            return
+        not_null = int(target[3] or 0) == 1
+        if not not_null:
+            return
+
+        session.execute(text("PRAGMA foreign_keys=OFF"))
+        session.execute(
+            text(
+                """
+                CREATE TABLE product_3d_models__tmp (
+                    id INTEGER PRIMARY KEY,
+                    product_id INTEGER,
+                    sub_item_id VARCHAR(80),
+                    name VARCHAR(180) NOT NULL,
+                    description TEXT,
+                    original_file_url VARCHAR(500),
+                    preview_file_url VARCHAR(500) NOT NULL,
+                    width_mm REAL,
+                    height_mm REAL,
+                    depth_mm REAL,
+                    dimensions_source VARCHAR(20) NOT NULL DEFAULT 'auto',
+                    allow_download BOOLEAN DEFAULT 0,
+                    sort_order INTEGER NOT NULL DEFAULT 1,
+                    is_active BOOLEAN DEFAULT 1,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY(product_id) REFERENCES products(id) ON DELETE CASCADE
+                )
+                """
+            )
+        )
+        session.execute(
+            text(
+                """
+                INSERT INTO product_3d_models__tmp (
+                    id, product_id, sub_item_id, name, description, original_file_url, preview_file_url,
+                    width_mm, height_mm, depth_mm, dimensions_source, allow_download, sort_order, is_active, created_at, updated_at
+                )
+                SELECT
+                    id, product_id, sub_item_id, name, description, original_file_url, preview_file_url,
+                    width_mm, height_mm, depth_mm, dimensions_source, allow_download, sort_order, is_active, created_at, updated_at
+                FROM product_3d_models
+                """
+            )
+        )
+        session.execute(text("DROP TABLE product_3d_models"))
+        session.execute(text("ALTER TABLE product_3d_models__tmp RENAME TO product_3d_models"))
+        session.execute(text("CREATE INDEX IF NOT EXISTS ix_product_3d_models_product_id ON product_3d_models(product_id)"))
+        session.execute(text("CREATE INDEX IF NOT EXISTS ix_product_3d_models_sub_item_id ON product_3d_models(sub_item_id)"))
+        session.execute(text("CREATE INDEX IF NOT EXISTS ix_product_3d_models_sort_order ON product_3d_models(sort_order)"))
+        session.execute(text("CREATE INDEX IF NOT EXISTS ix_product_3d_models_is_active ON product_3d_models(is_active)"))
+        session.execute(text("PRAGMA foreign_keys=ON"))
+        session.commit()
+        return
+
+    if dialect.startswith('postgres'):
+        session.execute(text("ALTER TABLE product_3d_models ALTER COLUMN product_id DROP NOT NULL"))
+        session.commit()
+
+
 def _sync_postgres_sequences(session):
     if not session.bind.dialect.name.startswith('postgres'):
         return
@@ -459,6 +530,7 @@ def init_db() -> None:
         _ensure_ads_provider_config_columns(session)
         _ensure_admin_users_columns(session)
         _ensure_product_3d_models_columns(session)
+        _ensure_product_3d_models_product_nullable(session)
         _sync_postgres_sequences(session)
         if SEED_SAMPLE_DATA:
             _seed_categories(session)

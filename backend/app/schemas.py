@@ -513,7 +513,7 @@ class Product3DModelResponse(Product3DModelBase):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
-    product_id: int
+    product_id: Optional[int] = None
     sub_item_title: Optional[str] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
@@ -535,11 +535,11 @@ class Admin3DModelResponse(Product3DModelResponse):
 
 
 class Admin3DModelCreateRequest(Product3DModelCreate):
-    product_id: int = Field(..., ge=1)
+    product_id: Optional[int] = Field(default=None, ge=1)
 
 
 class Admin3DModelUpdateRequest(Product3DModelUpdate):
-    product_id: int = Field(..., ge=1)
+    product_id: Optional[int] = Field(default=None, ge=1)
 
 
 class AdminOrderItemResponse(BaseModel):
