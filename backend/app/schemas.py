@@ -81,7 +81,7 @@ class ProductBase(BaseModel):
     is_active: bool
     rating_average: float
     rating_count: int
-    category_id: Optional[int]
+    category_id: Optional[int] = None
     lead_time_hours: float
     allow_colors: bool
     available_colors: List[str]
@@ -239,7 +239,7 @@ class AdminProductResponse(BaseModel):
     price_hour_labor: float
     extra_cost: float
     profit_margin: float
-    manual_price: Optional[float]
+    manual_price: Optional[float] = None
 
     cost_total: float
     calculated_price: float
@@ -247,15 +247,15 @@ class AdminProductResponse(BaseModel):
     final_price: float
     price: float
     publish_to_instagram: bool
-    instagram_caption: Optional[str]
-    instagram_hashtags: Optional[str]
+    instagram_caption: Optional[str] = None
+    instagram_hashtags: Optional[str] = None
     instagram_post_status: str
-    instagram_post_id: Optional[str]
-    instagram_published_at: Optional[datetime]
-    instagram_error_message: Optional[str]
+    instagram_post_id: Optional[str] = None
+    instagram_published_at: Optional[datetime] = None
+    instagram_error_message: Optional[str] = None
     is_draft: bool
     generated_by_ai: bool
-    source_ad_generation_id: Optional[int]
+    source_ad_generation_id: Optional[int] = None
     publication_status: Optional[str] = None
     draft_id: Optional[int] = None
 

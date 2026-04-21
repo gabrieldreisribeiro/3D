@@ -7,6 +7,74 @@ const ADMIN_PROFILE_KEY = 'admin_profile';
 const CLIENT_FP_KEY = 'client_fingerprint';
 const SESSION_ID_KEY = 'session_id';
 
+const FIELD_LABELS = {
+  title: 'Titulo',
+  slug: 'Slug',
+  short_description: 'Descricao curta',
+  full_description: 'Descricao completa',
+  cover_image: 'Imagem de capa',
+  category_id: 'Categoria',
+  manual_price: 'Preco manual',
+  lead_time_hours: 'Prazo de producao (horas)',
+  available_colors: 'Cores disponiveis',
+  secondary_color_pairs: 'Combinacoes de cores',
+  publish_to_instagram: 'Publicar no Instagram',
+  instagram_caption: 'Legenda do Instagram',
+  instagram_hashtags: 'Hashtags do Instagram',
+  name: 'Nome',
+  email: 'E-mail',
+  password: 'Senha',
+  role: 'Tipo de usuario',
+  sub_items: 'Sub itens',
+};
+
+function formatFieldPath(loc = []) {
+  const parts = (Array.isArray(loc) ? loc : [])
+    .filter((item) => !['body', 'query', 'path', 'response'].includes(String(item)));
+  if (!parts.length) return 'Campo';
+
+  const formatted = [];
+  for (let i = 0; i < parts.length; i += 1) {
+    const part = parts[i];
+    if (typeof part === 'number') {
+      const previous = String(parts[i - 1] || '');
+      if (previous === 'sub_items') {
+        formatted.push(`Sub item ${part + 1}`);
+      } else {
+        formatted.push(`Item ${part + 1}`);
+      }
+      continue;
+    }
+    formatted.push(FIELD_LABELS[String(part)] || String(part).replaceAll('_', ' '));
+  }
+  return formatted.join(' > ');
+}
+
+function getApiErrorMessage(data, fallback = 'Erro na requisicao') {
+  if (!data) return fallback;
+  if (typeof data.detail === 'string' && data.detail.trim()) return data.detail;
+  if (typeof data.message === 'string' && data.message.trim()) return data.message;
+
+  if (Array.isArray(data.detail)) {
+    const messages = data.detail
+      .map((issue) => {
+        if (!issue || typeof issue !== 'object') return '';
+        const fieldPath = formatFieldPath(issue.loc);
+        const issueType = String(issue.type || '');
+        if (issueType.includes('missing')) return `Falta preencher: ${fieldPath}`;
+        if (issue.msg) return `${fieldPath}: ${issue.msg}`;
+        return '';
+      })
+      .filter(Boolean);
+
+    if (messages.length) {
+      return Array.from(new Set(messages)).slice(0, 8).join(' | ');
+    }
+  }
+
+  return fallback;
+}
+
 function isPreviewMode() {
   if (typeof window === 'undefined') return false;
   return window.location.pathname.startsWith('/preview');
@@ -63,7 +131,7 @@ async function request(path, options = {}) {
 
   const data = await response.json();
   if (!response.ok) {
-    throw new Error(data.detail || data.message || 'Erro na requisicao');
+    throw new Error(getApiErrorMessage(data, 'Erro na requisicao'));
   }
   return data;
 }
@@ -90,7 +158,7 @@ async function adminRequest(path, options = {}) {
     if (response.status === 401) {
       localStorage.removeItem(ADMIN_TOKEN_KEY);
     }
-    throw new Error(data?.detail || data?.message || 'Erro na requisicao');
+    throw new Error(getApiErrorMessage(data, 'Erro na requisicao'));
   }
   return data;
 }
@@ -217,7 +285,7 @@ export async function createProductReview(productId, payload) {
 
   const data = await response.json();
   if (!response.ok) {
-    throw new Error(data.detail || data.message || 'Erro ao enviar avaliacao');
+    throw new Error(getApiErrorMessage(data, 'Erro ao enviar avaliacao'));
   }
   return data;
 }
@@ -336,7 +404,7 @@ export async function uploadAdminLogo(file) {
   const data = await response.json();
   if (!response.ok) {
     if (response.status === 401) localStorage.removeItem(ADMIN_TOKEN_KEY);
-    throw new Error(data.detail || data.message || 'Erro no upload da logo');
+    throw new Error(getApiErrorMessage(data, 'Erro no upload da logo'));
   }
   return data;
 }
@@ -355,7 +423,7 @@ export async function uploadAdminBannerImage(file) {
   const data = await response.json();
   if (!response.ok) {
     if (response.status === 401) localStorage.removeItem(ADMIN_TOKEN_KEY);
-    throw new Error(data.detail || data.message || 'Erro no upload da imagem');
+    throw new Error(getApiErrorMessage(data, 'Erro no upload da imagem'));
   }
   return data;
 }
@@ -374,7 +442,7 @@ export async function uploadAdminProductImage(file) {
   const data = await response.json();
   if (!response.ok) {
     if (response.status === 401) localStorage.removeItem(ADMIN_TOKEN_KEY);
-    throw new Error(data.detail || data.message || 'Erro no upload da imagem');
+    throw new Error(getApiErrorMessage(data, 'Erro no upload da imagem'));
   }
   return data;
 }
@@ -402,7 +470,7 @@ export async function uploadAdminFiles(folder, files) {
   const data = await response.json();
   if (!response.ok) {
     if (response.status === 401) localStorage.removeItem(ADMIN_TOKEN_KEY);
-    throw new Error(data.detail || data.message || 'Erro no upload de arquivos');
+    throw new Error(getApiErrorMessage(data, 'Erro no upload de arquivos'));
   }
   return data;
 }
@@ -423,7 +491,7 @@ export async function renameAdminUploadFile(folder, currentName, newName) {
   const data = await response.json();
   if (!response.ok) {
     if (response.status === 401) localStorage.removeItem(ADMIN_TOKEN_KEY);
-    throw new Error(data.detail || data.message || 'Erro ao renomear arquivo');
+    throw new Error(getApiErrorMessage(data, 'Erro ao renomear arquivo'));
   }
   return data;
 }
