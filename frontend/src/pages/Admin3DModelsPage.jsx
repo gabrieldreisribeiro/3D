@@ -63,9 +63,36 @@ function ModelCardSkeleton() {
   );
 }
 
+function fileExtensionFromUrl(url) {
+  const value = String(url || '').toLowerCase().split('?')[0].split('#')[0];
+  const index = value.lastIndexOf('.');
+  if (index < 0) return '';
+  return value.slice(index);
+}
+
 function ModelThumbnail({ item }) {
   const previewUrl = resolveAssetUrl(item.preview_file_url || '') || item.preview_file_url || '';
   const isImage = isPreviewImage(previewUrl);
+  const extension = fileExtensionFromUrl(previewUrl);
+  const canRenderGlb = extension === '.glb' && typeof customElements !== 'undefined' && customElements.get('model-viewer');
+
+  if (canRenderGlb && previewUrl) {
+    return (
+      <div className="group relative aspect-square overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
+        <model-viewer
+          src={previewUrl}
+          camera-controls
+          disable-zoom
+          interaction-prompt="none"
+          exposure="1"
+          shadow-intensity="0.8"
+          environment-image="neutral"
+          style={{ width: '100%', height: '100%', '--poster-color': 'transparent' }}
+        />
+      </div>
+    );
+  }
+
   if (isImage && previewUrl) {
     return (
       <div className="group relative aspect-square overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
@@ -110,6 +137,17 @@ function Admin3DModelsPage() {
   const [detailModel, setDetailModel] = useState(null);
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState(emptyForm);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (window.customElements && window.customElements.get('model-viewer')) return;
+    if (document.querySelector('script[data-model-viewer="true"]')) return;
+    const script = document.createElement('script');
+    script.type = 'module';
+    script.src = 'https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js';
+    script.setAttribute('data-model-viewer', 'true');
+    document.head.appendChild(script);
+  }, []);
 
   const flashNotice = (message) => {
     setNotice(message);
