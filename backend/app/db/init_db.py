@@ -266,6 +266,43 @@ def _ensure_ads_provider_config_columns(session):
         session.commit()
 
 
+def _ensure_admin_users_columns(session):
+    required_columns = {
+        'name': "VARCHAR(160) DEFAULT 'Administrador'",
+        'is_blocked': 'BOOLEAN DEFAULT 0',
+        'role': "VARCHAR(20) DEFAULT 'super_admin'",
+        'last_login_at': 'DATETIME',
+        'updated_at': 'DATETIME DEFAULT CURRENT_TIMESTAMP',
+    }
+
+    if session.bind.dialect.name == 'sqlite':
+        columns = session.execute(text("PRAGMA table_info('admin_users')")).fetchall()
+        names = {column[1] for column in columns}
+        changed = False
+        for column_name, column_ddl in required_columns.items():
+            if column_name not in names:
+                session.execute(text(f"ALTER TABLE admin_users ADD COLUMN {column_name} {column_ddl}"))
+                changed = True
+        if changed:
+            session.commit()
+    elif session.bind.dialect.name.startswith('postgres'):
+        for column_name, column_ddl in required_columns.items():
+            session.execute(
+                text(
+                    f"ALTER TABLE admin_users ADD COLUMN IF NOT EXISTS {column_name} "
+                    f"{_normalize_postgres_column_ddl(column_ddl)}"
+                )
+            )
+        session.commit()
+    else:
+        return
+
+    session.execute(text("UPDATE admin_users SET name = COALESCE(NULLIF(name, ''), 'Administrador')"))
+    session.execute(text("UPDATE admin_users SET role = COALESCE(NULLIF(role, ''), 'super_admin')"))
+    session.execute(text("UPDATE admin_users SET is_blocked = COALESCE(is_blocked, 0)"))
+    session.commit()
+
+
 def _sync_postgres_sequences(session):
     if not session.bind.dialect.name.startswith('postgres'):
         return
@@ -363,6 +400,7 @@ def init_db() -> None:
         _ensure_store_settings_columns(session)
         _ensure_user_events_columns(session)
         _ensure_ads_provider_config_columns(session)
+        _ensure_admin_users_columns(session)
         _sync_postgres_sequences(session)
         if SEED_SAMPLE_DATA:
             _seed_categories(session)
@@ -405,9 +443,12 @@ def init_db() -> None:
         if SEED_DEFAULT_ADMIN and session.query(AdminUser).filter_by(email='admin@admin.com').first() is None:
             session.add(
                 AdminUser(
+                    name='Administrador',
                     email='admin@admin.com',
                     password_hash=hash_password('123456'),
+                    role='super_admin',
                     is_active=True,
+                    is_blocked=False,
                 )
             )
 

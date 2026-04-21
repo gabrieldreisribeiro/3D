@@ -144,10 +144,15 @@ class AdminUser(Base):
     __tablename__ = 'admin_users'
 
     id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(160), nullable=False, default='Administrador')
     email = Column(String(120), unique=True, nullable=False, index=True)
     password_hash = Column(String(300), nullable=False)
     is_active = Column(Boolean, default=True)
+    is_blocked = Column(Boolean, default=False)
+    role = Column(String(20), nullable=False, default='super_admin')
+    last_login_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, nullable=False, server_default=func.now())
+    updated_at = Column(DateTime, nullable=False, server_default=func.now(), onupdate=func.now())
     query_logs = relationship('DatabaseQueryLog', back_populates='admin')
     ads_generation_history = relationship('AdsGenerationHistory', back_populates='admin')
 

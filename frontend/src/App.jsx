@@ -28,6 +28,7 @@ import AdminMetaPixelPage from './pages/AdminMetaPixelPage';
 import AdminPromotionsPage from './pages/AdminPromotionsPage';
 import AdminHighlightsPage from './pages/AdminHighlightsPage';
 import AdminPublicationPage from './pages/AdminPublicationPage';
+import AdminUsersPage from './pages/AdminUsersPage';
 import { getAdminToken, trackEvent } from './services/api';
 
 function PreviewGuard({ children }) {
@@ -76,6 +77,7 @@ function AppContent() {
             <Route path="banco" element={<AdminDatabasePage />} />
             <Route path="uploads" element={<AdminUploadsPage />} />
             <Route path="relatorios" element={<AdminReportsPage />} />
+            <Route path="usuarios" element={<AdminUsersPage />} />
           </Route>
           <Route path="*" element={<Navigate to="/painel-interno" replace />} />
         </Routes>

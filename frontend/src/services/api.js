@@ -3,6 +3,7 @@ import { trackMetaPixelFromInternalEvent } from './metaPixelService';
 
 const API_BASE = API_BASE_URL;
 const ADMIN_TOKEN_KEY = 'admin_token';
+const ADMIN_PROFILE_KEY = 'admin_profile';
 const CLIENT_FP_KEY = 'client_fingerprint';
 const SESSION_ID_KEY = 'session_id';
 
@@ -239,18 +240,85 @@ export function saveAdminToken(token) {
   localStorage.setItem(ADMIN_TOKEN_KEY, token);
 }
 
+export function saveAdminSession(session) {
+  if (!session?.token) return;
+  localStorage.setItem(ADMIN_TOKEN_KEY, session.token);
+  if (session.admin) {
+    localStorage.setItem(ADMIN_PROFILE_KEY, JSON.stringify(session.admin));
+  }
+}
+
 export function getAdminToken() {
   return localStorage.getItem(ADMIN_TOKEN_KEY);
 }
 
+export function getAdminProfile() {
+  try {
+    const raw = localStorage.getItem(ADMIN_PROFILE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
 export function clearAdminToken() {
   localStorage.removeItem(ADMIN_TOKEN_KEY);
+  localStorage.removeItem(ADMIN_PROFILE_KEY);
+}
+
+export function saveAdminProfile(profile) {
+  if (!profile) {
+    localStorage.removeItem(ADMIN_PROFILE_KEY);
+    return;
+  }
+  localStorage.setItem(ADMIN_PROFILE_KEY, JSON.stringify(profile));
 }
 
 export function adminLogin(payload) {
   return request('/admin/auth/login', {
     method: 'POST',
     body: JSON.stringify(payload),
+  });
+}
+
+export function fetchAdminMe() {
+  return adminRequest('/admin/auth/me');
+}
+
+export function fetchAdminUsers() {
+  return adminRequest('/admin/users');
+}
+
+export function createAdminUser(payload) {
+  return adminRequest('/admin/users', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export function updateAdminUser(userId, payload) {
+  return adminRequest(`/admin/users/${userId}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  });
+}
+
+export function updateAdminUserPassword(userId, payload) {
+  return adminRequest(`/admin/users/${userId}/password`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+}
+
+export function setAdminUserBlocked(userId, isBlocked) {
+  return adminRequest(`/admin/users/${userId}/blocked?is_blocked=${isBlocked}`, {
+    method: 'PATCH',
+  });
+}
+
+export function deleteAdminUser(userId) {
+  return adminRequest(`/admin/users/${userId}`, {
+    method: 'DELETE',
   });
 }
 

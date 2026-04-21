@@ -3,7 +3,7 @@ import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import Button from '../components/ui/Button';
 import Card from '../components/ui/Card';
 import Input from '../components/ui/Input';
-import { adminLogin, getAdminToken, saveAdminToken } from '../services/api';
+import { adminLogin, getAdminToken, saveAdminSession } from '../services/api';
 
 function AdminLoginPage() {
   const [email, setEmail] = useState('admin@admin.com');
@@ -24,7 +24,7 @@ function AdminLoginPage() {
     setError('');
     try {
       const response = await adminLogin({ email, password });
-      saveAdminToken(response.token);
+      saveAdminSession(response);
       const target = location.state?.from?.pathname || '/painel-interno';
       navigate(target, { replace: true });
     } catch (submitError) {

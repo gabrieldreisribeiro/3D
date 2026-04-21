@@ -2,11 +2,21 @@ import json
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from app.core.security import create_admin_token, get_db, require_admin, verify_password
+from app.core.security import (
+    create_admin_token,
+    get_db,
+    hash_password,
+    needs_password_rehash,
+    require_admin,
+    require_super_admin,
+    verify_password,
+)
 from app.models import AdminUser
 from app.schemas import (
+    AdminAuthUserResponse,
     AdminCategoryCreate,
     AdminCategoryResponse,
     AdminCategoryUpdate,
@@ -17,6 +27,10 @@ from app.schemas import (
     AdminLoginRequest,
     AdminLoginResponse,
     AdminOrderResponse,
+    AdminUserCreateRequest,
+    AdminUserPasswordUpdateRequest,
+    AdminUserResponse,
+    AdminUserUpdateRequest,
     AdminProductCreate,
     AdminProductResponse,
     AdminProductUpdate,
@@ -168,13 +182,181 @@ def _serialize_admin_review(review) -> AdminReviewResponse:
     )
 
 
+def _serialize_admin_user(admin: AdminUser) -> AdminUserResponse:
+    return AdminUserResponse(
+        id=admin.id,
+        name=admin.name,
+        email=admin.email,
+        role=admin.role,
+        is_active=bool(admin.is_active),
+        is_blocked=bool(admin.is_blocked),
+        last_login_at=admin.last_login_at,
+        created_at=admin.created_at,
+        updated_at=admin.updated_at,
+    )
+
+
+def _count_super_admins(db: Session) -> int:
+    total = db.query(func.count(AdminUser.id)).filter(AdminUser.role == 'super_admin').scalar()
+    return int(total or 0)
+
+
+def _ensure_not_last_super_admin(db: Session, target: AdminUser, detail: str) -> None:
+    if target.role != 'super_admin':
+        return
+    if _count_super_admins(db) <= 1:
+        raise HTTPException(status_code=400, detail=detail)
+
+
 @router.post('/auth/login', response_model=AdminLoginResponse)
 def login(payload: AdminLoginRequest, db: Session = Depends(get_db)):
-    admin = db.query(AdminUser).filter(AdminUser.email == payload.email.lower(), AdminUser.is_active == True).first()
+    admin = db.query(AdminUser).filter(AdminUser.email == payload.email.lower()).first()
     if not admin or not verify_password(payload.password, admin.password_hash):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Credenciais invalidas')
+    if not bool(admin.is_active):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='Seu usuario esta inativo. Contate um super administrador.')
+    if bool(admin.is_blocked):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='Seu acesso foi bloqueado. Contate um super administrador.')
+    if needs_password_rehash(admin.password_hash):
+        admin.password_hash = hash_password(payload.password)
+    admin.last_login_at = datetime.utcnow()
+    db.add(admin)
+    db.commit()
+    db.refresh(admin)
 
-    return AdminLoginResponse(token=create_admin_token(admin.id), email=admin.email)
+    return AdminLoginResponse(
+        token=create_admin_token(admin.id),
+        admin=AdminAuthUserResponse(
+            id=admin.id,
+            name=admin.name,
+            email=admin.email,
+            role=admin.role,
+            is_active=bool(admin.is_active),
+            is_blocked=bool(admin.is_blocked),
+        ),
+    )
+
+
+@router.get('/auth/me', response_model=AdminAuthUserResponse)
+def admin_me(admin: AdminUser = Depends(require_admin)):
+    return AdminAuthUserResponse(
+        id=admin.id,
+        name=admin.name,
+        email=admin.email,
+        role=admin.role,
+        is_active=bool(admin.is_active),
+        is_blocked=bool(admin.is_blocked),
+    )
+
+
+@router.get('/users', response_model=list[AdminUserResponse])
+def list_admin_users(_: AdminUser = Depends(require_super_admin), db: Session = Depends(get_db)):
+    rows = db.query(AdminUser).order_by(AdminUser.created_at.desc(), AdminUser.id.desc()).all()
+    return [_serialize_admin_user(row) for row in rows]
+
+
+@router.post('/users', response_model=AdminUserResponse, status_code=201)
+def create_admin_user(
+    payload: AdminUserCreateRequest,
+    _: AdminUser = Depends(require_super_admin),
+    db: Session = Depends(get_db),
+):
+    existing = db.query(AdminUser).filter(AdminUser.email == payload.email.lower()).first()
+    if existing:
+        raise HTTPException(status_code=400, detail='E-mail ja esta em uso')
+    admin = AdminUser(
+        name=payload.name.strip(),
+        email=payload.email.lower(),
+        password_hash=hash_password(payload.password),
+        role=payload.role,
+        is_active=bool(payload.is_active),
+        is_blocked=False,
+    )
+    db.add(admin)
+    db.commit()
+    db.refresh(admin)
+    return _serialize_admin_user(admin)
+
+
+@router.put('/users/{user_id}', response_model=AdminUserResponse)
+def update_admin_user(
+    user_id: int,
+    payload: AdminUserUpdateRequest,
+    current_admin: AdminUser = Depends(require_super_admin),
+    db: Session = Depends(get_db),
+):
+    admin = db.query(AdminUser).filter(AdminUser.id == user_id).first()
+    if not admin:
+        raise HTTPException(status_code=404, detail='Usuario nao encontrado')
+    existing_email = db.query(AdminUser).filter(AdminUser.email == payload.email.lower(), AdminUser.id != user_id).first()
+    if existing_email:
+        raise HTTPException(status_code=400, detail='E-mail ja esta em uso')
+    if admin.id == current_admin.id and not bool(payload.is_active):
+        raise HTTPException(status_code=400, detail='Nao e permitido desativar seu proprio usuario')
+    is_removing_super_role = admin.role == 'super_admin' and payload.role != 'super_admin'
+    is_disabling_last_super_admin = admin.role == 'super_admin' and not bool(payload.is_active)
+    if is_removing_super_role or is_disabling_last_super_admin:
+        _ensure_not_last_super_admin(db, admin, 'Nao e permitido remover o ultimo super_admin')
+    admin.name = payload.name.strip()
+    admin.email = payload.email.lower()
+    admin.role = payload.role
+    admin.is_active = bool(payload.is_active)
+    db.add(admin)
+    db.commit()
+    db.refresh(admin)
+    return _serialize_admin_user(admin)
+
+
+@router.patch('/users/{user_id}/password', status_code=204)
+def update_admin_user_password(
+    user_id: int,
+    payload: AdminUserPasswordUpdateRequest,
+    _: AdminUser = Depends(require_super_admin),
+    db: Session = Depends(get_db),
+):
+    admin = db.query(AdminUser).filter(AdminUser.id == user_id).first()
+    if not admin:
+        raise HTTPException(status_code=404, detail='Usuario nao encontrado')
+    admin.password_hash = hash_password(payload.new_password)
+    db.add(admin)
+    db.commit()
+
+
+@router.patch('/users/{user_id}/blocked', response_model=AdminUserResponse)
+def set_admin_user_blocked(
+    user_id: int,
+    is_blocked: bool,
+    current_admin: AdminUser = Depends(require_super_admin),
+    db: Session = Depends(get_db),
+):
+    admin = db.query(AdminUser).filter(AdminUser.id == user_id).first()
+    if not admin:
+        raise HTTPException(status_code=404, detail='Usuario nao encontrado')
+    if admin.id == current_admin.id and bool(is_blocked):
+        raise HTTPException(status_code=400, detail='Nao e permitido bloquear seu proprio usuario')
+    if bool(is_blocked):
+        _ensure_not_last_super_admin(db, admin, 'Nao e permitido bloquear o ultimo super_admin')
+    admin.is_blocked = bool(is_blocked)
+    db.add(admin)
+    db.commit()
+    db.refresh(admin)
+    return _serialize_admin_user(admin)
+
+
+@router.delete('/users/{user_id}', status_code=204)
+def delete_admin_user(
+    user_id: int,
+    current_admin: AdminUser = Depends(require_super_admin),
+    db: Session = Depends(get_db),
+):
+    admin = db.query(AdminUser).filter(AdminUser.id == user_id).first()
+    if not admin:
+        raise HTTPException(status_code=404, detail='Usuario nao encontrado')
+    if admin.id == current_admin.id:
+        raise HTTPException(status_code=400, detail='Nao e permitido excluir seu proprio usuario')
+    _ensure_not_last_super_admin(db, admin, 'Nao e permitido excluir o ultimo super_admin')
+    db.delete(admin)
+    db.commit()
 
 
 @router.post('/logo/upload', response_model=LogoResponse)

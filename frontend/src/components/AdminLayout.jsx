@@ -1,6 +1,14 @@
 ﻿import { useEffect, useMemo, useState } from 'react';
 import { Navigate, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { clearAdminToken, fetchPublicLogo, getAdminToken, resolveAssetUrl } from '../services/api';
+import {
+  clearAdminToken,
+  fetchAdminMe,
+  fetchPublicLogo,
+  getAdminProfile,
+  getAdminToken,
+  resolveAssetUrl,
+  saveAdminProfile,
+} from '../services/api';
 import Sidebar from './layout/Sidebar';
 import Button from './ui/Button';
 import { getLogoSizeConfig, getLogoSizeKey, setLogoSizeKey as persistLogoSizeKey } from '../services/logoSettings';
@@ -66,6 +74,7 @@ const NAV_SECTIONS = [
       { to: '/painel-interno/uploads', label: 'Uploads', icon: <><path d="M12 16V4" /><path d="m7 9 5-5 5 5" /><path d="M20 16v2a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-2" /></> },
       { to: '/painel-interno/banco', label: 'Banco de dados', icon: <><ellipse cx="12" cy="5" rx="7" ry="3" /><path d="M5 5v14c0 1.7 3.1 3 7 3s7-1.3 7-3V5" /><path d="M5 12c0 1.7 3.1 3 7 3s7-1.3 7-3" /></> },
       { to: '/painel-interno/configuracoes', label: 'Configuracoes', icon: <><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" /><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.2a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.2a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3h.1a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.2a1.7 1.7 0 0 0 1 1.5h.1a1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8v.1a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.2a1.7 1.7 0 0 0-1.4 1Z" /></> },
+      { to: '/painel-interno/usuarios', label: 'Usuarios', icon: <><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></> },
     ],
   },
 ];
@@ -77,12 +86,25 @@ function AdminLayout() {
   const [logoUrl, setLogoUrl] = useState(null);
   const [logoSizeKey, setLogoSizeKey] = useState(getLogoSizeKey());
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [currentAdmin, setCurrentAdmin] = useState(getAdminProfile());
 
   useEffect(() => {
     fetchPublicLogo()
       .then((data) => setLogoUrl(resolveAssetUrl(data?.url)))
       .catch(() => setLogoUrl(null));
   }, []);
+
+  useEffect(() => {
+    if (!token) return;
+    fetchAdminMe()
+      .then((admin) => {
+        setCurrentAdmin(admin);
+        saveAdminProfile(admin);
+      })
+      .catch(() => {
+        setCurrentAdmin(null);
+      });
+  }, [token]);
 
   useEffect(() => {
     const syncLogoSize = () => setLogoSizeKey(getLogoSizeKey());
@@ -126,6 +148,8 @@ function AdminLayout() {
         : 'border-transparent text-slate-600 hover:border-slate-200 hover:bg-white hover:text-slate-900'
     }`;
 
+  const isSuperAdmin = currentAdmin?.role === 'super_admin';
+
   const links = useMemo(
     () => (
       <>
@@ -133,7 +157,7 @@ function AdminLayout() {
           <div key={section.label} className="space-y-1">
             <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">{section.label}</p>
             <div className="space-y-1">
-              {section.items.map((item) => (
+              {section.items.filter((item) => isSuperAdmin || item.to !== '/painel-interno/usuarios').map((item) => (
                 <NavLink key={item.to} to={item.to} end={Boolean(item.end)} className={navClassName}>
                   {({ isActive }) => (
                     <>
@@ -154,7 +178,7 @@ function AdminLayout() {
         ))}
       </>
     ),
-    []
+    [isSuperAdmin]
   );
 
   const logoSize = getLogoSizeConfig(logoSizeKey);

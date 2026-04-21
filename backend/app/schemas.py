@@ -1,7 +1,7 @@
 ﻿from datetime import datetime
 from typing import List, Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class CategoryResponse(BaseModel):
@@ -408,9 +408,65 @@ class AdminLoginRequest(BaseModel):
     password: str = Field(..., min_length=6)
 
 
+class AdminAuthUserResponse(BaseModel):
+    id: int
+    name: str
+    email: str
+    role: Literal['admin', 'super_admin']
+    is_active: bool
+    is_blocked: bool
+
+
 class AdminLoginResponse(BaseModel):
     token: str
+    admin: AdminAuthUserResponse
+
+
+class AdminUserResponse(BaseModel):
+    id: int
+    name: str
     email: str
+    role: Literal['admin', 'super_admin']
+    is_active: bool
+    is_blocked: bool
+    last_login_at: Optional[datetime] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+
+class AdminUserCreateRequest(BaseModel):
+    name: str = Field(..., min_length=2, max_length=160)
+    email: str = Field(..., min_length=5, max_length=120)
+    password: str = Field(..., min_length=6, max_length=72)
+    role: Literal['admin', 'super_admin'] = 'admin'
+    is_active: bool = True
+
+    @field_validator('email')
+    @classmethod
+    def validate_email(cls, value: str) -> str:
+        normalized = value.strip().lower()
+        if '@' not in normalized or normalized.startswith('@') or normalized.endswith('@'):
+            raise ValueError('Informe um e-mail valido')
+        return normalized
+
+
+class AdminUserUpdateRequest(BaseModel):
+    name: str = Field(..., min_length=2, max_length=160)
+    email: str = Field(..., min_length=5, max_length=120)
+    role: Literal['admin', 'super_admin']
+    is_active: bool = True
+
+    @field_validator('email')
+    @classmethod
+    def validate_email(cls, value: str) -> str:
+        normalized = value.strip().lower()
+        if '@' not in normalized or normalized.startswith('@') or normalized.endswith('@'):
+            raise ValueError('Informe um e-mail valido')
+        return normalized
+
+
+class AdminUserPasswordUpdateRequest(BaseModel):
+    new_password: str = Field(..., min_length=6, max_length=72)
 
 
 class AdminOrderItemResponse(BaseModel):
