@@ -304,10 +304,7 @@ def _ensure_admin_users_columns(session):
 
     session.execute(text("UPDATE admin_users SET name = COALESCE(NULLIF(name, ''), 'Administrador')"))
     session.execute(text("UPDATE admin_users SET role = COALESCE(NULLIF(role, ''), 'super_admin')"))
-    if session.bind.dialect.name.startswith('postgres'):
-        session.execute(text("UPDATE admin_users SET is_blocked = COALESCE(is_blocked, FALSE)"))
-    else:
-        session.execute(text("UPDATE admin_users SET is_blocked = COALESCE(is_blocked, 0)"))
+    session.execute(text("UPDATE admin_users SET is_blocked = COALESCE(is_blocked, FALSE)"))
     session.commit()
 
 
@@ -315,6 +312,7 @@ def _ensure_product_3d_models_columns(session):
     required_columns = {
         'name': "VARCHAR(180)",
         'description': "TEXT",
+        'sub_item_id': "VARCHAR(80)",
         'original_file_url': "VARCHAR(500)",
         'preview_file_url': "VARCHAR(500)",
         'width_mm': "REAL",
@@ -356,12 +354,8 @@ def _ensure_product_3d_models_columns(session):
         return
 
     session.execute(text("UPDATE product_3d_models SET dimensions_source = COALESCE(NULLIF(dimensions_source, ''), 'auto')"))
-    if session.bind.dialect.name.startswith('postgres'):
-        session.execute(text("UPDATE product_3d_models SET allow_download = COALESCE(allow_download, FALSE)"))
-        session.execute(text("UPDATE product_3d_models SET is_active = COALESCE(is_active, TRUE)"))
-    else:
-        session.execute(text("UPDATE product_3d_models SET allow_download = COALESCE(allow_download, 0)"))
-        session.execute(text("UPDATE product_3d_models SET is_active = COALESCE(is_active, 1)"))
+    session.execute(text("UPDATE product_3d_models SET allow_download = COALESCE(allow_download, FALSE)"))
+    session.execute(text("UPDATE product_3d_models SET is_active = COALESCE(is_active, TRUE)"))
     session.execute(text("UPDATE product_3d_models SET sort_order = COALESCE(sort_order, 1)"))
     session.commit()
 

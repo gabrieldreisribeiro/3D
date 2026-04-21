@@ -43,9 +43,14 @@ const defaultPricingFields = {
 };
 
 const createEmptySubItem = () => ({
+  id: (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : `sub_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
   title: '',
   image_url: '',
   pricing_mode: 'manual',
+  width_mm: '',
+  height_mm: '',
+  depth_mm: '',
+  dimensions_source: 'manual',
   manual_price: '',
   lead_time_hours: '0',
   allow_colors: false,
@@ -89,6 +94,7 @@ const initialForm = {
 };
 
 const createEmpty3dModelForm = () => ({
+  sub_item_id: '',
   name: '',
   description: '',
   original_file_url: '',
@@ -165,9 +171,14 @@ function parseSecondaryPairs(value) {
 function mapSubItemToPayload(item) {
   const pricingMode = item.pricing_mode || 'manual';
   const payload = {
+    id: String(item.id || '').trim() || null,
     title: String(item.title || '').trim(),
     image_url: String(item.image_url || '').trim() || null,
     pricing_mode: pricingMode,
+    width_mm: item.dimensions_source === 'manual' ? toOptionalNumber(item.width_mm) : null,
+    height_mm: item.dimensions_source === 'manual' ? toOptionalNumber(item.height_mm) : null,
+    depth_mm: item.dimensions_source === 'manual' ? toOptionalNumber(item.depth_mm) : null,
+    dimensions_source: item.dimensions_source === 'model' ? 'model' : 'manual',
     lead_time_hours: toNumber(item.lead_time_hours),
     allow_colors: Boolean(item.allow_colors),
     available_colors: item.allow_colors ? parseColors(item.available_colors) : [],
@@ -255,9 +266,14 @@ function fromProduct(product) {
   const subItems = (product.sub_items || []).map((item) => {
     const subPricingMode = item.pricing_mode || (Number(item.manual_price || 0) > 0 && allPricingFieldsZero(item) ? 'manual' : 'calculated');
     return {
+      id: String(item.id || ((typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : `sub_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`)),
       title: item.title || item.name || '',
       image_url: item.image_url || '',
       pricing_mode: subPricingMode,
+      width_mm: item.width_mm == null ? '' : String(item.width_mm),
+      height_mm: item.height_mm == null ? '' : String(item.height_mm),
+      depth_mm: item.depth_mm == null ? '' : String(item.depth_mm),
+      dimensions_source: item.dimensions_source === 'model' ? 'model' : 'manual',
       lead_time_hours: String(item.lead_time_hours ?? 0),
       allow_colors: Boolean(item.allow_colors),
       available_colors: Array.isArray(item.available_colors) ? item.available_colors : [],
@@ -570,6 +586,7 @@ function AdminProductsPage() {
   const openEdit3dModel = (model) => {
     setEditing3dModelId(model.id);
     setModel3dForm({
+      sub_item_id: String(model.sub_item_id || ''),
       name: model.name || '',
       description: model.description || '',
       original_file_url: model.original_file_url || '',
@@ -600,6 +617,7 @@ function AdminProductsPage() {
     setError('');
     try {
       const payload = {
+        sub_item_id: String(model3dForm.sub_item_id || '').trim() || null,
         name: String(model3dForm.name || '').trim(),
         description: String(model3dForm.description || '').trim() || null,
         original_file_url: String(model3dForm.original_file_url || '').trim() || null,
@@ -1644,6 +1662,39 @@ function AdminProductsPage() {
                       {uploadingSubItems[index] ? <small className="text-xs text-slate-500">Enviando imagem do sub item...</small> : null}
                     </label>
 
+                    <div className="md:col-span-2 rounded-[10px] border border-slate-200 bg-white p-3">
+                      <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Dimensoes do sub item</p>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => updateSubItem(index, 'dimensions_source', 'manual')}
+                          className={`h-9 rounded-[10px] border px-3 text-xs font-medium transition ${
+                            subItem.dimensions_source === 'manual'
+                              ? 'border-violet-600 bg-violet-600 text-white'
+                              : 'border-slate-200 bg-white text-slate-600 hover:border-violet-200 hover:text-violet-700'
+                          }`}
+                        >
+                          Manual
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => updateSubItem(index, 'dimensions_source', 'model')}
+                          className={`h-9 rounded-[10px] border px-3 text-xs font-medium transition ${
+                            subItem.dimensions_source === 'model'
+                              ? 'border-violet-600 bg-violet-600 text-white'
+                              : 'border-slate-200 bg-white text-slate-600 hover:border-violet-200 hover:text-violet-700'
+                          }`}
+                        >
+                          Via modelo 3D
+                        </button>
+                      </div>
+                      <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
+                        <Input label="Largura (mm)" type="number" min="0" step="0.01" value={subItem.width_mm} onChange={(event) => updateSubItem(index, 'width_mm', event.target.value)} disabled={subItem.dimensions_source === 'model'} />
+                        <Input label="Altura (mm)" type="number" min="0" step="0.01" value={subItem.height_mm} onChange={(event) => updateSubItem(index, 'height_mm', event.target.value)} disabled={subItem.dimensions_source === 'model'} />
+                        <Input label="Profundidade (mm)" type="number" min="0" step="0.01" value={subItem.depth_mm} onChange={(event) => updateSubItem(index, 'depth_mm', event.target.value)} disabled={subItem.dimensions_source === 'model'} />
+                      </div>
+                    </div>
+
                     {subItem.pricing_mode === 'manual' ? (
                       <Input label="Preco do sub item" type="number" min="0" step="0.01" value={subItem.manual_price} onChange={(event) => updateSubItem(index, 'manual_price', event.target.value)} />
                     ) : (
@@ -1751,7 +1802,7 @@ function AdminProductsPage() {
                         <div>
                           <p className="text-sm font-semibold text-slate-900">{model.name}</p>
                           <p className="text-xs text-slate-500">
-                            {model.width_mm ?? '-'} x {model.height_mm ?? '-'} x {model.depth_mm ?? '-'} mm | ordem {model.sort_order}
+                            {model.width_mm ?? '-'} x {model.height_mm ?? '-'} x {model.depth_mm ?? '-'} mm | ordem {model.sort_order} | {model.sub_item_title ? `subitem: ${model.sub_item_title}` : 'principal'}
                           </p>
                         </div>
                         <div className="flex flex-wrap gap-2">
@@ -1853,6 +1904,21 @@ function AdminProductsPage() {
         }
       >
         <form className="grid grid-cols-1 gap-4 md:grid-cols-2" onSubmit={submit3dModelForm}>
+          <label className="md:col-span-2 flex flex-col gap-1.5">
+            <span className="text-xs font-medium uppercase tracking-wide text-slate-500">Destino do modelo</span>
+            <select
+              value={model3dForm.sub_item_id}
+              onChange={(event) => setModel3dForm({ ...model3dForm, sub_item_id: event.target.value })}
+              className="h-11 rounded-[10px] border border-slate-200 bg-white px-3 text-sm text-slate-700"
+            >
+              <option value="">Produto principal</option>
+              {(form.sub_items || []).map((subItem, index) => (
+                <option key={subItem.id || `subitem-option-${index}`} value={subItem.id || ''}>
+                  {subItem.title || `Sub item ${index + 1}`}
+                </option>
+              ))}
+            </select>
+          </label>
           <Input label="Nome do modelo" value={model3dForm.name} onChange={(event) => setModel3dForm({ ...model3dForm, name: event.target.value })} required />
           <Input label="Ordem" type="number" min="1" step="1" value={model3dForm.sort_order} onChange={(event) => setModel3dForm({ ...model3dForm, sort_order: event.target.value })} />
           <TextArea

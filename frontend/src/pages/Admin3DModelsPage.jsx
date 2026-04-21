@@ -21,6 +21,7 @@ import {
 
 const emptyForm = {
   product_id: '',
+  sub_item_id: '',
   name: '',
   description: '',
   sort_order: 1,
@@ -97,8 +98,9 @@ function Admin3DModelsPage() {
 
   const openEdit = (item) => {
     setEditingId(item.id);
-    setForm({
-      product_id: String(item.product_id),
+      setForm({
+        product_id: String(item.product_id),
+      sub_item_id: String(item.sub_item_id || ''),
       name: item.name || '',
       description: item.description || '',
       sort_order: Number(item.sort_order || 1),
@@ -132,6 +134,7 @@ function Admin3DModelsPage() {
     try {
       const payload = {
         product_id: Number(form.product_id || 0),
+        sub_item_id: String(form.sub_item_id || '').trim() || null,
         name: String(form.name || '').trim(),
         description: String(form.description || '').trim() || null,
         sort_order: Number(form.sort_order || 1),
@@ -178,6 +181,19 @@ function Admin3DModelsPage() {
     () => products.filter((item) => Number(item.id) > 0).map((item) => ({ value: String(item.id), label: item.title })),
     [products]
   );
+  const selectedProduct = useMemo(
+    () => products.find((item) => String(item.id) === String(form.product_id || '')),
+    [products, form.product_id]
+  );
+  const subItemOptions = useMemo(() => {
+    if (!selectedProduct || !Array.isArray(selectedProduct.sub_items)) return [];
+    return selectedProduct.sub_items
+      .map((item) => ({
+        value: String(item?.id || '').trim(),
+        label: item?.title || 'Sub item',
+      }))
+      .filter((item) => item.value);
+  }, [selectedProduct]);
 
   return (
     <section className="admin-page space-y-6">
@@ -230,13 +246,20 @@ function Admin3DModelsPage() {
           <p className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-600">Carregando modelos 3D...</p>
         ) : (
           <Table
-            columns={['Modelo', 'Produto', 'Ordem', 'Dimensoes', 'Arquivos', 'Download', 'Status', 'Criado em', 'Acoes']}
+            columns={['Modelo', 'Produto/Subitem', 'Ordem', 'Dimensoes', 'Arquivos', 'Download', 'Status', 'Criado em', 'Acoes']}
             rows={rows}
             empty={<EmptyState title="Sem modelos 3D" description="Cadastre modelos para comecar." />}
             renderRow={(item) => (
               <tr key={item.id}>
                 <td>{item.name}</td>
-                <td>{item.product_title || `Produto #${item.product_id}`}</td>
+                <td>
+                  <div className="flex flex-col text-xs text-slate-700">
+                    <span>{item.product_title || `Produto #${item.product_id}`}</span>
+                    <span className="text-slate-500">
+                      {item.sub_item_title ? `Subitem: ${item.sub_item_title}` : 'Principal do produto'}
+                    </span>
+                  </div>
+                </td>
                 <td>{item.sort_order}</td>
                 <td>{item.width_mm ?? '-'} x {item.height_mm ?? '-'} x {item.depth_mm ?? '-'} mm</td>
                 <td>
@@ -290,6 +313,13 @@ function Admin3DModelsPage() {
               {productOptions.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
             </select>
           </label>
+          <label className="flex flex-col gap-1.5">
+            <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Subitem vinculado (opcional)</span>
+            <select value={form.sub_item_id} onChange={(event) => setForm({ ...form, sub_item_id: event.target.value })} className="h-11 rounded-xl border border-slate-200 px-3 text-sm">
+              <option value="">Principal do produto</option>
+              {subItemOptions.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+            </select>
+          </label>
           <Input label="Nome" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} required />
           <Input label="Ordem" type="number" min="1" step="1" value={form.sort_order} onChange={(event) => setForm({ ...form, sort_order: event.target.value })} />
           <Input label="Preview URL" value={form.preview_file_url} onChange={(event) => setForm({ ...form, preview_file_url: event.target.value })} required />
@@ -319,6 +349,7 @@ function Admin3DModelsPage() {
           <div className="space-y-2 text-sm text-slate-700">
             <p><strong>Nome:</strong> {detailModel.name}</p>
             <p><strong>Produto:</strong> {detailModel.product_title || `#${detailModel.product_id}`}</p>
+            <p><strong>Subitem:</strong> {detailModel.sub_item_title || 'Principal do produto'}</p>
             <p><strong>Descricao:</strong> {detailModel.description || '-'}</p>
             <p><strong>Ordem:</strong> {detailModel.sort_order}</p>
             <p><strong>Dimensoes:</strong> {detailModel.width_mm ?? '-'} x {detailModel.height_mm ?? '-'} x {detailModel.depth_mm ?? '-'} mm ({detailModel.dimensions_source})</p>

@@ -33,6 +33,14 @@ function getSubItemPrice(item) {
   return toNumber(item.final_price ?? item.price ?? item.manual_price ?? 0);
 }
 
+function hasDimensions(item) {
+  return item?.width_mm != null || item?.height_mm != null || item?.depth_mm != null;
+}
+
+function formatDimensions(item) {
+  return `L: ${item?.width_mm ?? '-'}mm | A: ${item?.height_mm ?? '-'}mm | P: ${item?.depth_mm ?? '-'}mm`;
+}
+
 function estimateDaysFromHours(hours) {
   const safeHours = Math.max(0, toNumber(hours));
   if (safeHours <= 0) return 1;
@@ -727,6 +735,9 @@ function ProductPage() {
                         <div className="min-w-0">
                           <p className="line-clamp-1 text-sm font-medium text-[#111827]">{item.title}</p>
                           <p className="text-[13px] font-semibold text-[#16A34A]">R$ {getSubItemPrice(item).toFixed(2)}</p>
+                          {hasDimensions(item) ? (
+                            <p className="text-[11px] text-[#667085]">{formatDimensions(item)}</p>
+                          ) : null}
                         </div>
                       </div>
                       <input
@@ -1038,10 +1049,22 @@ function ProductPage() {
           <p className="mt-4 whitespace-pre-line text-sm leading-8 text-slate-600">{product.full_description}</p>
         ) : (
           <ul className="mt-4 space-y-2 text-sm leading-7 text-[#374151]">
-            {(productData.width_mm != null || productData.height_mm != null || productData.depth_mm != null) ? (
+            {!hasSubItems && (productData.width_mm != null || productData.height_mm != null || productData.depth_mm != null) ? (
               <li className="rounded-xl border border-[#E6EAF0] bg-[#F9FAFB] px-3 py-2">
                 <strong className="text-[#111827]">Dimensoes:</strong>{' '}
                 Largura: {productData.width_mm ?? '-'}mm | Altura: {productData.height_mm ?? '-'}mm | Profundidade: {productData.depth_mm ?? '-'}mm
+              </li>
+            ) : null}
+            {hasSubItems ? (
+              <li className="rounded-xl border border-[#E6EAF0] bg-[#F9FAFB] px-3 py-2">
+                <strong className="text-[#111827]">Dimensoes por sub item:</strong>
+                <div className="mt-2 space-y-1 text-xs text-[#667085]">
+                  {(productData.sub_items || []).map((item, index) => (
+                    hasDimensions(item) ? (
+                      <p key={`subitem-dimension-${item.id || index}`}>{item.title}: {formatDimensions(item)}</p>
+                    ) : null
+                  ))}
+                </div>
               </li>
             ) : null}
             {highlightItems.map((item) => (

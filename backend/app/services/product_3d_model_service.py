@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.core.config import MODELS_3D_ORIGINAL_UPLOADS_DIR, MODELS_3D_PREVIEW_UPLOADS_DIR, UPLOADS_DIR
 from app.models import Product, Product3DModel
+from app.services.product_service import parse_sub_items_from_storage
 
 ALLOWED_ORIGINAL_EXTENSIONS = {'.3mf', '.stl', '.gcode', '.glb', '.obj', '.step', '.stp'}
 ALLOWED_PREVIEW_EXTENSIONS = {'.stl', '.glb'}
@@ -243,8 +244,17 @@ def save_preview_model_file(file: UploadFile) -> tuple[str, tuple[float, float, 
     return _public_url_for(target), dimensions
 
 
-def list_product_3d_models(db: Session, product_id: int, *, active_only: bool = False) -> list[Product3DModel]:
+def list_product_3d_models(
+    db: Session,
+    product_id: int,
+    *,
+    active_only: bool = False,
+    sub_item_id: str | None = None,
+) -> list[Product3DModel]:
     query = db.query(Product3DModel).filter(Product3DModel.product_id == int(product_id))
+    normalized_sub_item_id = str(sub_item_id or '').strip()
+    if normalized_sub_item_id:
+        query = query.filter(Product3DModel.sub_item_id == normalized_sub_item_id)
     if active_only:
         query = query.filter(Product3DModel.is_active == True)
     return query.order_by(Product3DModel.sort_order.asc(), Product3DModel.id.asc()).all()
@@ -290,6 +300,7 @@ def list_all_3d_models(
             or_(
                 Product3DModel.name.ilike(like),
                 Product3DModel.description.ilike(like),
+                Product3DModel.sub_item_id.ilike(like),
                 Product.title.ilike(like),
                 Product.slug.ilike(like),
             )
@@ -327,6 +338,7 @@ def get_primary_model_dimensions_map(db: Session, product_ids: list[int]) -> dic
         .filter(
             Product3DModel.product_id.in_(ids),
             Product3DModel.is_active == True,
+            Product3DModel.sub_item_id.is_(None),
         )
         .order_by(Product3DModel.product_id.asc(), Product3DModel.sort_order.asc(), Product3DModel.id.asc())
         .all()
@@ -344,11 +356,45 @@ def get_primary_model_dimensions_map(db: Session, product_ids: list[int]) -> dic
     return output
 
 
+def get_sub_item_dimensions_map(
+    db: Session,
+    product_ids: list[int],
+) -> dict[tuple[int, str], tuple[float, float, float]]:
+    ids = [int(item) for item in product_ids if int(item) > 0]
+    if not ids:
+        return {}
+    rows = (
+        db.query(Product3DModel)
+        .filter(
+            Product3DModel.product_id.in_(ids),
+            Product3DModel.is_active == True,
+            Product3DModel.sub_item_id.is_not(None),
+        )
+        .order_by(Product3DModel.product_id.asc(), Product3DModel.sub_item_id.asc(), Product3DModel.sort_order.asc(), Product3DModel.id.asc())
+        .all()
+    )
+    output: dict[tuple[int, str], tuple[float, float, float]] = {}
+    for row in rows:
+        sub_item_id = str(row.sub_item_id or '').strip()
+        if not sub_item_id:
+            continue
+        key = (int(row.product_id), sub_item_id)
+        if key in output:
+            continue
+        if row.width_mm is None or row.height_mm is None or row.depth_mm is None:
+            continue
+        dimensions = _normalize_dimensions(row.width_mm, row.height_mm, row.depth_mm)
+        if dimensions:
+            output[key] = dimensions
+    return output
+
+
 def apply_effective_product_dimensions(products: list, db: Session) -> None:
     if not products:
         return
     ids = [int(item.id) for item in products if getattr(item, 'id', None)]
     by_product = get_primary_model_dimensions_map(db, ids)
+    by_sub_item = get_sub_item_dimensions_map(db, ids)
     for product in products:
         width = getattr(product, 'width_mm', None)
         height = getattr(product, 'height_mm', None)
@@ -365,3 +411,35 @@ def apply_effective_product_dimensions(products: list, db: Session) -> None:
             product.dimensions_source = 'model'
         elif has_manual:
             product.dimensions_source = 'manual'
+
+        # Resolve sub-item dimensions with priority:
+        # manual sub-item dimensions -> 3D model linked to sub-item -> none.
+        parsed_sub_items = parse_sub_items_from_storage(getattr(product, 'sub_items', []))
+        for sub_item in parsed_sub_items:
+            sub_item_id = str(sub_item.get('id') or '').strip()
+            manual_dims = (
+                sub_item.get('width_mm'),
+                sub_item.get('height_mm'),
+                sub_item.get('depth_mm'),
+            )
+            has_manual_subitem = all(value is not None for value in manual_dims)
+            source = str(sub_item.get('dimensions_source') or 'manual').lower()
+            if has_manual_subitem and source != 'model':
+                sub_item['dimensions_source'] = 'manual'
+                continue
+
+            key = (int(product.id), sub_item_id)
+            model_dims = by_sub_item.get(key)
+            if model_dims:
+                sub_item['width_mm'] = model_dims[0]
+                sub_item['height_mm'] = model_dims[1]
+                sub_item['depth_mm'] = model_dims[2]
+                sub_item['dimensions_source'] = 'model'
+            elif has_manual_subitem:
+                sub_item['dimensions_source'] = 'manual'
+            else:
+                sub_item['width_mm'] = None
+                sub_item['height_mm'] = None
+                sub_item['depth_mm'] = None
+                sub_item['dimensions_source'] = 'manual'
+        product.sub_items = parsed_sub_items

@@ -217,9 +217,15 @@ def _serialize_admin_user(admin: AdminUser) -> AdminUserResponse:
 
 
 def _serialize_product_3d_model(model) -> Product3DModelResponse:
+    sub_item_title = None
+    if model.product and model.sub_item_id:
+        sub_items = parse_sub_items_from_storage(model.product.sub_items)
+        linked = next((item for item in sub_items if str(item.get('id') or '').strip() == str(model.sub_item_id).strip()), None)
+        sub_item_title = linked.get('title') if linked else None
     return Product3DModelResponse(
         id=model.id,
         product_id=model.product_id,
+        sub_item_id=model.sub_item_id,
         name=model.name,
         description=model.description,
         original_file_url=model.original_file_url,
@@ -231,6 +237,7 @@ def _serialize_product_3d_model(model) -> Product3DModelResponse:
         allow_download=bool(model.allow_download),
         sort_order=int(model.sort_order or 1),
         is_active=bool(model.is_active),
+        sub_item_title=sub_item_title,
         created_at=model.created_at,
         updated_at=model.updated_at,
     )
@@ -245,9 +252,15 @@ def _file_name_from_url(url: str | None) -> str | None:
 
 
 def _serialize_admin_3d_model(model: Product3DModel) -> Admin3DModelResponse:
+    sub_item_title = None
+    if model.product and model.sub_item_id:
+        sub_items = parse_sub_items_from_storage(model.product.sub_items)
+        linked = next((item for item in sub_items if str(item.get('id') or '').strip() == str(model.sub_item_id).strip()), None)
+        sub_item_title = linked.get('title') if linked else None
     return Admin3DModelResponse(
         id=model.id,
         product_id=model.product_id,
+        sub_item_id=model.sub_item_id,
         name=model.name,
         description=model.description,
         original_file_url=model.original_file_url,
@@ -261,11 +274,26 @@ def _serialize_admin_3d_model(model: Product3DModel) -> Admin3DModelResponse:
         is_active=bool(model.is_active),
         created_at=model.created_at,
         updated_at=model.updated_at,
+        sub_item_title=sub_item_title,
         product_title=model.product.title if model.product else None,
         product_slug=model.product.slug if model.product else None,
         original_file_name=_file_name_from_url(model.original_file_url),
         preview_file_name=_file_name_from_url(model.preview_file_url),
     )
+
+
+def _normalize_sub_item_id(value: str | None) -> str | None:
+    normalized = str(value or '').strip()
+    return normalized or None
+
+
+def _ensure_valid_model_target(product, sub_item_id: str | None) -> None:
+    if not sub_item_id:
+        return
+    sub_items = parse_sub_items_from_storage(product.sub_items)
+    exists = any(str(item.get('id') or '').strip() == sub_item_id for item in sub_items)
+    if not exists:
+        raise HTTPException(status_code=400, detail='Subitem vinculado nao existe no produto informado.')
 
 
 def _count_super_admins(db: Session) -> int:
@@ -617,6 +645,7 @@ def list_admin_3d_models(
     allow_download: bool | None = Query(default=None),
     created_from: str | None = Query(default=None),
     created_to: str | None = Query(default=None),
+    sub_item_id: str | None = Query(default=None),
     _: AdminUser = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
@@ -629,6 +658,9 @@ def list_admin_3d_models(
         created_from=created_from,
         created_to=created_to,
     )
+    if sub_item_id is not None:
+        normalized = _normalize_sub_item_id(sub_item_id)
+        rows = [row for row in rows if _normalize_sub_item_id(row.sub_item_id) == normalized]
     return [_serialize_admin_3d_model(row) for row in rows]
 
 
@@ -649,8 +681,11 @@ def create_admin_3d_model(
     product = admin_get_product_by_id(db, payload.product_id)
     if not product:
         raise HTTPException(status_code=404, detail='Produto nao encontrado')
+    sub_item_id = _normalize_sub_item_id(payload.sub_item_id)
+    _ensure_valid_model_target(product, sub_item_id)
     model = Product3DModel(
         product_id=int(payload.product_id),
+        sub_item_id=sub_item_id,
         name=payload.name.strip(),
         description=(payload.description or '').strip() or None,
         original_file_url=(payload.original_file_url or '').strip() or None,
@@ -682,8 +717,11 @@ def update_admin_3d_model(
     product = admin_get_product_by_id(db, payload.product_id)
     if not product:
         raise HTTPException(status_code=404, detail='Produto nao encontrado')
+    sub_item_id = _normalize_sub_item_id(payload.sub_item_id)
+    _ensure_valid_model_target(product, sub_item_id)
 
     model.product_id = int(payload.product_id)
+    model.sub_item_id = sub_item_id
     model.name = payload.name.strip()
     model.description = (payload.description or '').strip() or None
     model.original_file_url = (payload.original_file_url or '').strip() or None
@@ -799,8 +837,11 @@ def create_admin_product_3d_model(
     product = admin_get_product_by_id(db, product_id)
     if not product:
         raise HTTPException(status_code=404, detail='Produto nao encontrado')
+    sub_item_id = _normalize_sub_item_id(payload.sub_item_id)
+    _ensure_valid_model_target(product, sub_item_id)
     model = Product3DModel(
         product_id=product_id,
+        sub_item_id=sub_item_id,
         name=payload.name.strip(),
         description=(payload.description or '').strip() or None,
         original_file_url=(payload.original_file_url or '').strip() or None,
@@ -830,7 +871,13 @@ def update_admin_product_3d_model(
     model = get_product_3d_model(db, model_id)
     if not model or int(model.product_id) != int(product_id):
         raise HTTPException(status_code=404, detail='Modelo 3D nao encontrado')
+    product = admin_get_product_by_id(db, product_id)
+    if not product:
+        raise HTTPException(status_code=404, detail='Produto nao encontrado')
+    sub_item_id = _normalize_sub_item_id(payload.sub_item_id)
+    _ensure_valid_model_target(product, sub_item_id)
     model.name = payload.name.strip()
+    model.sub_item_id = sub_item_id
     model.description = (payload.description or '').strip() or None
     model.original_file_url = (payload.original_file_url or '').strip() or None
     model.preview_file_url = payload.preview_file_url.strip()

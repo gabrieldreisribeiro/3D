@@ -11,7 +11,7 @@ from app.services.banner_service import create_banner, get_banner, update_banner
 from app.services.highlight_service import create_highlight_item, get_highlight_item_by_id, update_highlight_item
 from app.services.order_service import list_most_ordered_products
 from app.services.product_pricing_service import calculate_product_pricing
-from app.services.product_3d_model_service import get_primary_model_dimensions_map
+from app.services.product_3d_model_service import get_primary_model_dimensions_map, get_sub_item_dimensions_map
 from app.services.product_service import (
     admin_create_product,
     admin_get_product_by_id,
@@ -341,6 +341,7 @@ def list_admin_products_with_drafts(db: Session) -> list[dict]:
     merged = list(by_id.values()) + virtual_creates
     positive_ids = [int(item.get('id') or 0) for item in merged if int(item.get('id') or 0) > 0]
     primary_dims = get_primary_model_dimensions_map(db, positive_ids)
+    sub_item_dims = get_sub_item_dimensions_map(db, positive_ids)
     for item in merged:
         pid = int(item.get('id') or 0)
         has_manual = all(item.get(key) is not None for key in ['width_mm', 'height_mm', 'depth_mm'])
@@ -352,6 +353,17 @@ def list_admin_products_with_drafts(db: Session) -> list[dict]:
             item['height_mm'] = height
             item['depth_mm'] = depth
             item['dimensions_source'] = 'model'
+        for sub_item in item.get('sub_items') or []:
+            sub_item_id = str(sub_item.get('id') or '').strip()
+            sub_has_manual = all(sub_item.get(key) is not None for key in ['width_mm', 'height_mm', 'depth_mm'])
+            sub_source = str(sub_item.get('dimensions_source') or 'manual')
+            should_use_model_sub = sub_source == 'model' or not sub_has_manual
+            if pid > 0 and sub_item_id and should_use_model_sub and (pid, sub_item_id) in sub_item_dims:
+                width, height, depth = sub_item_dims[(pid, sub_item_id)]
+                sub_item['width_mm'] = width
+                sub_item['height_mm'] = height
+                sub_item['depth_mm'] = depth
+                sub_item['dimensions_source'] = 'model'
     merged.sort(key=lambda item: int(item.get('id', 0)), reverse=True)
     return merged
 

@@ -41,9 +41,14 @@ class SecondaryColorPair(BaseModel):
 
 
 class ProductSubItem(BaseModel):
+    id: Optional[str] = Field(default=None, max_length=80)
     title: str = Field(..., min_length=1, max_length=140)
     image_url: Optional[str] = None
     pricing_mode: Literal['manual', 'calculated'] = 'manual'
+    width_mm: Optional[float] = Field(default=None, ge=0)
+    height_mm: Optional[float] = Field(default=None, ge=0)
+    depth_mm: Optional[float] = Field(default=None, ge=0)
+    dimensions_source: Literal['manual', 'model'] = 'manual'
     lead_time_hours: float = Field(default=0, ge=0)
     allow_colors: bool = False
     available_colors: List[str] = Field(default_factory=list)
@@ -482,6 +487,7 @@ class AdminUserPasswordUpdateRequest(BaseModel):
 
 
 class Product3DModelBase(BaseModel):
+    sub_item_id: Optional[str] = Field(default=None, max_length=80)
     name: str = Field(..., min_length=2, max_length=180)
     description: Optional[str] = Field(default=None, max_length=2000)
     original_file_url: Optional[str] = Field(default=None, max_length=500)
@@ -508,6 +514,7 @@ class Product3DModelResponse(Product3DModelBase):
 
     id: int
     product_id: int
+    sub_item_title: Optional[str] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 

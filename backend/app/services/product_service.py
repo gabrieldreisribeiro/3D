@@ -1,5 +1,6 @@
 import json
 import re
+import hashlib
 
 from datetime import datetime
 
@@ -114,6 +115,30 @@ def _to_bool(value) -> bool:
     return text in {'1', 'true', 'sim', 'yes', 'on'}
 
 
+def _to_optional_non_negative_float(value):
+    if value is None:
+        return None
+    text = str(value).strip()
+    if text == '':
+        return None
+    try:
+        number = float(text)
+    except Exception:  # noqa: BLE001
+        return None
+    if number < 0:
+        return None
+    return number
+
+
+def _stable_sub_item_id(raw: dict, title: str) -> str:
+    explicit = str(raw.get('id') or '').strip()
+    if explicit:
+        return explicit[:80]
+    base = f"{title}|{str(raw.get('image_url') or '').strip().lower()}|{str(raw.get('manual_price') or '').strip()}"
+    digest = hashlib.sha1(base.encode('utf-8')).hexdigest()[:24]
+    return f"sub_{digest}"
+
+
 def _normalize_colors(raw_colors) -> list[str]:
     if not raw_colors:
         return []
@@ -155,15 +180,21 @@ def _normalize_sub_item_payload(item) -> dict:
     title = (raw.get('title') or raw.get('name') or '').strip()
     if not title:
         raise HTTPException(status_code=422, detail='Subitem precisa de titulo.')
+    sub_item_id = _stable_sub_item_id(raw, title)
 
     pricing_mode = raw.get('pricing_mode') or 'manual'
     if pricing_mode not in {'manual', 'calculated'}:
         pricing_mode = 'manual'
 
     base = {
+        'id': sub_item_id,
         'title': title,
         'image_url': (raw.get('image_url') or '').strip() or None,
         'pricing_mode': pricing_mode,
+        'width_mm': _to_optional_non_negative_float(raw.get('width_mm')),
+        'height_mm': _to_optional_non_negative_float(raw.get('height_mm')),
+        'depth_mm': _to_optional_non_negative_float(raw.get('depth_mm')),
+        'dimensions_source': 'model' if str(raw.get('dimensions_source') or '').strip().lower() == 'model' else 'manual',
         'lead_time_hours': _to_float(raw.get('lead_time_hours')),
         'allow_colors': _to_bool(raw.get('allow_colors')),
         'available_colors': _normalize_colors(raw.get('available_colors')),

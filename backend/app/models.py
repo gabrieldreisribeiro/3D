@@ -300,6 +300,7 @@ class Product3DModel(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     product_id = Column(Integer, ForeignKey('products.id', ondelete='CASCADE'), nullable=False, index=True)
+    sub_item_id = Column(String(80), nullable=True, index=True)
     name = Column(String(180), nullable=False)
     description = Column(Text, nullable=True)
     original_file_url = Column(String(500), nullable=True)
