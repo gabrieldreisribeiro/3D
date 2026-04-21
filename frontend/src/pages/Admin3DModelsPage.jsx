@@ -14,6 +14,8 @@ import {
   fetchAdmin3DModels,
   fetchAdminProducts,
   resolveAssetUrl,
+  uploadAdmin3DOriginalFile,
+  uploadAdmin3DPreviewFile,
   updateAdmin3DModel,
 } from '../services/api';
 
@@ -26,7 +28,9 @@ const emptyForm = {
   description: '',
   sort_order: 1,
   original_file_url: '',
+  original_file_name: '',
   preview_file_url: '',
+  preview_file_name: '',
   width_mm: '',
   height_mm: '',
   depth_mm: '',
@@ -73,6 +77,13 @@ function fileExtensionFromUrl(url) {
   const index = value.lastIndexOf('.');
   if (index < 0) return '';
   return value.slice(index);
+}
+
+function fileNameFromUrl(url) {
+  const value = String(url || '').split('?')[0].split('#')[0].trim();
+  if (!value) return '';
+  const parts = value.split('/');
+  return parts[parts.length - 1] || '';
 }
 
 function Model3DPreview({ src, className = '', interactive = false }) {
@@ -281,6 +292,11 @@ function Admin3DModelsPage() {
   const [detailModel, setDetailModel] = useState(null);
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState(emptyForm);
+  const [sortOrderTouched, setSortOrderTouched] = useState(false);
+  const [originalUploadFile, setOriginalUploadFile] = useState(null);
+  const [previewUploadFile, setPreviewUploadFile] = useState(null);
+  const [uploadingOriginal, setUploadingOriginal] = useState(false);
+  const [uploadingPreview, setUploadingPreview] = useState(false);
 
   const flashNotice = (message) => {
     setNotice(message);
@@ -372,14 +388,39 @@ function Admin3DModelsPage() {
       .filter((item) => item.value);
   }, [selectedProduct]);
 
+  const computeNextSortOrder = (productId, subItemId) => {
+    const pid = Number(productId || 0);
+    if (!pid) return 1;
+    const targetSubItem = String(subItemId || '').trim();
+    const candidates = rows.filter((item) => {
+      if (Number(item.product_id) !== pid) return false;
+      const rowSub = String(item.sub_item_id || '').trim();
+      return rowSub === targetSubItem;
+    });
+    const maxOrder = candidates.reduce((max, item) => Math.max(max, Number(item.sort_order || 0)), 0);
+    return Math.max(1, maxOrder + 1);
+  };
+
+  useEffect(() => {
+    if (!modalOpen || editingId || sortOrderTouched) return;
+    const nextOrder = computeNextSortOrder(form.product_id, form.sub_item_id);
+    setForm((current) => ({ ...current, sort_order: nextOrder }));
+  }, [modalOpen, editingId, sortOrderTouched, form.product_id, form.sub_item_id, rows]);
+
   const openCreate = () => {
     setEditingId(null);
+    setSortOrderTouched(false);
+    setOriginalUploadFile(null);
+    setPreviewUploadFile(null);
     setForm(emptyForm);
     setModalOpen(true);
   };
 
   const openEdit = (item) => {
     setEditingId(item.id);
+    setSortOrderTouched(true);
+    setOriginalUploadFile(null);
+    setPreviewUploadFile(null);
     setForm({
       product_id: String(item.product_id),
       sub_item_id: String(item.sub_item_id || ''),
@@ -387,7 +428,9 @@ function Admin3DModelsPage() {
       description: item.description || '',
       sort_order: Number(item.sort_order || 1),
       original_file_url: item.original_file_url || '',
+      original_file_name: item.original_file_name || fileNameFromUrl(item.original_file_url),
       preview_file_url: item.preview_file_url || '',
+      preview_file_name: item.preview_file_name || fileNameFromUrl(item.preview_file_url),
       width_mm: item.width_mm == null ? '' : String(item.width_mm),
       height_mm: item.height_mm == null ? '' : String(item.height_mm),
       depth_mm: item.depth_mm == null ? '' : String(item.depth_mm),
@@ -440,6 +483,9 @@ function Admin3DModelsPage() {
         flashNotice('Modelo criado com sucesso.');
       }
       setModalOpen(false);
+      setSortOrderTouched(false);
+      setOriginalUploadFile(null);
+      setPreviewUploadFile(null);
       setForm(emptyForm);
       setEditingId(null);
       loadData();
@@ -447,6 +493,76 @@ function Admin3DModelsPage() {
       setError(saveError.message || 'Falha ao salvar modelo 3D.');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleOriginalFileSelected = (file) => {
+    setOriginalUploadFile(file || null);
+    if (!file) return;
+    const suggested = String(file.name || '').trim();
+    setForm((current) => ({
+      ...current,
+      original_file_name: suggested || current.original_file_name,
+      name: current.name || suggested.replace(/\.[^/.]+$/, ''),
+    }));
+  };
+
+  const handlePreviewFileSelected = (file) => {
+    setPreviewUploadFile(file || null);
+    if (!file) return;
+    const suggested = String(file.name || '').trim();
+    setForm((current) => ({
+      ...current,
+      preview_file_name: suggested || current.preview_file_name,
+      name: current.name || suggested.replace(/\.[^/.]+$/, ''),
+    }));
+  };
+
+  const handleUploadOriginal = async () => {
+    if (!originalUploadFile) {
+      setError('Selecione um arquivo original para enviar.');
+      return;
+    }
+    setUploadingOriginal(true);
+    setError('');
+    try {
+      const result = await uploadAdmin3DOriginalFile(originalUploadFile, form.original_file_name || originalUploadFile.name);
+      setForm((current) => ({
+        ...current,
+        original_file_url: result?.url || current.original_file_url,
+        original_file_name: fileNameFromUrl(result?.url) || current.original_file_name,
+      }));
+      flashNotice('Arquivo original enviado com sucesso.');
+    } catch (uploadError) {
+      setError(uploadError.message || 'Falha no upload do arquivo original.');
+    } finally {
+      setUploadingOriginal(false);
+    }
+  };
+
+  const handleUploadPreview = async () => {
+    if (!previewUploadFile) {
+      setError('Selecione um arquivo de preview para enviar.');
+      return;
+    }
+    setUploadingPreview(true);
+    setError('');
+    try {
+      const result = await uploadAdmin3DPreviewFile(previewUploadFile, form.preview_file_name || previewUploadFile.name);
+      setForm((current) => ({
+        ...current,
+        preview_file_url: result?.url || current.preview_file_url,
+        preview_file_name: fileNameFromUrl(result?.url) || current.preview_file_name,
+        width_mm: result?.width_mm == null ? current.width_mm : String(result.width_mm),
+        height_mm: result?.height_mm == null ? current.height_mm : String(result.height_mm),
+        depth_mm: result?.depth_mm == null ? current.depth_mm : String(result.depth_mm),
+        dimensions_source: result?.dimensions_extracted ? 'auto' : current.dimensions_source,
+      }));
+      flashNotice('Preview enviado com sucesso.');
+    } catch (uploadError) {
+      setError(uploadError.message || 'Falha no upload do preview.');
+    } finally {
+      setUploadingPreview(false);
     }
   };
 
@@ -464,7 +580,8 @@ function Admin3DModelsPage() {
 
   const handleDownloadOriginal = async (item) => {
     try {
-      await downloadAdmin3DModelOriginal(item.id);
+      const name = String(item.original_file_name || '').trim();
+      await downloadAdmin3DModelOriginal(item.id, name || null);
       flashNotice(`Download original: ${item.name}`);
     } catch (downloadError) {
       setError(downloadError.message || 'Falha ao baixar arquivo original.');
@@ -473,7 +590,8 @@ function Admin3DModelsPage() {
 
   const handleDownloadPreview = async (item) => {
     try {
-      await downloadAdmin3DModelPreview(item.id);
+      const name = String(item.preview_file_name || '').trim();
+      await downloadAdmin3DModelPreview(item.id, name || null);
       flashNotice(`Download preview: ${item.name}`);
     } catch (downloadError) {
       setError(downloadError.message || 'Falha ao baixar preview.');
@@ -651,22 +769,82 @@ function Admin3DModelsPage() {
         <form className="grid grid-cols-1 gap-4 md:grid-cols-2" onSubmit={saveModel}>
           <label className="flex flex-col gap-1.5">
             <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Produto vinculado</span>
-            <select value={form.product_id} onChange={(event) => setForm({ ...form, product_id: event.target.value })} className="h-11 rounded-xl border border-slate-200 px-3 text-sm">
+            <select
+              value={form.product_id}
+              onChange={(event) => {
+                setSortOrderTouched(false);
+                setForm({ ...form, product_id: event.target.value });
+              }}
+              className="h-11 rounded-xl border border-slate-200 px-3 text-sm"
+            >
               <option value="">Selecione</option>
               {productOptions.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
             </select>
           </label>
           <label className="flex flex-col gap-1.5">
             <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Subitem vinculado (opcional)</span>
-            <select value={form.sub_item_id} onChange={(event) => setForm({ ...form, sub_item_id: event.target.value })} className="h-11 rounded-xl border border-slate-200 px-3 text-sm">
+            <select
+              value={form.sub_item_id}
+              onChange={(event) => {
+                setSortOrderTouched(false);
+                setForm({ ...form, sub_item_id: event.target.value });
+              }}
+              className="h-11 rounded-xl border border-slate-200 px-3 text-sm"
+            >
               <option value="">Principal do produto</option>
               {subItemOptions.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
             </select>
           </label>
           <Input label="Nome" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} required />
-          <Input label="Ordem" type="number" min="1" step="1" value={form.sort_order} onChange={(event) => setForm({ ...form, sort_order: event.target.value })} />
+          <Input
+            label="Ordem"
+            type="number"
+            min="1"
+            step="1"
+            value={form.sort_order}
+            onChange={(event) => {
+              setSortOrderTouched(true);
+              setForm({ ...form, sort_order: event.target.value });
+            }}
+          />
           <Input label="Preview URL" value={form.preview_file_url} onChange={(event) => setForm({ ...form, preview_file_url: event.target.value })} required />
           <Input label="Original URL" value={form.original_file_url} onChange={(event) => setForm({ ...form, original_file_url: event.target.value })} />
+          <Input
+            label="Nome arquivo original"
+            value={form.original_file_name}
+            onChange={(event) => setForm({ ...form, original_file_name: event.target.value })}
+            placeholder="Mesmo nome enviado, editavel"
+          />
+          <div className="flex flex-col gap-1.5">
+            <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Upload original (.3mf/.stl/.gcode...)</span>
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                type="file"
+                accept=".3mf,.stl,.gcode,.glb,.obj,.step,.stp"
+                onChange={(event) => handleOriginalFileSelected(event.target.files?.[0] || null)}
+                className="max-w-full text-sm"
+              />
+              <Button type="button" variant="secondary" loading={uploadingOriginal} onClick={handleUploadOriginal}>Enviar</Button>
+            </div>
+          </div>
+          <Input
+            label="Nome arquivo preview"
+            value={form.preview_file_name}
+            onChange={(event) => setForm({ ...form, preview_file_name: event.target.value })}
+            placeholder="Mesmo nome enviado, editavel"
+          />
+          <div className="flex flex-col gap-1.5">
+            <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Upload preview (.glb/.stl)</span>
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                type="file"
+                accept=".glb,.stl"
+                onChange={(event) => handlePreviewFileSelected(event.target.files?.[0] || null)}
+                className="max-w-full text-sm"
+              />
+              <Button type="button" variant="secondary" loading={uploadingPreview} onClick={handleUploadPreview}>Enviar</Button>
+            </div>
+          </div>
           <Input label="Largura (mm)" type="number" min="0" step="0.01" value={form.width_mm} onChange={(event) => setForm({ ...form, width_mm: event.target.value, dimensions_source: 'manual' })} />
           <Input label="Altura (mm)" type="number" min="0" step="0.01" value={form.height_mm} onChange={(event) => setForm({ ...form, height_mm: event.target.value, dimensions_source: 'manual' })} />
           <Input label="Profundidade (mm)" type="number" min="0" step="0.01" value={form.depth_mm} onChange={(event) => setForm({ ...form, depth_mm: event.target.value, dimensions_source: 'manual' })} />

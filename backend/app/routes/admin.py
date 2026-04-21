@@ -4,7 +4,7 @@ import zipfile
 from datetime import datetime
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
 from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -618,14 +618,22 @@ def upload_product_image(file: UploadFile = File(...), _: AdminUser = Depends(re
 
 
 @router.post('/products/3d/upload-original', response_model=Product3DModelUploadResponse)
-def upload_product_3d_original_file(file: UploadFile = File(...), _: AdminUser = Depends(require_admin)):
-    url = save_original_model_file(file)
+def upload_product_3d_original_file(
+    file: UploadFile = File(...),
+    file_name: str | None = Form(default=None),
+    _: AdminUser = Depends(require_admin),
+):
+    url = save_original_model_file(file, preferred_name=file_name)
     return Product3DModelUploadResponse(url=url, dimensions_extracted=False)
 
 
 @router.post('/products/3d/upload-preview', response_model=Product3DModelUploadResponse)
-def upload_product_3d_preview_file(file: UploadFile = File(...), _: AdminUser = Depends(require_admin)):
-    url, dimensions = save_preview_model_file(file)
+def upload_product_3d_preview_file(
+    file: UploadFile = File(...),
+    file_name: str | None = Form(default=None),
+    _: AdminUser = Depends(require_admin),
+):
+    url, dimensions = save_preview_model_file(file, preferred_name=file_name)
     if not dimensions:
         return Product3DModelUploadResponse(url=url, dimensions_extracted=False)
     return Product3DModelUploadResponse(

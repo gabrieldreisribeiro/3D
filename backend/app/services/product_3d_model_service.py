@@ -1,5 +1,6 @@
 import base64
 import json
+import re
 import struct
 from datetime import datetime
 from pathlib import Path
@@ -27,6 +28,32 @@ def _public_url_for(path: Path) -> str:
         raise HTTPException(status_code=500, detail='Caminho de upload invalido.')
     uploads_index = parts.index('uploads')
     return '/' + '/'.join(parts[uploads_index:])
+
+
+def _sanitize_filename_base(value: str) -> str:
+    text = str(value or '').strip()
+    if not text:
+        return ''
+    text = Path(text).stem.strip()
+    text = re.sub(r'[^A-Za-z0-9._-]+', '_', text)
+    text = re.sub(r'_+', '_', text).strip('._-')
+    return text[:120]
+
+
+def _resolve_target_with_name(directory: Path, extension: str, preferred_name: str | None, fallback_prefix: str) -> Path:
+    safe_ext = str(extension or '').lower().strip()
+    base = _sanitize_filename_base(preferred_name or '')
+    if not base:
+        base = f'{fallback_prefix}-{uuid4().hex[:8]}'
+    candidate = directory / f'{base}{safe_ext}'
+    if not candidate.exists():
+        return candidate
+    index = 2
+    while True:
+        candidate = directory / f'{base}-{index}{safe_ext}'
+        if not candidate.exists():
+            return candidate
+        index += 1
 
 
 def _normalize_dimensions(width: float, height: float, depth: float) -> tuple[float, float, float] | None:
@@ -217,12 +244,11 @@ def extract_dimensions_from_preview(file_path: Path) -> tuple[float, float, floa
     return None
 
 
-def save_original_model_file(file: UploadFile) -> str:
+def save_original_model_file(file: UploadFile, preferred_name: str | None = None) -> str:
     ext = _extension(file.filename)
     if ext not in ALLOWED_ORIGINAL_EXTENSIONS:
         raise HTTPException(status_code=400, detail='Formato de arquivo original nao suportado.')
-    name = f"model-{uuid4().hex}{ext}"
-    target = MODELS_3D_ORIGINAL_UPLOADS_DIR / name
+    target = _resolve_target_with_name(MODELS_3D_ORIGINAL_UPLOADS_DIR, ext, preferred_name or file.filename, 'model')
     content = file.file.read()
     if not content:
         raise HTTPException(status_code=400, detail='Arquivo original vazio.')
@@ -230,12 +256,11 @@ def save_original_model_file(file: UploadFile) -> str:
     return _public_url_for(target)
 
 
-def save_preview_model_file(file: UploadFile) -> tuple[str, tuple[float, float, float] | None]:
+def save_preview_model_file(file: UploadFile, preferred_name: str | None = None) -> tuple[str, tuple[float, float, float] | None]:
     ext = _extension(file.filename)
     if ext not in ALLOWED_PREVIEW_EXTENSIONS:
         raise HTTPException(status_code=400, detail='Formato de arquivo de preview nao suportado. Use .glb ou .stl.')
-    name = f"preview-{uuid4().hex}{ext}"
-    target = MODELS_3D_PREVIEW_UPLOADS_DIR / name
+    target = _resolve_target_with_name(MODELS_3D_PREVIEW_UPLOADS_DIR, ext, preferred_name or file.filename, 'preview')
     content = file.file.read()
     if not content:
         raise HTTPException(status_code=400, detail='Arquivo de preview vazio.')

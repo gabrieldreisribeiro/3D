@@ -447,10 +447,13 @@ export async function uploadAdminProductImage(file) {
   return data;
 }
 
-export async function uploadAdmin3DOriginalFile(file) {
+export async function uploadAdmin3DOriginalFile(file, fileName = null) {
   const token = localStorage.getItem(ADMIN_TOKEN_KEY);
   const formData = new FormData();
   formData.append('file', file);
+  if (fileName && String(fileName).trim()) {
+    formData.append('file_name', String(fileName).trim());
+  }
   const response = await fetch(buildApiUrl('/admin/products/3d/upload-original'), {
     method: 'POST',
     headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -464,10 +467,13 @@ export async function uploadAdmin3DOriginalFile(file) {
   return data;
 }
 
-export async function uploadAdmin3DPreviewFile(file) {
+export async function uploadAdmin3DPreviewFile(file, fileName = null) {
   const token = localStorage.getItem(ADMIN_TOKEN_KEY);
   const formData = new FormData();
   formData.append('file', file);
+  if (fileName && String(fileName).trim()) {
+    formData.append('file_name', String(fileName).trim());
+  }
   const response = await fetch(buildApiUrl('/admin/products/3d/upload-preview'), {
     method: 'POST',
     headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -1182,12 +1188,14 @@ export async function downloadAdminDatabaseExport(path, filename) {
   window.URL.revokeObjectURL(url);
 }
 
-export async function downloadAdmin3DModelOriginal(modelId) {
-  return downloadAdminDatabaseExport(`/admin/3d-models/${modelId}/download/original`, `modelo_${modelId}_original`);
+export async function downloadAdmin3DModelOriginal(modelId, filename = null) {
+  const fallbackName = String(filename || '').trim() || `modelo_${modelId}_original`;
+  return downloadAdminDatabaseExport(`/admin/3d-models/${modelId}/download/original`, fallbackName);
 }
 
-export async function downloadAdmin3DModelPreview(modelId) {
-  return downloadAdminDatabaseExport(`/admin/3d-models/${modelId}/download/preview`, `modelo_${modelId}_preview`);
+export async function downloadAdmin3DModelPreview(modelId, filename = null) {
+  const fallbackName = String(filename || '').trim() || `modelo_${modelId}_preview`;
+  return downloadAdminDatabaseExport(`/admin/3d-models/${modelId}/download/preview`, fallbackName);
 }
 
 export async function downloadAllAdmin3DModels(params = {}) {
