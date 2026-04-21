@@ -18,6 +18,7 @@ from app.services.product_service import (
     parse_secondary_pairs_from_storage,
     parse_sub_items_from_storage,
 )
+from app.services.product_3d_model_service import apply_effective_product_dimensions
 from app.services.promotion_service import apply_promotion_pricing_to_products
 from app.services.review_service import (
     create_review,
@@ -66,6 +67,7 @@ def read_categories(db: Session = Depends(get_db)):
 def read_products(category: str | None = Query(default=None), db: Session = Depends(get_db)):
     products = list_products(db, category_slug=category)
     apply_promotion_pricing_to_products(db, products)
+    apply_effective_product_dimensions(products, db)
     for product in products:
         product.images = product.images.split(',') if product.images else []
         product.sub_items = parse_sub_items_from_storage(product.sub_items)
@@ -80,6 +82,7 @@ def read_product(slug: str, db: Session = Depends(get_db)):
     if not product:
         raise HTTPException(status_code=404, detail='Produto nao encontrado')
     apply_promotion_pricing_to_products(db, [product])
+    apply_effective_product_dimensions([product], db)
     product.images = product.images.split(',') if product.images else []
     product.sub_items = parse_sub_items_from_storage(product.sub_items)
     product.available_colors = parse_colors_from_storage(product.available_colors)

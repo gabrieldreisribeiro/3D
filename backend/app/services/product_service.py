@@ -300,6 +300,10 @@ def admin_create_product(db: Session, payload):
             payload.available_colors if payload.allow_colors else [],
         ),
         allow_name_personalization=bool(payload.allow_name_personalization),
+        width_mm=payload.width_mm,
+        height_mm=payload.height_mm,
+        depth_mm=payload.depth_mm,
+        dimensions_source=payload.dimensions_source or 'manual',
         grams_filament=payload.grams_filament,
         price_kg_filament=payload.price_kg_filament,
         hours_printing=payload.hours_printing,
@@ -350,6 +354,10 @@ def admin_update_product(db: Session, product: Product, payload):
         payload.available_colors if payload.allow_colors else [],
     )
     product.allow_name_personalization = bool(payload.allow_name_personalization)
+    product.width_mm = payload.width_mm
+    product.height_mm = payload.height_mm
+    product.depth_mm = payload.depth_mm
+    product.dimensions_source = payload.dimensions_source or 'manual'
 
     product.grams_filament = payload.grams_filament
     product.price_kg_filament = payload.price_kg_filament

@@ -88,6 +88,10 @@ class ProductBase(BaseModel):
     allow_secondary_color: bool
     secondary_color_pairs: List[SecondaryColorPair]
     allow_name_personalization: bool
+    width_mm: Optional[float] = None
+    height_mm: Optional[float] = None
+    depth_mm: Optional[float] = None
+    dimensions_source: Literal['manual', 'model'] = 'manual'
 
     price: float
     final_price: float
@@ -183,6 +187,10 @@ class AdminProductBase(BaseModel):
     allow_secondary_color: bool = False
     secondary_color_pairs: List[SecondaryColorPair] = Field(default_factory=list)
     allow_name_personalization: bool = False
+    width_mm: Optional[float] = Field(default=None, ge=0)
+    height_mm: Optional[float] = Field(default=None, ge=0)
+    depth_mm: Optional[float] = Field(default=None, ge=0)
+    dimensions_source: Literal['manual', 'model'] = 'manual'
 
     grams_filament: float = Field(default=0, ge=0)
     price_kg_filament: float = Field(default=0, ge=0)
@@ -229,6 +237,10 @@ class AdminProductResponse(BaseModel):
     allow_secondary_color: bool
     secondary_color_pairs: List[SecondaryColorPair]
     allow_name_personalization: bool
+    width_mm: Optional[float] = None
+    height_mm: Optional[float] = None
+    depth_mm: Optional[float] = None
+    dimensions_source: Literal['manual', 'model'] = 'manual'
 
     grams_filament: float
     price_kg_filament: float
@@ -467,6 +479,45 @@ class AdminUserUpdateRequest(BaseModel):
 
 class AdminUserPasswordUpdateRequest(BaseModel):
     new_password: str = Field(..., min_length=6, max_length=72)
+
+
+class Product3DModelBase(BaseModel):
+    name: str = Field(..., min_length=2, max_length=180)
+    description: Optional[str] = Field(default=None, max_length=2000)
+    original_file_url: Optional[str] = Field(default=None, max_length=500)
+    preview_file_url: str = Field(..., min_length=5, max_length=500)
+    width_mm: Optional[float] = Field(default=None, ge=0)
+    height_mm: Optional[float] = Field(default=None, ge=0)
+    depth_mm: Optional[float] = Field(default=None, ge=0)
+    dimensions_source: Literal['manual', 'auto'] = 'auto'
+    allow_download: bool = False
+    sort_order: int = Field(default=1, ge=1, le=999)
+    is_active: bool = True
+
+
+class Product3DModelCreate(Product3DModelBase):
+    pass
+
+
+class Product3DModelUpdate(Product3DModelBase):
+    pass
+
+
+class Product3DModelResponse(Product3DModelBase):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    product_id: int
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+
+class Product3DModelUploadResponse(BaseModel):
+    url: str
+    width_mm: Optional[float] = None
+    height_mm: Optional[float] = None
+    depth_mm: Optional[float] = None
+    dimensions_extracted: bool = False
 
 
 class AdminOrderItemResponse(BaseModel):

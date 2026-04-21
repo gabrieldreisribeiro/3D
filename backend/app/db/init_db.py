@@ -3,7 +3,7 @@
 from app.core.config import SEED_DEFAULT_ADMIN, SEED_SAMPLE_DATA
 from app.core.security import hash_password
 from app.db.session import Base, SessionLocal, engine
-from app.models import AdminUser, Banner, Category, Coupon, HighlightItem, Product, ProductReview, StoreSettings
+from app.models import AdminUser, Banner, Category, Coupon, HighlightItem, Product, Product3DModel, ProductReview, StoreSettings
 
 PRODUCTS = [
 ]
@@ -122,6 +122,10 @@ def _ensure_product_pricing_columns(session):
         'allow_secondary_color': "BOOLEAN DEFAULT 0",
         'secondary_color_pairs': "TEXT DEFAULT ''",
         'allow_name_personalization': "BOOLEAN DEFAULT 0",
+        'width_mm': "REAL",
+        'height_mm': "REAL",
+        'depth_mm': "REAL",
+        'dimensions_source': "VARCHAR(20) DEFAULT 'manual'",
         'grams_filament': "REAL DEFAULT 0",
         'price_kg_filament': "REAL DEFAULT 0",
         'hours_printing': "REAL DEFAULT 0",
@@ -172,6 +176,7 @@ def _ensure_product_pricing_columns(session):
         return
 
     session.execute(text("UPDATE products SET instagram_post_status = COALESCE(instagram_post_status, 'not_published')"))
+    session.execute(text("UPDATE products SET dimensions_source = COALESCE(NULLIF(dimensions_source, ''), 'manual')"))
     session.commit()
 
 
@@ -306,6 +311,57 @@ def _ensure_admin_users_columns(session):
     session.commit()
 
 
+def _ensure_product_3d_models_columns(session):
+    required_columns = {
+        'name': "VARCHAR(180)",
+        'description': "TEXT",
+        'original_file_url': "VARCHAR(500)",
+        'preview_file_url': "VARCHAR(500)",
+        'width_mm': "REAL",
+        'height_mm': "REAL",
+        'depth_mm': "REAL",
+        'dimensions_source': "VARCHAR(20) DEFAULT 'auto'",
+        'allow_download': "BOOLEAN DEFAULT 0",
+        'sort_order': "INTEGER DEFAULT 1",
+        'is_active': "BOOLEAN DEFAULT 1",
+        'created_at': "DATETIME DEFAULT CURRENT_TIMESTAMP",
+        'updated_at': "DATETIME DEFAULT CURRENT_TIMESTAMP",
+    }
+
+    if session.bind.dialect.name == 'sqlite':
+        table = session.execute(
+            text("SELECT name FROM sqlite_master WHERE type='table' AND name='product_3d_models'")
+        ).fetchone()
+        if not table:
+            return
+        columns = session.execute(text("PRAGMA table_info('product_3d_models')")).fetchall()
+        names = {column[1] for column in columns}
+        changed = False
+        for column_name, column_ddl in required_columns.items():
+            if column_name not in names:
+                session.execute(text(f"ALTER TABLE product_3d_models ADD COLUMN {column_name} {column_ddl}"))
+                changed = True
+        if changed:
+            session.commit()
+    elif session.bind.dialect.name.startswith('postgres'):
+        for column_name, column_ddl in required_columns.items():
+            session.execute(
+                text(
+                    f"ALTER TABLE product_3d_models ADD COLUMN IF NOT EXISTS {column_name} "
+                    f"{_normalize_postgres_column_ddl(column_ddl)}"
+                )
+            )
+        session.commit()
+    else:
+        return
+
+    session.execute(text("UPDATE product_3d_models SET dimensions_source = COALESCE(NULLIF(dimensions_source, ''), 'auto')"))
+    session.execute(text("UPDATE product_3d_models SET allow_download = COALESCE(allow_download, 0)"))
+    session.execute(text("UPDATE product_3d_models SET is_active = COALESCE(is_active, 1)"))
+    session.execute(text("UPDATE product_3d_models SET sort_order = COALESCE(sort_order, 1)"))
+    session.commit()
+
+
 def _sync_postgres_sequences(session):
     if not session.bind.dialect.name.startswith('postgres'):
         return
@@ -404,6 +460,7 @@ def init_db() -> None:
         _ensure_user_events_columns(session)
         _ensure_ads_provider_config_columns(session)
         _ensure_admin_users_columns(session)
+        _ensure_product_3d_models_columns(session)
         _sync_postgres_sequences(session)
         if SEED_SAMPLE_DATA:
             _seed_categories(session)

@@ -211,6 +211,10 @@ export function fetchProduct(slug) {
   return request(previewPath(`/products/${slug}`, `/admin/publication/preview/products/${slug}`));
 }
 
+export function fetchPublicProductModels(slug) {
+  return request(`/public/products/${encodeURIComponent(slug)}/models`);
+}
+
 export function trackEvent(payload) {
   const referrer = typeof document !== 'undefined' ? document.referrer || null : null;
   const pageUrl = typeof window !== 'undefined' ? `${window.location.pathname}${window.location.search}` : null;
@@ -443,6 +447,40 @@ export async function uploadAdminProductImage(file) {
   if (!response.ok) {
     if (response.status === 401) localStorage.removeItem(ADMIN_TOKEN_KEY);
     throw new Error(getApiErrorMessage(data, 'Erro no upload da imagem'));
+  }
+  return data;
+}
+
+export async function uploadAdmin3DOriginalFile(file) {
+  const token = localStorage.getItem(ADMIN_TOKEN_KEY);
+  const formData = new FormData();
+  formData.append('file', file);
+  const response = await fetch(buildApiUrl('/admin/products/3d/upload-original'), {
+    method: 'POST',
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: formData,
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    if (response.status === 401) localStorage.removeItem(ADMIN_TOKEN_KEY);
+    throw new Error(getApiErrorMessage(data, 'Erro no upload do arquivo original 3D'));
+  }
+  return data;
+}
+
+export async function uploadAdmin3DPreviewFile(file) {
+  const token = localStorage.getItem(ADMIN_TOKEN_KEY);
+  const formData = new FormData();
+  formData.append('file', file);
+  const response = await fetch(buildApiUrl('/admin/products/3d/upload-preview'), {
+    method: 'POST',
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: formData,
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    if (response.status === 401) localStorage.removeItem(ADMIN_TOKEN_KEY);
+    throw new Error(getApiErrorMessage(data, 'Erro no upload do preview 3D'));
   }
   return data;
 }
@@ -803,6 +841,36 @@ export function createAdminProductFromAdCopy(payload) {
 
 export function fetchAdminProducts() {
   return adminRequest('/admin/products');
+}
+
+export function fetchAdminProduct3DModels(productId) {
+  return adminRequest(`/admin/products/${productId}/3d-models`);
+}
+
+export function createAdminProduct3DModel(productId, payload) {
+  return adminRequest(`/admin/products/${productId}/3d-models`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export function updateAdminProduct3DModel(productId, modelId, payload) {
+  return adminRequest(`/admin/products/${productId}/3d-models/${modelId}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  });
+}
+
+export function setAdminProduct3DModelStatus(productId, modelId, isActive) {
+  return adminRequest(`/admin/products/${productId}/3d-models/${modelId}/status?is_active=${isActive}`, {
+    method: 'PATCH',
+  });
+}
+
+export function deleteAdminProduct3DModel(productId, modelId) {
+  return adminRequest(`/admin/products/${productId}/3d-models/${modelId}`, {
+    method: 'DELETE',
+  });
 }
 
 export function fetchAdminCategories() {

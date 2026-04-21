@@ -264,6 +264,10 @@ function ProductPage() {
     original_price: null,
     promotional_price: null,
     promotion_badge: null,
+    width_mm: null,
+    height_mm: null,
+    depth_mm: null,
+    dimensions_source: 'manual',
     rating_average: 0,
     rating_count: 0,
     reviews: [],
@@ -1028,12 +1032,25 @@ function ProductPage() {
           >
             Especificacoes
           </button>
+          <button
+            type="button"
+            onClick={() => navigate(`${previewPrefix}/product/${product.slug}/models`)}
+            className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-violet-200 hover:text-violet-700"
+          >
+            Ver modelos 3D
+          </button>
         </div>
 
         {activeDetailTab === 'description' ? (
           <p className="mt-4 whitespace-pre-line text-sm leading-8 text-slate-600">{product.full_description}</p>
         ) : (
           <ul className="mt-4 space-y-2 text-sm leading-7 text-[#374151]">
+            {(productData.width_mm != null || productData.height_mm != null || productData.depth_mm != null) ? (
+              <li className="rounded-xl border border-[#E6EAF0] bg-[#F9FAFB] px-3 py-2">
+                <strong className="text-[#111827]">Dimensoes:</strong>{' '}
+                Largura: {productData.width_mm ?? '-'}mm | Altura: {productData.height_mm ?? '-'}mm | Profundidade: {productData.depth_mm ?? '-'}mm
+              </li>
+            ) : null}
             {highlightItems.map((item) => (
               <li key={`spec-${item.id}`} className="rounded-xl border border-[#E6EAF0] bg-[#F9FAFB] px-3 py-2">
                 <strong className="text-[#111827]">{item.title}:</strong> {item.description}

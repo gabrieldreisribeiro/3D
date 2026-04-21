@@ -14,7 +14,7 @@ from app.core.security import (
     require_super_admin,
     verify_password,
 )
-from app.models import AdminUser, PublicationDraft
+from app.models import AdminUser, Product3DModel, PublicationDraft
 from app.schemas import (
     AdminAuthUserResponse,
     AdminCategoryCreate,
@@ -34,6 +34,10 @@ from app.schemas import (
     AdminProductCreate,
     AdminProductResponse,
     AdminProductUpdate,
+    Product3DModelCreate,
+    Product3DModelResponse,
+    Product3DModelUpdate,
+    Product3DModelUploadResponse,
     ProductResponse,
     AdminReviewListResponse,
     AdminReviewResponse,
@@ -80,6 +84,12 @@ from app.services.highlight_service import (
 from app.services.analytics_service import analytics_funnel, analytics_products, analytics_summary, parse_period
 from app.services.logo_service import save_logo
 from app.services.product_upload_service import save_product_image
+from app.services.product_3d_model_service import (
+    get_product_3d_model,
+    list_product_3d_models,
+    save_original_model_file,
+    save_preview_model_file,
+)
 from app.services.order_service import (
     admin_list_orders,
     admin_total_orders,
@@ -194,6 +204,26 @@ def _serialize_admin_user(admin: AdminUser) -> AdminUserResponse:
         last_login_at=admin.last_login_at,
         created_at=admin.created_at,
         updated_at=admin.updated_at,
+    )
+
+
+def _serialize_product_3d_model(model) -> Product3DModelResponse:
+    return Product3DModelResponse(
+        id=model.id,
+        product_id=model.product_id,
+        name=model.name,
+        description=model.description,
+        original_file_url=model.original_file_url,
+        preview_file_url=model.preview_file_url,
+        width_mm=model.width_mm,
+        height_mm=model.height_mm,
+        depth_mm=model.depth_mm,
+        dimensions_source=model.dimensions_source,
+        allow_download=bool(model.allow_download),
+        sort_order=int(model.sort_order or 1),
+        is_active=bool(model.is_active),
+        created_at=model.created_at,
+        updated_at=model.updated_at,
     )
 
 
@@ -516,6 +546,128 @@ def upload_banner_image(file: UploadFile = File(...), _: AdminUser = Depends(req
 @router.post('/products/upload-image', response_model=LogoResponse)
 def upload_product_image(file: UploadFile = File(...), _: AdminUser = Depends(require_admin)):
     return LogoResponse(url=save_product_image(file))
+
+
+@router.post('/products/3d/upload-original', response_model=Product3DModelUploadResponse)
+def upload_product_3d_original_file(file: UploadFile = File(...), _: AdminUser = Depends(require_admin)):
+    url = save_original_model_file(file)
+    return Product3DModelUploadResponse(url=url, dimensions_extracted=False)
+
+
+@router.post('/products/3d/upload-preview', response_model=Product3DModelUploadResponse)
+def upload_product_3d_preview_file(file: UploadFile = File(...), _: AdminUser = Depends(require_admin)):
+    url, dimensions = save_preview_model_file(file)
+    if not dimensions:
+        return Product3DModelUploadResponse(url=url, dimensions_extracted=False)
+    return Product3DModelUploadResponse(
+        url=url,
+        width_mm=dimensions[0],
+        height_mm=dimensions[1],
+        depth_mm=dimensions[2],
+        dimensions_extracted=True,
+    )
+
+
+@router.get('/products/{product_id}/3d-models', response_model=list[Product3DModelResponse])
+def list_admin_product_3d_models(product_id: int, _: AdminUser = Depends(require_admin), db: Session = Depends(get_db)):
+    if product_id <= 0:
+        return []
+    product = admin_get_product_by_id(db, product_id)
+    if not product:
+        raise HTTPException(status_code=404, detail='Produto nao encontrado')
+    return [_serialize_product_3d_model(item) for item in list_product_3d_models(db, product_id)]
+
+
+@router.post('/products/{product_id}/3d-models', response_model=Product3DModelResponse, status_code=201)
+def create_admin_product_3d_model(
+    product_id: int,
+    payload: Product3DModelCreate,
+    _: AdminUser = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    if product_id <= 0:
+        raise HTTPException(status_code=400, detail='Publique o produto antes de cadastrar modelos 3D.')
+    product = admin_get_product_by_id(db, product_id)
+    if not product:
+        raise HTTPException(status_code=404, detail='Produto nao encontrado')
+    model = Product3DModel(
+        product_id=product_id,
+        name=payload.name.strip(),
+        description=(payload.description or '').strip() or None,
+        original_file_url=(payload.original_file_url or '').strip() or None,
+        preview_file_url=payload.preview_file_url.strip(),
+        width_mm=payload.width_mm,
+        height_mm=payload.height_mm,
+        depth_mm=payload.depth_mm,
+        dimensions_source=payload.dimensions_source,
+        allow_download=bool(payload.allow_download),
+        sort_order=int(payload.sort_order or 1),
+        is_active=bool(payload.is_active),
+    )
+    db.add(model)
+    db.commit()
+    db.refresh(model)
+    return _serialize_product_3d_model(model)
+
+
+@router.put('/products/{product_id}/3d-models/{model_id}', response_model=Product3DModelResponse)
+def update_admin_product_3d_model(
+    product_id: int,
+    model_id: int,
+    payload: Product3DModelUpdate,
+    _: AdminUser = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    model = get_product_3d_model(db, model_id)
+    if not model or int(model.product_id) != int(product_id):
+        raise HTTPException(status_code=404, detail='Modelo 3D nao encontrado')
+    model.name = payload.name.strip()
+    model.description = (payload.description or '').strip() or None
+    model.original_file_url = (payload.original_file_url or '').strip() or None
+    model.preview_file_url = payload.preview_file_url.strip()
+    model.width_mm = payload.width_mm
+    model.height_mm = payload.height_mm
+    model.depth_mm = payload.depth_mm
+    model.dimensions_source = payload.dimensions_source
+    model.allow_download = bool(payload.allow_download)
+    model.sort_order = int(payload.sort_order or 1)
+    model.is_active = bool(payload.is_active)
+    db.add(model)
+    db.commit()
+    db.refresh(model)
+    return _serialize_product_3d_model(model)
+
+
+@router.patch('/products/{product_id}/3d-models/{model_id}/status', response_model=Product3DModelResponse)
+def set_admin_product_3d_model_status(
+    product_id: int,
+    model_id: int,
+    is_active: bool,
+    _: AdminUser = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    model = get_product_3d_model(db, model_id)
+    if not model or int(model.product_id) != int(product_id):
+        raise HTTPException(status_code=404, detail='Modelo 3D nao encontrado')
+    model.is_active = bool(is_active)
+    db.add(model)
+    db.commit()
+    db.refresh(model)
+    return _serialize_product_3d_model(model)
+
+
+@router.delete('/products/{product_id}/3d-models/{model_id}', status_code=204)
+def delete_admin_product_3d_model(
+    product_id: int,
+    model_id: int,
+    _: AdminUser = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    model = get_product_3d_model(db, model_id)
+    if not model or int(model.product_id) != int(product_id):
+        raise HTTPException(status_code=404, detail='Modelo 3D nao encontrado')
+    db.delete(model)
+    db.commit()
 
 
 @router.get('/dashboard/summary', response_model=AdminDashboardSummary)

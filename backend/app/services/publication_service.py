@@ -11,6 +11,7 @@ from app.services.banner_service import create_banner, get_banner, update_banner
 from app.services.highlight_service import create_highlight_item, get_highlight_item_by_id, update_highlight_item
 from app.services.order_service import list_most_ordered_products
 from app.services.product_pricing_service import calculate_product_pricing
+from app.services.product_3d_model_service import get_primary_model_dimensions_map
 from app.services.product_service import (
     admin_create_product,
     admin_get_product_by_id,
@@ -165,6 +166,10 @@ def _serialize_product_admin(product: Product) -> dict:
         'allow_secondary_color': bool(product.allow_secondary_color),
         'secondary_color_pairs': secondary_pairs,
         'allow_name_personalization': bool(product.allow_name_personalization),
+        'width_mm': product.width_mm,
+        'height_mm': product.height_mm,
+        'depth_mm': product.depth_mm,
+        'dimensions_source': product.dimensions_source or 'manual',
         'grams_filament': float(product.grams_filament or 0),
         'price_kg_filament': float(product.price_kg_filament or 0),
         'hours_printing': float(product.hours_printing or 0),
@@ -217,6 +222,10 @@ def serialize_product_payload_for_draft(product: Product) -> dict:
         'allow_secondary_color': serialized['allow_secondary_color'],
         'secondary_color_pairs': serialized['secondary_color_pairs'],
         'allow_name_personalization': serialized['allow_name_personalization'],
+        'width_mm': serialized['width_mm'],
+        'height_mm': serialized['height_mm'],
+        'depth_mm': serialized['depth_mm'],
+        'dimensions_source': serialized['dimensions_source'],
         'grams_filament': serialized['grams_filament'],
         'price_kg_filament': serialized['price_kg_filament'],
         'hours_printing': serialized['hours_printing'],
@@ -272,6 +281,7 @@ def _project_product_from_payload(
     merged['sub_items'] = list(merged.get('sub_items') or [])
     merged['available_colors'] = list(merged.get('available_colors') or [])
     merged['secondary_color_pairs'] = list(merged.get('secondary_color_pairs') or [])
+    merged['dimensions_source'] = merged.get('dimensions_source') or 'manual'
     merged['id'] = int(projection_id)
     merged['publication_status'] = publication_status
     merged['draft_id'] = int(draft_id)
@@ -329,6 +339,19 @@ def list_admin_products_with_drafts(db: Session) -> list[dict]:
         )
 
     merged = list(by_id.values()) + virtual_creates
+    positive_ids = [int(item.get('id') or 0) for item in merged if int(item.get('id') or 0) > 0]
+    primary_dims = get_primary_model_dimensions_map(db, positive_ids)
+    for item in merged:
+        pid = int(item.get('id') or 0)
+        has_manual = all(item.get(key) is not None for key in ['width_mm', 'height_mm', 'depth_mm'])
+        source = str(item.get('dimensions_source') or 'manual')
+        should_use_model = source == 'model' or not has_manual
+        if pid > 0 and should_use_model and pid in primary_dims:
+            width, height, depth = primary_dims[pid]
+            item['width_mm'] = width
+            item['height_mm'] = height
+            item['depth_mm'] = depth
+            item['dimensions_source'] = 'model'
     merged.sort(key=lambda item: int(item.get('id', 0)), reverse=True)
     return merged
 

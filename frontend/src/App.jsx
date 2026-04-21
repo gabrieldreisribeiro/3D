@@ -8,6 +8,7 @@ import { CartProvider } from './services/cart';
 import MetaPixelProvider from './components/MetaPixelProvider';
 import HomePage from './pages/HomePage';
 import ProductPage from './pages/ProductPage';
+import ProductModelsPage from './pages/ProductModelsPage';
 import CartPage from './pages/CartPage';
 import AdminLoginPage from './pages/AdminLoginPage';
 import AdminDashboardPage from './pages/AdminDashboardPage';
@@ -90,9 +91,11 @@ function AppContent() {
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/product/:slug" element={<ProductPage />} />
+        <Route path="/product/:slug/models" element={<ProductModelsPage />} />
         <Route path="/cart" element={<CartPage />} />
         <Route path="/preview" element={<PreviewGuard><HomePage /></PreviewGuard>} />
         <Route path="/preview/product/:slug" element={<PreviewGuard><ProductPage /></PreviewGuard>} />
+        <Route path="/preview/product/:slug/models" element={<PreviewGuard><ProductModelsPage /></PreviewGuard>} />
         <Route path="/preview/cart" element={<PreviewGuard><CartPage /></PreviewGuard>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

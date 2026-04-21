@@ -13,13 +13,20 @@ import TextArea from '../components/ui/TextArea';
 import usePersistentState from '../hooks/usePersistentState';
 import {
   createAdminProduct,
+  createAdminProduct3DModel,
+  deleteAdminProduct3DModel,
   deleteAdminProduct,
+  fetchAdminProduct3DModels,
   fetchAdminInstagramSettings,
   fetchAdminProducts,
   fetchAdminCategories,
   publishAdminProductInstagram,
+  setAdminProduct3DModelStatus,
   setAdminProductStatus,
+  updateAdminProduct3DModel,
   updateAdminProduct,
+  uploadAdmin3DOriginalFile,
+  uploadAdmin3DPreviewFile,
   uploadAdminProductImage,
 } from '../services/api';
 
@@ -70,6 +77,10 @@ const initialForm = {
   allow_secondary_color: false,
   secondary_color_pairs: [],
   allow_name_personalization: false,
+  width_mm: '',
+  height_mm: '',
+  depth_mm: '',
+  dimensions_source: 'manual',
   publish_to_instagram: false,
   instagram_caption: '',
   instagram_hashtags: '',
@@ -77,9 +88,30 @@ const initialForm = {
   ...defaultPricingFields,
 };
 
+const createEmpty3dModelForm = () => ({
+  name: '',
+  description: '',
+  original_file_url: '',
+  preview_file_url: '',
+  width_mm: '',
+  height_mm: '',
+  depth_mm: '',
+  dimensions_source: 'auto',
+  allow_download: false,
+  sort_order: 1,
+  is_active: true,
+});
+
 function toNumber(value) {
   const parsed = Number(String(value ?? '').replace(',', '.'));
   return Number.isNaN(parsed) ? 0 : parsed;
+}
+
+function toOptionalNumber(value) {
+  const text = String(value ?? '').trim();
+  if (!text) return null;
+  const parsed = Number(text.replace(',', '.'));
+  return Number.isNaN(parsed) ? null : parsed;
 }
 
 function parseColors(value) {
@@ -183,6 +215,10 @@ function toPayload(form) {
     allow_secondary_color: Boolean(form.allow_colors) && Boolean(form.allow_secondary_color),
     secondary_color_pairs: form.allow_colors && form.allow_secondary_color ? parseSecondaryPairs(form.secondary_color_pairs) : [],
     allow_name_personalization: Boolean(form.allow_name_personalization),
+    width_mm: form.dimensions_source === 'manual' ? toOptionalNumber(form.width_mm) : null,
+    height_mm: form.dimensions_source === 'manual' ? toOptionalNumber(form.height_mm) : null,
+    depth_mm: form.dimensions_source === 'manual' ? toOptionalNumber(form.depth_mm) : null,
+    dimensions_source: form.dimensions_source === 'model' ? 'model' : 'manual',
     publish_to_instagram: Boolean(form.publish_to_instagram),
     instagram_caption: String(form.instagram_caption || '').trim() || null,
     instagram_hashtags: String(form.instagram_hashtags || '').trim() || null,
@@ -258,6 +294,10 @@ function fromProduct(product) {
     allow_secondary_color: Boolean(product.allow_secondary_color),
     secondary_color_pairs: parseSecondaryPairs(product.secondary_color_pairs || []),
     allow_name_personalization: Boolean(product.allow_name_personalization),
+    width_mm: product.width_mm == null ? '' : String(product.width_mm),
+    height_mm: product.height_mm == null ? '' : String(product.height_mm),
+    depth_mm: product.depth_mm == null ? '' : String(product.depth_mm),
+    dimensions_source: product.dimensions_source === 'model' ? 'model' : 'manual',
     publish_to_instagram: Boolean(product.publish_to_instagram),
     instagram_caption: product.instagram_caption || '',
     instagram_hashtags: product.instagram_hashtags || '',
@@ -326,6 +366,12 @@ function AdminProductsPage() {
   const [uploadingCover, setUploadingCover] = useState(false);
   const [uploadingExtraImages, setUploadingExtraImages] = useState(false);
   const [uploadingSubItems, setUploadingSubItems] = useState({});
+  const [product3dModels, setProduct3dModels] = useState([]);
+  const [model3dModalOpen, setModel3dModalOpen] = useState(false);
+  const [model3dForm, setModel3dForm] = useState(createEmpty3dModelForm());
+  const [editing3dModelId, setEditing3dModelId] = useState(null);
+  const [uploading3dOriginal, setUploading3dOriginal] = useState(false);
+  const [uploading3dPreview, setUploading3dPreview] = useState(false);
 /*  */  const [form, setForm] = usePersistentState('modal:admin-products:form', initialForm);
   const [error, setError] = useState('');
   const [isModalOpen, setIsModalOpen] = usePersistentState('modal:admin-products:open', false);
@@ -354,6 +400,16 @@ function AdminProductsPage() {
       .then(setProducts)
       .catch((requestError) => setError(requestError.message || 'Falha ao carregar produtos.'))
       .finally(() => setLoading(false));
+  };
+
+  const load3dModels = (productId) => {
+    if (!productId || Number(productId) <= 0) {
+      setProduct3dModels([]);
+      return;
+    }
+    fetchAdminProduct3DModels(productId)
+      .then((rows) => setProduct3dModels(Array.isArray(rows) ? rows : []))
+      .catch(() => setProduct3dModels([]));
   };
 
   useEffect(() => {
@@ -423,6 +479,7 @@ function AdminProductsPage() {
     setCollapsedSubItems({});
     setProductPairDraft(createEmptyPairDraft());
     setSubItemPairDrafts({});
+    setProduct3dModels([]);
     setModalMode('create');
     setOpenActionMenuId(null);
     setIsModalOpen(true);
@@ -447,6 +504,7 @@ function AdminProductsPage() {
     }
     setError('');
     setSelectedProduct(product);
+    load3dModels(product.id);
     setModalMode('edit');
     setOpenActionMenuId(null);
     setIsModalOpen(true);
@@ -500,6 +558,140 @@ function AdminProductsPage() {
       loadProducts();
     } catch (deleteError) {
       setError(deleteError.message || 'Falha ao excluir produto.');
+    }
+  };
+
+  const openCreate3dModel = () => {
+    setEditing3dModelId(null);
+    setModel3dForm(createEmpty3dModelForm());
+    setModel3dModalOpen(true);
+  };
+
+  const openEdit3dModel = (model) => {
+    setEditing3dModelId(model.id);
+    setModel3dForm({
+      name: model.name || '',
+      description: model.description || '',
+      original_file_url: model.original_file_url || '',
+      preview_file_url: model.preview_file_url || '',
+      width_mm: model.width_mm == null ? '' : String(model.width_mm),
+      height_mm: model.height_mm == null ? '' : String(model.height_mm),
+      depth_mm: model.depth_mm == null ? '' : String(model.depth_mm),
+      dimensions_source: model.dimensions_source || 'auto',
+      allow_download: Boolean(model.allow_download),
+      sort_order: Number(model.sort_order || 1),
+      is_active: Boolean(model.is_active),
+    });
+    setModel3dModalOpen(true);
+  };
+
+  const submit3dModelForm = async (event) => {
+    event.preventDefault();
+    if (!selectedProduct?.id || Number(selectedProduct.id) <= 0) {
+      setError('Publique o produto antes de cadastrar modelos 3D.');
+      return;
+    }
+    if (!model3dForm.preview_file_url) {
+      setError('Preview do modelo 3D e obrigatorio.');
+      return;
+    }
+
+    setSaving(true);
+    setError('');
+    try {
+      const payload = {
+        name: String(model3dForm.name || '').trim(),
+        description: String(model3dForm.description || '').trim() || null,
+        original_file_url: String(model3dForm.original_file_url || '').trim() || null,
+        preview_file_url: String(model3dForm.preview_file_url || '').trim(),
+        width_mm: toOptionalNumber(model3dForm.width_mm),
+        height_mm: toOptionalNumber(model3dForm.height_mm),
+        depth_mm: toOptionalNumber(model3dForm.depth_mm),
+        dimensions_source: model3dForm.dimensions_source === 'manual' ? 'manual' : 'auto',
+        allow_download: Boolean(model3dForm.allow_download),
+        sort_order: Number(model3dForm.sort_order || 1),
+        is_active: Boolean(model3dForm.is_active),
+      };
+
+      if (editing3dModelId) {
+        await updateAdminProduct3DModel(selectedProduct.id, editing3dModelId, payload);
+      } else {
+        await createAdminProduct3DModel(selectedProduct.id, payload);
+      }
+      setModel3dModalOpen(false);
+      setEditing3dModelId(null);
+      setModel3dForm(createEmpty3dModelForm());
+      load3dModels(selectedProduct.id);
+      loadProducts();
+    } catch (submitError) {
+      setError(submitError.message || 'Falha ao salvar modelo 3D.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const toggle3dModelStatus = async (model) => {
+    if (!selectedProduct?.id) return;
+    setSaving(true);
+    setError('');
+    try {
+      await setAdminProduct3DModelStatus(selectedProduct.id, model.id, !model.is_active);
+      load3dModels(selectedProduct.id);
+    } catch (toggleError) {
+      setError(toggleError.message || 'Falha ao atualizar status do modelo 3D.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const remove3dModel = async (model) => {
+    if (!selectedProduct?.id) return;
+    const confirmed = window.confirm(`Excluir modelo 3D "${model.name}"?`);
+    if (!confirmed) return;
+    setSaving(true);
+    setError('');
+    try {
+      await deleteAdminProduct3DModel(selectedProduct.id, model.id);
+      load3dModels(selectedProduct.id);
+    } catch (deleteError) {
+      setError(deleteError.message || 'Falha ao excluir modelo 3D.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const upload3dOriginal = async (file) => {
+    if (!file) return;
+    setUploading3dOriginal(true);
+    setError('');
+    try {
+      const result = await uploadAdmin3DOriginalFile(file);
+      setModel3dForm((current) => ({ ...current, original_file_url: result?.url || '' }));
+    } catch (uploadError) {
+      setError(uploadError.message || 'Falha no upload do arquivo original 3D.');
+    } finally {
+      setUploading3dOriginal(false);
+    }
+  };
+
+  const upload3dPreview = async (file) => {
+    if (!file) return;
+    setUploading3dPreview(true);
+    setError('');
+    try {
+      const result = await uploadAdmin3DPreviewFile(file);
+      setModel3dForm((current) => ({
+        ...current,
+        preview_file_url: result?.url || '',
+        width_mm: result?.width_mm == null ? current.width_mm : String(result.width_mm),
+        height_mm: result?.height_mm == null ? current.height_mm : String(result.height_mm),
+        depth_mm: result?.depth_mm == null ? current.depth_mm : String(result.depth_mm),
+        dimensions_source: result?.dimensions_extracted ? 'auto' : current.dimensions_source,
+      }));
+    } catch (uploadError) {
+      setError(uploadError.message || 'Falha no upload do preview 3D.');
+    } finally {
+      setUploading3dPreview(false);
     }
   };
 
@@ -1475,6 +1667,109 @@ function AdminProductsPage() {
           </section>
 
           <ProductFormSection
+            title="Dimensoes do produto"
+            subtitle="Defina manualmente ou use o modelo 3D principal."
+          >
+            <div className="md:col-span-2 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setForm({ ...form, dimensions_source: 'manual' })}
+                className={`h-10 rounded-[10px] border px-4 text-sm font-medium transition ${
+                  form.dimensions_source === 'manual'
+                    ? 'border-violet-600 bg-violet-600 text-white'
+                    : 'border-slate-200 bg-white text-slate-600 hover:border-violet-200 hover:text-violet-700'
+                }`}
+              >
+                Definir manualmente
+              </button>
+              <button
+                type="button"
+                onClick={() => setForm({ ...form, dimensions_source: 'model' })}
+                className={`h-10 rounded-[10px] border px-4 text-sm font-medium transition ${
+                  form.dimensions_source === 'model'
+                    ? 'border-violet-600 bg-violet-600 text-white'
+                    : 'border-slate-200 bg-white text-slate-600 hover:border-violet-200 hover:text-violet-700'
+                }`}
+              >
+                Usar modelo principal
+              </button>
+            </div>
+            <Input
+              label="Largura (mm)"
+              type="number"
+              min="0"
+              step="0.01"
+              value={form.width_mm}
+              onChange={(event) => setForm({ ...form, width_mm: event.target.value })}
+              disabled={form.dimensions_source === 'model'}
+            />
+            <Input
+              label="Altura (mm)"
+              type="number"
+              min="0"
+              step="0.01"
+              value={form.height_mm}
+              onChange={(event) => setForm({ ...form, height_mm: event.target.value })}
+              disabled={form.dimensions_source === 'model'}
+            />
+            <Input
+              label="Profundidade (mm)"
+              type="number"
+              min="0"
+              step="0.01"
+              value={form.depth_mm}
+              onChange={(event) => setForm({ ...form, depth_mm: event.target.value })}
+              disabled={form.dimensions_source === 'model'}
+            />
+            <p className="md:col-span-2 text-xs text-slate-500">
+              Se "Usar modelo principal" estiver ativo, o sistema busca as dimensoes do modelo 3D ativo com menor ordem.
+            </p>
+          </ProductFormSection>
+
+          <ProductFormSection
+            title="Modelos 3D"
+            subtitle="Associe multiplos modelos 3D ao produto. Upload preview .glb/.stl com extracao automatica."
+          >
+            <div className="md:col-span-2 flex items-center justify-between gap-2">
+              <p className="text-sm text-slate-600">
+                {selectedProduct?.id > 0
+                  ? `${product3dModels.length} modelo(s) cadastrado(s).`
+                  : 'Publique o produto para habilitar cadastro de modelos 3D.'}
+              </p>
+              <Button type="button" variant="secondary" onClick={openCreate3dModel} disabled={!selectedProduct?.id || selectedProduct.id <= 0}>
+                Adicionar modelo 3D
+              </Button>
+            </div>
+            <div className="md:col-span-2">
+              {product3dModels.length === 0 ? (
+                <p className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-xs text-slate-500">Nenhum modelo 3D cadastrado.</p>
+              ) : (
+                <div className="space-y-2">
+                  {product3dModels.map((model) => (
+                    <div key={model.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                          <p className="text-sm font-semibold text-slate-900">{model.name}</p>
+                          <p className="text-xs text-slate-500">
+                            {model.width_mm ?? '-'} x {model.height_mm ?? '-'} x {model.depth_mm ?? '-'} mm | ordem {model.sort_order}
+                          </p>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <Button type="button" variant="secondary" onClick={() => openEdit3dModel(model)}>Editar</Button>
+                          <Button type="button" variant="ghost" onClick={() => toggle3dModelStatus(model)}>
+                            {model.is_active ? 'Inativar' : 'Ativar'}
+                          </Button>
+                          <Button type="button" variant="danger" onClick={() => remove3dModel(model)}>Excluir</Button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </ProductFormSection>
+
+          <ProductFormSection
             title="Publicacao e status"
             subtitle="Controle de envio ao Instagram e ativacao do produto."
           >
@@ -1543,6 +1838,56 @@ function AdminProductsPage() {
 
           {error ? <p className="md:col-span-2 text-sm text-rose-600">{error}</p> : null}
           </ProductFormSection>
+        </form>
+      </Modal>
+
+      <Modal
+        open={model3dModalOpen}
+        title={editing3dModelId ? 'Editar modelo 3D' : 'Novo modelo 3D'}
+        onClose={() => setModel3dModalOpen(false)}
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setModel3dModalOpen(false)}>Cancelar</Button>
+            <Button loading={saving} onClick={submit3dModelForm}>{editing3dModelId ? 'Salvar alteracoes' : 'Criar modelo'}</Button>
+          </>
+        }
+      >
+        <form className="grid grid-cols-1 gap-4 md:grid-cols-2" onSubmit={submit3dModelForm}>
+          <Input label="Nome do modelo" value={model3dForm.name} onChange={(event) => setModel3dForm({ ...model3dForm, name: event.target.value })} required />
+          <Input label="Ordem" type="number" min="1" step="1" value={model3dForm.sort_order} onChange={(event) => setModel3dForm({ ...model3dForm, sort_order: event.target.value })} />
+          <TextArea
+            label="Descricao"
+            className="md:col-span-2"
+            rows="2"
+            value={model3dForm.description}
+            onChange={(event) => setModel3dForm({ ...model3dForm, description: event.target.value })}
+          />
+          <Input label="Arquivo original (URL)" className="md:col-span-2" value={model3dForm.original_file_url} onChange={(event) => setModel3dForm({ ...model3dForm, original_file_url: event.target.value })} />
+          <label className="md:col-span-2 flex flex-col gap-1.5">
+            <span className="text-xs font-medium uppercase tracking-wide text-slate-500">Upload arquivo original (.3mf, .stl, .gcode...)</span>
+            <input className="h-11 rounded-[10px] border border-slate-200 bg-white px-3 text-sm text-slate-700" type="file" accept=".3mf,.stl,.gcode,.glb,.obj,.step,.stp" onChange={(event) => upload3dOriginal(event.target.files?.[0] || null)} />
+            {uploading3dOriginal ? <small className="text-xs text-slate-500">Enviando arquivo original...</small> : null}
+          </label>
+
+          <Input label="Arquivo preview (URL .glb/.stl)" className="md:col-span-2" value={model3dForm.preview_file_url} onChange={(event) => setModel3dForm({ ...model3dForm, preview_file_url: event.target.value })} required />
+          <label className="md:col-span-2 flex flex-col gap-1.5">
+            <span className="text-xs font-medium uppercase tracking-wide text-slate-500">Upload preview 3D (.glb/.stl)</span>
+            <input className="h-11 rounded-[10px] border border-slate-200 bg-white px-3 text-sm text-slate-700" type="file" accept=".glb,.stl" onChange={(event) => upload3dPreview(event.target.files?.[0] || null)} />
+            {uploading3dPreview ? <small className="text-xs text-slate-500">Enviando preview e extraindo dimensoes...</small> : null}
+          </label>
+
+          <Input label="Largura (mm)" type="number" min="0" step="0.01" value={model3dForm.width_mm} onChange={(event) => setModel3dForm({ ...model3dForm, width_mm: event.target.value, dimensions_source: 'manual' })} />
+          <Input label="Altura (mm)" type="number" min="0" step="0.01" value={model3dForm.height_mm} onChange={(event) => setModel3dForm({ ...model3dForm, height_mm: event.target.value, dimensions_source: 'manual' })} />
+          <Input label="Profundidade (mm)" type="number" min="0" step="0.01" value={model3dForm.depth_mm} onChange={(event) => setModel3dForm({ ...model3dForm, depth_mm: event.target.value, dimensions_source: 'manual' })} />
+
+          <label className="inline-flex items-center gap-2 rounded-[10px] border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+            <input type="checkbox" checked={Boolean(model3dForm.allow_download)} onChange={(event) => setModel3dForm({ ...model3dForm, allow_download: event.target.checked })} />
+            <span>Permitir download</span>
+          </label>
+          <label className="inline-flex items-center gap-2 rounded-[10px] border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+            <input type="checkbox" checked={Boolean(model3dForm.is_active)} onChange={(event) => setModel3dForm({ ...model3dForm, is_active: event.target.checked })} />
+            <span>Modelo ativo</span>
+          </label>
         </form>
       </Modal>
 

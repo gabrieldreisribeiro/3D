@@ -35,6 +35,10 @@ class Product(Base):
     allow_secondary_color = Column(Boolean, default=False)
     secondary_color_pairs = Column(Text, nullable=False, default='')
     allow_name_personalization = Column(Boolean, default=False)
+    width_mm = Column(Float, nullable=True)
+    height_mm = Column(Float, nullable=True)
+    depth_mm = Column(Float, nullable=True)
+    dimensions_source = Column(String(20), nullable=False, default='manual')
 
     grams_filament = Column(Float, default=0.0)
     price_kg_filament = Column(Float, default=0.0)
@@ -66,6 +70,7 @@ class Product(Base):
     reviews = relationship('ProductReview', back_populates='product', cascade='all, delete-orphan')
     events = relationship('UserEvent', back_populates='product')
     promotion_links = relationship('PromotionProduct', back_populates='product', cascade='all, delete-orphan')
+    models_3d = relationship('Product3DModel', back_populates='product', cascade='all, delete-orphan')
 
 
 class Coupon(Base):
@@ -288,6 +293,28 @@ class UploadedImage(Base):
     size_bytes = Column(Integer, nullable=False, default=0)
     base64_data = Column(Text, nullable=False)
     created_at = Column(DateTime, nullable=False, server_default=func.now())
+
+
+class Product3DModel(Base):
+    __tablename__ = 'product_3d_models'
+
+    id = Column(Integer, primary_key=True, index=True)
+    product_id = Column(Integer, ForeignKey('products.id', ondelete='CASCADE'), nullable=False, index=True)
+    name = Column(String(180), nullable=False)
+    description = Column(Text, nullable=True)
+    original_file_url = Column(String(500), nullable=True)
+    preview_file_url = Column(String(500), nullable=False)
+    width_mm = Column(Float, nullable=True)
+    height_mm = Column(Float, nullable=True)
+    depth_mm = Column(Float, nullable=True)
+    dimensions_source = Column(String(20), nullable=False, default='auto')
+    allow_download = Column(Boolean, default=False)
+    sort_order = Column(Integer, nullable=False, default=1, index=True)
+    is_active = Column(Boolean, default=True, index=True)
+    created_at = Column(DateTime, nullable=False, server_default=func.now())
+    updated_at = Column(DateTime, nullable=False, server_default=func.now(), onupdate=func.now())
+
+    product = relationship('Product', back_populates='models_3d')
 
 
 class HighlightItem(Base):
