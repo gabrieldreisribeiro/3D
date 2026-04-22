@@ -380,6 +380,7 @@ function Admin3DModelsPage() {
   const [batchSubItemSearch, setBatchSubItemSearch] = useState('');
   const [modalProductSearch, setModalProductSearch] = useState('');
   const [modalSubItemSearch, setModalSubItemSearch] = useState('');
+  const [selectedRowIds, setSelectedRowIds] = useState([]);
 
   const flashNotice = (message) => {
     setNotice(message);
@@ -433,6 +434,15 @@ function Admin3DModelsPage() {
 
   const visibleRows = useMemo(() => filteredRows.slice(0, visibleCount), [filteredRows, visibleCount]);
   const hasMore = visibleRows.length < filteredRows.length;
+  const selectedRowIdSet = useMemo(
+    () => new Set((selectedRowIds || []).map((item) => String(item))),
+    [selectedRowIds]
+  );
+  const selectedInFilterCount = useMemo(
+    () => filteredRows.filter((item) => selectedRowIdSet.has(String(item.id))).length,
+    [filteredRows, selectedRowIdSet]
+  );
+  const areAllFilteredSelected = filteredRows.length > 0 && selectedInFilterCount === filteredRows.length;
 
   const groupedRows = useMemo(() => {
     const map = new Map();
@@ -450,6 +460,14 @@ function Admin3DModelsPage() {
     });
     return Array.from(map.values()).sort((a, b) => a.productTitle.localeCompare(b.productTitle));
   }, [visibleRows]);
+
+  useEffect(() => {
+    setSelectedRowIds((current) => {
+      const available = new Set((rows || []).map((item) => String(item.id)));
+      const next = current.filter((id) => available.has(String(id)));
+      return next.length === current.length ? current : next;
+    });
+  }, [rows]);
 
   const productOptions = useMemo(
     () => products.filter((item) => Number(item.id) > 0).map((item) => ({ value: String(item.id), label: item.title })),
@@ -839,16 +857,71 @@ function Admin3DModelsPage() {
     }
   };
 
-  const removeModel = async (item) => {
-    const confirmed = window.confirm(`Tem certeza que deseja excluir "${item.name}"?`);
+  const toggleRowSelection = (rowId) => {
+    const id = String(rowId);
+    setSelectedRowIds((current) => (current.includes(id) ? current.filter((item) => item !== id) : [...current, id]));
+  };
+
+  const toggleSelectAllFiltered = () => {
+    const filteredIds = filteredRows.map((item) => String(item.id));
+    if (!filteredIds.length) {
+      setSelectedRowIds([]);
+      return;
+    }
+    setSelectedRowIds((current) => {
+      const currentSet = new Set(current.map((item) => String(item)));
+      const allSelected = filteredIds.every((id) => currentSet.has(id));
+      if (allSelected) {
+        return current.filter((id) => !filteredIds.includes(String(id)));
+      }
+      const next = new Set(currentSet);
+      filteredIds.forEach((id) => next.add(id));
+      return Array.from(next);
+    });
+  };
+
+  const removeManyModels = async (modelIds, label) => {
+    const ids = Array.from(new Set((modelIds || []).map((item) => Number(item)).filter((item) => Number.isFinite(item) && item > 0)));
+    if (!ids.length) return;
+    const confirmed = window.confirm(`Tem certeza que deseja excluir ${ids.length} ${label}?`);
     if (!confirmed) return;
+    setSaving(true);
+    setError('');
     try {
-      await deleteAdmin3DModel(item.id);
-      flashNotice('Modelo excluido com sucesso.');
+      let ok = 0;
+      let fail = 0;
+      for (const id of ids) {
+        try {
+          await deleteAdmin3DModel(id);
+          ok += 1;
+        } catch {
+          fail += 1;
+        }
+      }
+      if (fail > 0) {
+        setError(`Exclusao parcial: ${ok} removido(s), ${fail} com erro.`);
+      } else {
+        flashNotice(`${ok} modelo(s) excluido(s) com sucesso.`);
+      }
+      setSelectedRowIds((current) => current.filter((id) => !ids.includes(Number(id))));
       loadData();
     } catch (deleteError) {
       setError(deleteError.message || 'Falha ao excluir modelo 3D.');
+    } finally {
+      setSaving(false);
     }
+  };
+
+  const removeModel = async (item) => removeManyModels([item?.id], 'modelo(s)');
+
+  const removeSelectedModels = async () => {
+    if (!selectedRowIds.length) return;
+    await removeManyModels(selectedRowIds, 'modelo(s) selecionado(s)');
+  };
+
+  const removeAllFilteredModels = async () => {
+    if (!filteredRows.length) return;
+    await removeManyModels(filteredRows.map((item) => item.id), 'modelo(s) filtrado(s)');
   };
 
   const handleDownloadOriginal = async (item) => {
@@ -897,12 +970,24 @@ function Admin3DModelsPage() {
       <SectionHeader
         eyebrow="Interno"
         title="Modelos 3D"
-        subtitle="Gerencie todos os modelos 3D vinculados aos seus produtos."
+        subtitle="Gerencie todos os modelos 3D e atribua depois quando estiverem sem vinculo."
         action={(
           <div className="flex flex-wrap items-center gap-2">
             <span className="rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600">
               Total: {filteredRows.length} modelos
             </span>
+            <span className="rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600">
+              Selecionados: {selectedInFilterCount}
+            </span>
+            <Button variant="ghost" onClick={toggleSelectAllFiltered} disabled={!filteredRows.length}>
+              {areAllFilteredSelected ? 'Desmarcar filtrados' : 'Selecionar filtrados'}
+            </Button>
+            <Button variant="danger" onClick={removeSelectedModels} disabled={!selectedRowIds.length || saving}>
+              Excluir selecionados
+            </Button>
+            <Button variant="danger" onClick={removeAllFilteredModels} disabled={!filteredRows.length || saving}>
+              Excluir todos filtrados
+            </Button>
             <Button variant="secondary" onClick={handleDownloadAll}>Baixar todos</Button>
             <Button onClick={openCreate}>+ Novo modelo</Button>
           </div>
@@ -1177,12 +1262,29 @@ function Admin3DModelsPage() {
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
                 {group.items.map((item) => {
                   const isPrincipal = !item.sub_item_id && Number(item.sort_order || 9999) === 1;
+                  const isSelected = selectedRowIdSet.has(String(item.id));
                   return (
                     <div
                       key={item.id}
-                      className="cursor-pointer rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md"
+                      className={`cursor-pointer rounded-2xl border bg-white p-4 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md ${
+                        isSelected ? 'border-violet-400 ring-2 ring-violet-100' : 'border-slate-200'
+                      }`}
                       onClick={() => openDetail(item.id)}
                     >
+                      <div className="mb-2 flex items-center justify-between">
+                        <label
+                          className="inline-flex items-center gap-2 text-xs font-medium text-slate-600"
+                          onClick={(event) => event.stopPropagation()}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => toggleRowSelection(item.id)}
+                          />
+                          <span>Selecionar</span>
+                        </label>
+                        {item.product_id == null ? <StatusBadge tone="warning">Atribuir depois</StatusBadge> : null}
+                      </div>
                       <ModelThumbnail item={item} />
 
                       <div className="mt-3 space-y-2">
@@ -1210,7 +1312,9 @@ function Admin3DModelsPage() {
                         <button type="button" title="Detalhes" onClick={() => openDetail(item.id)} className="rounded-lg border border-slate-200 bg-white p-2 text-slate-600 transition hover:border-violet-200 hover:text-violet-700">i</button>
                         <button type="button" title="Baixar original" onClick={() => handleDownloadOriginal(item)} className="rounded-lg border border-slate-200 bg-white p-2 text-slate-600 transition hover:border-violet-200 hover:text-violet-700">O</button>
                         <button type="button" title="Baixar preview" onClick={() => handleDownloadPreview(item)} className="rounded-lg border border-slate-200 bg-white p-2 text-slate-600 transition hover:border-violet-200 hover:text-violet-700">P</button>
-                        <button type="button" title="Editar" onClick={() => openEdit(item)} className="rounded-lg border border-slate-200 bg-white p-2 text-slate-600 transition hover:border-violet-200 hover:text-violet-700">E</button>
+                        <button type="button" title={item.product_id == null ? 'Atribuir / editar' : 'Editar'} onClick={() => openEdit(item)} className="rounded-lg border border-slate-200 bg-white p-2 text-slate-600 transition hover:border-violet-200 hover:text-violet-700">
+                          {item.product_id == null ? 'A' : 'E'}
+                        </button>
                         <button type="button" title="Excluir" onClick={() => removeModel(item)} className="rounded-lg border border-rose-200 bg-rose-50 p-2 text-rose-700 transition hover:border-rose-300 hover:bg-rose-100">X</button>
                       </div>
                     </div>
