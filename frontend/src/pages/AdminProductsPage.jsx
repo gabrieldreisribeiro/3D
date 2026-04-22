@@ -97,8 +97,7 @@ const createEmpty3dModelForm = () => ({
   sub_item_id: '',
   name: '',
   description: '',
-  original_file_url: '',
-  preview_file_url: '',
+  file_url: '',
   width_mm: '',
   height_mm: '',
   depth_mm: '',
@@ -141,6 +140,15 @@ function isModel3dPreviewExtension(ext) {
 
 function isModel3dOriginalExtension(ext) {
   return MODEL3D_ORIGINAL_EXTENSIONS.has(String(ext || '').toLowerCase());
+}
+
+function resolveModelFileUrl(model) {
+  return String(model?.original_file_url || model?.preview_file_url || '').trim();
+}
+
+function modelHasPreview(model) {
+  const ext = fileExtension(model?.preview_file_url || resolveModelFileUrl(model));
+  return isModel3dPreviewExtension(ext);
 }
 
 function createBatch3dQueueItem(file, defaultProductId = '') {
@@ -415,7 +423,6 @@ function getBatch3dStatusLabel(status) {
   if (status === 'ready') return 'Pronto';
   if (status === 'saving') return 'Salvando';
   if (status === 'saved') return 'Salvo';
-  if (status === 'needs_preview') return 'Falta preview';
   if (status === 'error') return 'Erro';
   return 'Pendente';
 }
@@ -426,9 +433,6 @@ function getBatch3dStatusClasses(status) {
   }
   if (status === 'error') {
     return 'border-rose-200 bg-rose-50 text-rose-700';
-  }
-  if (status === 'needs_preview') {
-    return 'border-amber-200 bg-amber-50 text-amber-700';
   }
   return 'border-slate-200 bg-slate-100 text-slate-700';
 }
@@ -459,8 +463,7 @@ function AdminProductsPage() {
   const [model3dForm, setModel3dForm] = useState(createEmpty3dModelForm());
   const [editing3dModelId, setEditing3dModelId] = useState(null);
   const [model3dSortTouched, setModel3dSortTouched] = useState(false);
-  const [uploading3dOriginal, setUploading3dOriginal] = useState(false);
-  const [uploading3dPreview, setUploading3dPreview] = useState(false);
+  const [uploading3dFile, setUploading3dFile] = useState(false);
   const [batch3dQueue, setBatch3dQueue] = useState([]);
   const [batch3dActiveId, setBatch3dActiveId] = useState('');
   const [batch3dUploading, setBatch3dUploading] = useState(false);
@@ -699,6 +702,7 @@ function AdminProductsPage() {
         const original = await uploadAdmin3DOriginalFile(queueItem.file, queueItem.file_name);
         const nextPatch = {
           original_file_url: original?.url || '',
+          preview_file_url: original?.url || '',
           status: 'ready',
         };
         if (isModel3dPreviewExtension(queueItem.extension)) {
@@ -712,9 +716,6 @@ function AdminProductsPage() {
             nextPatch.status = 'error';
             nextPatch.error_message = 'Upload de preview nao retornou URL.';
           }
-        } else {
-          nextPatch.status = 'needs_preview';
-          nextPatch.error_message = 'Arquivo original enviado. Falta um preview .glb/.stl para salvar.';
         }
         updateBatch3dQueueItem(queueItem.id, nextPatch);
       } catch (uploadError) {
@@ -730,10 +731,10 @@ function AdminProductsPage() {
 
   const saveBatch3dQueue = async () => {
     const itemsToSave = batch3dQueue.filter(
-      (item) => item.status === 'ready' && item.preview_file_url && Number(item.product_id || 0) > 0
+      (item) => item.status === 'ready' && (item.preview_file_url || item.original_file_url) && Number(item.product_id || 0) > 0
     );
     if (!itemsToSave.length) {
-      setError('Nenhum item pronto para salvar. Verifique preview e produto de destino.');
+      setError('Nenhum item pronto para salvar. Verifique os arquivos e o produto de destino.');
       return;
     }
 
@@ -766,7 +767,7 @@ function AdminProductsPage() {
           name: String(item.name || '').trim() || fileBaseName(item.file_name),
           description: String(item.description || '').trim() || null,
           original_file_url: String(item.original_file_url || '').trim() || null,
-          preview_file_url: String(item.preview_file_url || '').trim(),
+          preview_file_url: String(item.preview_file_url || item.original_file_url || '').trim(),
           width_mm: toOptionalNumber(item.width_mm),
           height_mm: toOptionalNumber(item.height_mm),
           depth_mm: toOptionalNumber(item.depth_mm),
@@ -801,6 +802,34 @@ function AdminProductsPage() {
     return Math.max(1, maxOrder + 1);
   };
 
+  const toModel3dPayload = (source, overrides = {}) => ({
+    sub_item_id: String(source?.sub_item_id || '').trim() || null,
+    name: String(source?.name || '').trim(),
+    description: String(source?.description || '').trim() || null,
+    original_file_url: String(source?.original_file_url || source?.file_url || '').trim() || null,
+    preview_file_url: String(source?.preview_file_url || source?.original_file_url || source?.file_url || '').trim(),
+    width_mm: toOptionalNumber(source?.width_mm),
+    height_mm: toOptionalNumber(source?.height_mm),
+    depth_mm: toOptionalNumber(source?.depth_mm),
+    dimensions_source: source?.dimensions_source === 'manual' ? 'manual' : 'auto',
+    allow_download: Boolean(source?.allow_download),
+    sort_order: Number(source?.sort_order || 1),
+    is_active: Boolean(source?.is_active),
+    ...overrides,
+  });
+
+  const isPrimary3dModel = (model) => {
+    const target = String(model?.sub_item_id || '').trim();
+    const scoped = (product3dModels || [])
+      .filter((item) => String(item?.sub_item_id || '').trim() === target)
+      .sort((a, b) => {
+        const bySort = Number(a?.sort_order || 0) - Number(b?.sort_order || 0);
+        if (bySort !== 0) return bySort;
+        return Number(a?.id || 0) - Number(b?.id || 0);
+      });
+    return scoped[0]?.id === model?.id;
+  };
+
   const openCreate3dModel = () => {
     setEditing3dModelId(null);
     setModel3dSortTouched(false);
@@ -816,8 +845,7 @@ function AdminProductsPage() {
       sub_item_id: String(model.sub_item_id || ''),
       name: model.name || '',
       description: model.description || '',
-      original_file_url: model.original_file_url || '',
-      preview_file_url: model.preview_file_url || '',
+      file_url: resolveModelFileUrl(model),
       width_mm: model.width_mm == null ? '' : String(model.width_mm),
       height_mm: model.height_mm == null ? '' : String(model.height_mm),
       depth_mm: model.depth_mm == null ? '' : String(model.depth_mm),
@@ -843,28 +871,15 @@ function AdminProductsPage() {
       setError('Publique o produto antes de cadastrar modelos 3D.');
       return;
     }
-    if (!model3dForm.preview_file_url) {
-      setError('Preview do modelo 3D e obrigatorio.');
+    if (!String(model3dForm.file_url || '').trim()) {
+      setError('Importe ou informe um arquivo 3D.');
       return;
     }
 
     setSaving(true);
     setError('');
     try {
-      const payload = {
-        sub_item_id: String(model3dForm.sub_item_id || '').trim() || null,
-        name: String(model3dForm.name || '').trim(),
-        description: String(model3dForm.description || '').trim() || null,
-        original_file_url: String(model3dForm.original_file_url || '').trim() || null,
-        preview_file_url: String(model3dForm.preview_file_url || '').trim(),
-        width_mm: toOptionalNumber(model3dForm.width_mm),
-        height_mm: toOptionalNumber(model3dForm.height_mm),
-        depth_mm: toOptionalNumber(model3dForm.depth_mm),
-        dimensions_source: model3dForm.dimensions_source === 'manual' ? 'manual' : 'auto',
-        allow_download: Boolean(model3dForm.allow_download),
-        sort_order: Number(model3dForm.sort_order || 1),
-        is_active: Boolean(model3dForm.is_active),
-      };
+      const payload = toModel3dPayload(model3dForm);
 
       if (editing3dModelId) {
         await updateAdminProduct3DModel(selectedProduct.id, editing3dModelId, payload);
@@ -914,43 +929,72 @@ function AdminProductsPage() {
     }
   };
 
-  const upload3dOriginal = async (file) => {
+  const upload3dFile = async (file) => {
     if (!file) return;
-    setUploading3dOriginal(true);
+    setUploading3dFile(true);
     setError('');
     try {
-      const result = await uploadAdmin3DOriginalFile(file, file.name);
-      setModel3dForm((current) => ({
-        ...current,
-        original_file_url: result?.url || current.original_file_url,
-        name: current.name || fileBaseName(file.name),
-      }));
+      const ext = fileExtension(file.name);
+      const original = await uploadAdmin3DOriginalFile(file, file.name);
+      let preview = null;
+      if (isModel3dPreviewExtension(ext)) {
+        preview = await uploadAdmin3DPreviewFile(file, file.name);
+      }
+
+      const fileUrl = String(preview?.url || original?.url || '').trim();
+      setModel3dForm((current) => {
+        const next = {
+          ...current,
+          file_url: fileUrl || current.file_url,
+          name: current.name || fileBaseName(file.name),
+        };
+        if (preview?.width_mm != null) next.width_mm = String(preview.width_mm);
+        if (preview?.height_mm != null) next.height_mm = String(preview.height_mm);
+        if (preview?.depth_mm != null) next.depth_mm = String(preview.depth_mm);
+        if (preview?.dimensions_extracted) next.dimensions_source = 'auto';
+        return next;
+      });
     } catch (uploadError) {
-      setError(uploadError.message || 'Falha no upload do arquivo original 3D.');
+      setError(uploadError.message || 'Falha no upload do arquivo 3D.');
     } finally {
-      setUploading3dOriginal(false);
+      setUploading3dFile(false);
     }
   };
 
-  const upload3dPreview = async (file) => {
-    if (!file) return;
-    setUploading3dPreview(true);
+  const setPrimary3dModel = async (model) => {
+    if (!selectedProduct?.id) return;
+    const target = String(model?.sub_item_id || '').trim();
+    const scoped = (product3dModels || [])
+      .filter((item) => String(item?.sub_item_id || '').trim() === target)
+      .sort((a, b) => {
+        const bySort = Number(a?.sort_order || 0) - Number(b?.sort_order || 0);
+        if (bySort !== 0) return bySort;
+        return Number(a?.id || 0) - Number(b?.id || 0);
+      });
+    if (!scoped.length) return;
+
+    const ordered = [model, ...scoped.filter((item) => item.id !== model.id)];
+    const updates = ordered
+      .map((item, index) => ({ item, sort_order: index + 1 }))
+      .filter(({ item, sort_order }) => Number(item.sort_order || 0) !== sort_order || !item.is_active);
+
+    if (!updates.length) return;
+    setSaving(true);
     setError('');
     try {
-      const result = await uploadAdmin3DPreviewFile(file, file.name);
-      setModel3dForm((current) => ({
-        ...current,
-        preview_file_url: result?.url || '',
-        name: current.name || fileBaseName(file.name),
-        width_mm: result?.width_mm == null ? current.width_mm : String(result.width_mm),
-        height_mm: result?.height_mm == null ? current.height_mm : String(result.height_mm),
-        depth_mm: result?.depth_mm == null ? current.depth_mm : String(result.depth_mm),
-        dimensions_source: result?.dimensions_extracted ? 'auto' : current.dimensions_source,
-      }));
-    } catch (uploadError) {
-      setError(uploadError.message || 'Falha no upload do preview 3D.');
+      for (const entry of updates) {
+        await updateAdminProduct3DModel(
+          selectedProduct.id,
+          entry.item.id,
+          toModel3dPayload(entry.item, { sort_order: entry.sort_order, is_active: true })
+        );
+      }
+      load3dModels(selectedProduct.id);
+      loadProducts();
+    } catch (updateError) {
+      setError(updateError.message || 'Falha ao definir modelo principal.');
     } finally {
-      setUploading3dPreview(false);
+      setSaving(false);
     }
   };
 
@@ -2017,7 +2061,7 @@ function AdminProductsPage() {
               disabled={form.dimensions_source === 'model'}
             />
             <p className="md:col-span-2 text-xs text-slate-500">
-              Se "Usar modelo principal" estiver ativo, o sistema busca as dimensoes do modelo 3D ativo com menor ordem.
+              Se "Usar modelo principal" estiver ativo, o sistema usa as dimensoes do modelo 3D marcado como principal.
             </p>
           </ProductFormSection>
 
@@ -2222,7 +2266,7 @@ function AdminProductsPage() {
 
           <ProductFormSection
             title="Modelos 3D"
-            subtitle="Associe multiplos modelos 3D ao produto. Upload preview .glb/.stl com extracao automatica."
+            subtitle="Associe multiplos arquivos 3D ao produto e defina qual e o principal para dimensoes no front."
           >
             <div className="md:col-span-2 flex items-center justify-between gap-2">
               <p className="text-sm text-slate-600">
@@ -2243,12 +2287,22 @@ function AdminProductsPage() {
                     <div key={model.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <div>
-                          <p className="text-sm font-semibold text-slate-900">{model.name}</p>
+                          <p className="text-sm font-semibold text-slate-900">
+                            {model.name} {isPrimary3dModel(model) ? <span className="text-emerald-700">(principal)</span> : null}
+                          </p>
                           <p className="text-xs text-slate-500">
                             {model.width_mm ?? '-'} x {model.height_mm ?? '-'} x {model.depth_mm ?? '-'} mm | ordem {model.sort_order} | {model.sub_item_title ? `subitem: ${model.sub_item_title}` : 'principal'}
                           </p>
+                          <p className="text-xs text-slate-500">
+                            {modelHasPreview(model)
+                              ? `Preview 3D habilitado (${fileExtension(model.preview_file_url || resolveModelFileUrl(model))})`
+                              : `Sem preview 3D (${fileExtension(resolveModelFileUrl(model)) || 'arquivo'})`}
+                          </p>
                         </div>
                         <div className="flex flex-wrap gap-2">
+                          <Button type="button" variant="secondary" onClick={() => setPrimary3dModel(model)} disabled={isPrimary3dModel(model)}>
+                            Definir principal
+                          </Button>
                           <Button type="button" variant="secondary" onClick={() => openEdit3dModel(model)}>Editar</Button>
                           <Button type="button" variant="ghost" onClick={() => toggle3dModelStatus(model)}>
                             {model.is_active ? 'Inativar' : 'Ativar'}
@@ -2384,18 +2438,18 @@ function AdminProductsPage() {
             value={model3dForm.description}
             onChange={(event) => setModel3dForm({ ...model3dForm, description: event.target.value })}
           />
-          <Input label="Arquivo original (URL)" className="md:col-span-2" value={model3dForm.original_file_url} onChange={(event) => setModel3dForm({ ...model3dForm, original_file_url: event.target.value })} />
+          <Input
+            label="Arquivo 3D (URL)"
+            className="md:col-span-2"
+            value={model3dForm.file_url}
+            onChange={(event) => setModel3dForm({ ...model3dForm, file_url: event.target.value })}
+            required
+          />
           <label className="md:col-span-2 flex flex-col gap-1.5">
-            <span className="text-xs font-medium uppercase tracking-wide text-slate-500">Upload arquivo original (.3mf, .stl, .gcode...)</span>
-            <input className="h-11 rounded-[10px] border border-slate-200 bg-white px-3 text-sm text-slate-700" type="file" accept=".3mf,.stl,.gcode,.glb,.obj,.step,.stp" onChange={(event) => upload3dOriginal(event.target.files?.[0] || null)} />
-            {uploading3dOriginal ? <small className="text-xs text-slate-500">Enviando arquivo original...</small> : null}
-          </label>
-
-          <Input label="Arquivo preview (URL .glb/.stl)" className="md:col-span-2" value={model3dForm.preview_file_url} onChange={(event) => setModel3dForm({ ...model3dForm, preview_file_url: event.target.value })} required />
-          <label className="md:col-span-2 flex flex-col gap-1.5">
-            <span className="text-xs font-medium uppercase tracking-wide text-slate-500">Upload preview 3D (.glb/.stl)</span>
-            <input className="h-11 rounded-[10px] border border-slate-200 bg-white px-3 text-sm text-slate-700" type="file" accept=".glb,.stl" onChange={(event) => upload3dPreview(event.target.files?.[0] || null)} />
-            {uploading3dPreview ? <small className="text-xs text-slate-500">Enviando preview e extraindo dimensoes...</small> : null}
+            <span className="text-xs font-medium uppercase tracking-wide text-slate-500">Importar arquivo 3D (.3mf, .stl, .glb, .obj, .step, .stp, .gcode)</span>
+            <input className="h-11 rounded-[10px] border border-slate-200 bg-white px-3 text-sm text-slate-700" type="file" accept=".3mf,.stl,.gcode,.glb,.obj,.step,.stp" onChange={(event) => upload3dFile(event.target.files?.[0] || null)} />
+            {uploading3dFile ? <small className="text-xs text-slate-500">Enviando arquivo 3D...</small> : null}
+            <small className="text-xs text-slate-500">Arquivos .stl/.glb geram preview 3D automaticamente. Arquivos .3mf exibem nome do arquivo sem preview.</small>
           </label>
 
           <Input label="Largura (mm)" type="number" min="0" step="0.01" value={model3dForm.width_mm} onChange={(event) => setModel3dForm({ ...model3dForm, width_mm: event.target.value, dimensions_source: 'manual' })} />
