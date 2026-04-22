@@ -1265,6 +1265,13 @@ export function updateAdminOrderProductionStatus(orderId, productionStatus) {
   });
 }
 
+export function updateAdminOrderPaymentStatus(orderId, paymentStatus) {
+  return adminRequest(`/admin/orders/${orderId}/payment-status`, {
+    method: 'PATCH',
+    body: JSON.stringify({ payment_status: paymentStatus }),
+  });
+}
+
 export function fetchAdminOrderFlowStages(params = {}) {
   const query = new URLSearchParams();
   if (params.only_active) query.set('only_active', String(Boolean(params.only_active)));

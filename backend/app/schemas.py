@@ -796,6 +796,10 @@ class AdminOrderProductionUpdateRequest(BaseModel):
     production_status: Literal['paid', 'in_production', 'ready']
 
 
+class AdminOrderPaymentStatusUpdateRequest(BaseModel):
+    payment_status: Literal['pending', 'pending_payment', 'awaiting_confirmation', 'paid', 'failed', 'canceled']
+
+
 class DashboardSeriesPoint(BaseModel):
     label: str
     value: float

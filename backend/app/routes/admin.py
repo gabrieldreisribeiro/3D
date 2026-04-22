@@ -36,6 +36,7 @@ from app.schemas import (
     AdminOrderFlowStageReorderRequest,
     AdminOrderFlowStageUpdate,
     AdminOrderMoveStageRequest,
+    AdminOrderPaymentStatusUpdateRequest,
     AdminOrderProductionUpdateRequest,
     AdminUserCreateRequest,
     AdminUserPasswordUpdateRequest,
@@ -1404,6 +1405,50 @@ def update_admin_order_production_status(
     set_order_production_status(order, payload.production_status)
     ensure_order_production_estimate(order)
     sync_order_stage_from_business_status(db, order, note='auto_sync_on_admin_production_update')
+    db.add(order)
+    db.commit()
+    db.refresh(order)
+    return serialize_admin_order(order)
+
+
+@router.patch('/orders/{order_id}/payment-status', response_model=AdminOrderResponse)
+def update_admin_order_payment_status(
+    order_id: int,
+    payload: AdminOrderPaymentStatusUpdateRequest,
+    _: AdminUser = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    order = (
+        db.query(Order)
+        .options(selectinload(Order.items), selectinload(Order.current_stage), selectinload(Order.stage_history).selectinload(OrderStageHistory.stage))
+        .filter(Order.id == order_id)
+        .first()
+    )
+    if not order:
+        raise HTTPException(status_code=404, detail='Pedido nao encontrado')
+
+    previous = str(order.payment_status or '').strip().lower()
+    next_status = str(payload.payment_status or '').strip().lower()
+    if not next_status:
+        raise HTTPException(status_code=400, detail='Status de pagamento invalido')
+    if previous == next_status:
+        return serialize_admin_order(order)
+
+    order.payment_status = next_status
+    if next_status == 'paid':
+        if not order.paid_at:
+            order.paid_at = datetime.utcnow()
+        if order.paid_amount is None:
+            order.paid_amount = float(order.total or 0)
+        set_order_production_status(order, 'paid')
+        ensure_order_production_estimate(order)
+        sync_order_stage_from_business_status(db, order, note='manual_admin_payment_status_update_paid')
+    else:
+        order.paid_at = None
+        if str(order.production_status or '').strip().lower() == 'paid':
+            order.production_status = None
+        sync_order_stage_from_business_status(db, order, note='manual_admin_payment_status_update')
+
     db.add(order)
     db.commit()
     db.refresh(order)

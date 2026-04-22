@@ -9,6 +9,7 @@ import {
   fetchAdminOrderFlowStages,
   fetchAdminOrders,
   moveAdminOrderStage,
+  updateAdminOrderPaymentStatus,
   updateAdminOrderProductionStatus,
 } from '../services/api';
 
@@ -28,6 +29,15 @@ function paymentLabel(status) {
   if (key === 'canceled') return 'Cancelado';
   return 'Pendente';
 }
+
+const PAYMENT_STATUS_OPTIONS = [
+  { value: 'pending', label: 'Pendente' },
+  { value: 'pending_payment', label: 'Aguardando pagamento' },
+  { value: 'awaiting_confirmation', label: 'Aguardando confirmacao' },
+  { value: 'paid', label: 'Pago' },
+  { value: 'failed', label: 'Falhou' },
+  { value: 'canceled', label: 'Cancelado' },
+];
 
 function paymentMethodLabel(method) {
   const key = String(method || '').toLowerCase();
@@ -70,6 +80,8 @@ function AdminOrdersPage() {
   const [draggingOrderId, setDraggingOrderId] = useState(null);
   const [movingOrderId, setMovingOrderId] = useState(null);
   const [updatingProduction, setUpdatingProduction] = useState(false);
+  const [updatingPaymentStatus, setUpdatingPaymentStatus] = useState(false);
+  const [manualPaymentStatus, setManualPaymentStatus] = useState('pending');
   const [searchTerm, setSearchTerm] = useState('');
   const [paymentFilter, setPaymentFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -92,6 +104,11 @@ function AdminOrdersPage() {
   useEffect(() => {
     load();
   }, []);
+
+  useEffect(() => {
+    if (!selectedOrder) return;
+    setManualPaymentStatus(String(selectedOrder.payment_status || 'pending').toLowerCase());
+  }, [selectedOrder]);
 
   const filteredOrders = useMemo(() => {
     const query = String(searchTerm || '').trim().toLowerCase();
@@ -162,6 +179,23 @@ function AdminOrdersPage() {
       setError(requestError.message || 'Falha ao atualizar status de producao.');
     } finally {
       setUpdatingProduction(false);
+    }
+  };
+
+  const applyPaymentStatus = async () => {
+    if (!selectedOrder?.id || !manualPaymentStatus) return;
+    setUpdatingPaymentStatus(true);
+    setError('');
+    setMessage('');
+    try {
+      const updated = await updateAdminOrderPaymentStatus(selectedOrder.id, manualPaymentStatus);
+      setOrders((current) => current.map((item) => (item.id === updated.id ? updated : item)));
+      setSelectedOrder(updated);
+      setMessage('Status de pagamento atualizado.');
+    } catch (requestError) {
+      setError(requestError.message || 'Falha ao atualizar status de pagamento.');
+    } finally {
+      setUpdatingPaymentStatus(false);
     }
   };
 
@@ -321,6 +355,32 @@ function AdminOrdersPage() {
             <p>Total: <strong className="text-slate-900">{Number(selectedOrder.total || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</strong></p>
             <p>Status pagamento: <strong className="text-slate-900">{paymentLabel(selectedOrder.payment_status)}</strong></p>
             <p>Metodo: <strong className="text-slate-900">{paymentMethodLabel(selectedOrder.payment_method)}</strong></p>
+            <div className="space-y-1">
+              <p>Status de pagamento manual</p>
+              <div className="flex flex-wrap items-center gap-2">
+                <select
+                  value={manualPaymentStatus}
+                  onChange={(event) => setManualPaymentStatus(event.target.value)}
+                  className="h-10 min-w-[220px] rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-violet-300"
+                >
+                  {PAYMENT_STATUS_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  loading={updatingPaymentStatus}
+                  onClick={applyPaymentStatus}
+                  disabled={manualPaymentStatus === String(selectedOrder.payment_status || '').toLowerCase()}
+                >
+                  Atualizar pagamento
+                </Button>
+              </div>
+              <p className="text-xs text-slate-500">
+                Use esta opcao quando receber pagamento fora do site para liberar o fluxo operacional.
+              </p>
+            </div>
             <p>Etapa atual: <strong className="text-slate-900">{selectedOrder.current_stage_name || '-'}</strong></p>
             <p>Atualizada em: <strong className="text-slate-900">{selectedOrder.current_stage_updated_at ? new Date(selectedOrder.current_stage_updated_at).toLocaleString('pt-BR') : '-'}</strong></p>
             <p>Producao: <strong className="text-slate-900">{productionLabel(selectedOrder.production_status)}</strong></p>
