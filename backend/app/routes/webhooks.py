@@ -17,6 +17,19 @@ router = APIRouter(tags=['webhooks'])
 logger = logging.getLogger('infinitepay')
 
 
+def _to_brl_amount(value):
+    if value is None:
+        return None
+    try:
+        normalized = str(value).strip().replace(',', '.')
+        number = float(normalized)
+    except Exception:  # noqa: BLE001
+        return None
+    if float(number).is_integer():
+        return float(number) / 100.0
+    return float(number)
+
+
 @router.post('/webhooks/infinitepay')
 async def infinitepay_webhook(request: Request, db: Session = Depends(get_db)):
     payload = await request.json()
@@ -90,12 +103,12 @@ async def infinitepay_webhook(request: Request, db: Session = Depends(get_db)):
     status = infer_payment_status_from_payload(payload)
     order.payment_status = status
     if amount is not None:
-        amount_value = float(amount)
+        amount_value = _to_brl_amount(amount)
         if order.paid_amount is None and amount_value > 0:
-            order.paid_amount = amount_value / 100.0 if amount_value > 100 else amount_value
+            order.paid_amount = amount_value
     if paid_amount is not None:
-        paid_amount_value = float(paid_amount)
-        order.paid_amount = paid_amount_value / 100.0 if paid_amount_value > 100 else paid_amount_value
+        paid_amount_value = _to_brl_amount(paid_amount)
+        order.paid_amount = paid_amount_value
     if installments is not None:
         order.installments = int(installments or 1)
     if status == 'paid' and not order.paid_at:

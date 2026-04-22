@@ -27,6 +27,20 @@ router = APIRouter(tags=['payments'])
 logger = logging.getLogger('infinitepay')
 
 
+def _to_brl_amount(value):
+    if value is None:
+        return None
+    try:
+        normalized = str(value).strip().replace(',', '.')
+        number = float(normalized)
+    except Exception:  # noqa: BLE001
+        return None
+    # InfinitePay retorna valores monetarios em centavos (inteiro).
+    if float(number).is_integer():
+        return float(number) / 100.0
+    return float(number)
+
+
 def _ensure_order_nsu(order: Order) -> str:
     normalized = str(order.order_nsu or '').strip()
     if normalized:
@@ -150,9 +164,11 @@ def infinitepay_status_check(payload: InfinitePayStatusCheckRequest, db: Session
     paid_amount = result.get('paid_amount')
     amount = result.get('amount')
     installments = result.get('installments')
+    receipt_url = str(result.get('receipt_url') or '').strip() or None
 
     order.invoice_slug = str(result.get('slug') or slug or '').strip() or order.invoice_slug
     order.transaction_nsu = str(result.get('transaction_nsu') or transaction_nsu or '').strip() or order.transaction_nsu
+    order.receipt_url = receipt_url or order.receipt_url
     order.capture_method = capture_method or order.capture_method
     order.payment_provider = 'infinitepay'
     order.sales_channel = 'online_checkout'
@@ -160,7 +176,7 @@ def infinitepay_status_check(payload: InfinitePayStatusCheckRequest, db: Session
         order.payment_method = payment_method
     order.payment_status = payment_status
     if paid_amount is not None:
-        order.paid_amount = float(paid_amount) / 100.0 if float(paid_amount) > 100 else float(paid_amount)
+        order.paid_amount = _to_brl_amount(paid_amount)
     if installments is not None:
         order.installments = int(installments)
     if payment_status == 'paid' and not order.paid_at:
@@ -174,10 +190,11 @@ def infinitepay_status_check(payload: InfinitePayStatusCheckRequest, db: Session
         payment_status=order.payment_status,
         payment_method=order.payment_method,
         paid=result.get('paid'),
-        amount=(float(amount) / 100.0 if amount is not None and float(amount) > 100 else (float(amount) if amount is not None else None)),
+        amount=_to_brl_amount(amount),
         paid_amount=order.paid_amount,
         installments=order.installments,
         capture_method=order.capture_method,
+        receipt_url=order.receipt_url,
         raw=result,
     )
 
@@ -223,8 +240,9 @@ def public_infinitepay_return_status(
                 order.payment_method = payment_method
             order.capture_method = capture_method or order.capture_method
             if status_result.get('paid_amount') is not None:
-                paid_amount = float(status_result.get('paid_amount'))
-                order.paid_amount = paid_amount / 100.0 if paid_amount > 100 else paid_amount
+                order.paid_amount = _to_brl_amount(status_result.get('paid_amount'))
+            receipt_url = str(status_result.get('receipt_url') or '').strip() or None
+            order.receipt_url = receipt_url or order.receipt_url
             if status_result.get('installments') is not None:
                 order.installments = int(status_result.get('installments') or 1)
             order.invoice_slug = str(status_result.get('slug') or slug or '').strip() or order.invoice_slug

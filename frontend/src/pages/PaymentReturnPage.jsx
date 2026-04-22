@@ -1,11 +1,33 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import Card from '../components/ui/Card';
 import SectionHeader from '../components/ui/SectionHeader';
 import { checkInfinitePayStatus, fetchPublicInfinitePayReturnStatus } from '../services/api';
+import { useCart } from '../services/cart';
+
+function translatePaymentStatus(status) {
+  const normalized = String(status || '').toLowerCase();
+  if (normalized === 'paid') return 'Aprovado';
+  if (normalized === 'pending' || normalized === 'pending_payment') return 'Pendente de pagamento';
+  if (normalized === 'awaiting_confirmation') return 'Aguardando confirmacao';
+  if (normalized === 'failed') return 'Falhou';
+  if (normalized === 'canceled' || normalized === 'cancelled') return 'Cancelado';
+  if (normalized === 'not_found') return 'Nao identificado';
+  return normalized || '-';
+}
+
+function translatePaymentMethod(method) {
+  const normalized = String(method || '').toLowerCase();
+  if (normalized === 'pix') return 'Pix';
+  if (normalized === 'credit_card') return 'Cartao de credito';
+  if (normalized === 'whatsapp') return 'WhatsApp';
+  return normalized || '-';
+}
 
 function PaymentReturnPage() {
   const [params] = useSearchParams();
+  const { clearCart } = useCart();
+  const hasClearedCartRef = useRef(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [status, setStatus] = useState(null);
@@ -42,6 +64,7 @@ function PaymentReturnPage() {
               payment_status: statusCheck?.payment_status || current?.payment_status,
               payment_method: statusCheck?.payment_method || current?.payment_method,
               paid_amount: statusCheck?.paid_amount ?? current?.paid_amount,
+              receipt_url: statusCheck?.receipt_url || current?.receipt_url,
             }));
           } catch {
             // fallback no status already loaded
@@ -67,6 +90,13 @@ function PaymentReturnPage() {
     return 'border-slate-200 bg-slate-50 text-slate-700';
   })();
 
+  useEffect(() => {
+    if (String(status?.payment_status || '').toLowerCase() !== 'paid') return;
+    if (hasClearedCartRef.current) return;
+    clearCart();
+    hasClearedCartRef.current = true;
+  }, [clearCart, status?.payment_status]);
+
   return (
     <section className="container py-8">
       <SectionHeader title="Retorno do pagamento" subtitle="Validacao do checkout online da InfinitePay." />
@@ -79,15 +109,10 @@ function PaymentReturnPage() {
             <div className="space-y-1 text-sm text-slate-700">
               <p>Pedido: <strong>#{status?.order_id || '-'}</strong></p>
               <p>Order NSU: <strong>{status?.order_nsu || orderNsu || '-'}</strong></p>
-              <p>Status: <strong>{status?.payment_status || '-'}</strong></p>
-              <p>Metodo: <strong>{status?.payment_method || '-'}</strong></p>
+              <p>Status: <strong>{translatePaymentStatus(status?.payment_status)}</strong></p>
+              <p>Metodo: <strong>{translatePaymentMethod(status?.payment_method)}</strong></p>
               <p>Total: <strong>R$ {Number(status?.total || 0).toFixed(2)}</strong></p>
               <p>Pago: <strong>R$ {Number(status?.paid_amount || 0).toFixed(2)}</strong></p>
-              {status?.receipt_url ? (
-                <p>
-                  Comprovante: <a className="text-violet-700 underline" href={status.receipt_url} target="_blank" rel="noreferrer">abrir recibo</a>
-                </p>
-              ) : null}
             </div>
           </>
         ) : null}
@@ -104,6 +129,17 @@ function PaymentReturnPage() {
           >
             Ir para carrinho
           </Link>
+          {status?.receipt_url ? (
+            <a
+              href={status.receipt_url}
+              target="_blank"
+              rel="noreferrer"
+              download
+              className="inline-flex h-10 items-center justify-center rounded-xl border border-emerald-200 bg-emerald-50 px-4 text-sm font-semibold text-emerald-700"
+            >
+              Baixar comprovante
+            </a>
+          ) : null}
         </div>
       </Card>
     </section>

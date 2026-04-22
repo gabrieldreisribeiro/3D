@@ -1172,6 +1172,7 @@ class InfinitePayStatusCheckResponse(BaseModel):
     paid_amount: Optional[float] = None
     installments: Optional[int] = None
     capture_method: Optional[str] = None
+    receipt_url: Optional[str] = None
     raw: dict = Field(default_factory=dict)
 
 
