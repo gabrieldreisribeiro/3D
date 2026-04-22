@@ -14,6 +14,11 @@ logger = logging.getLogger('infinitepay')
 
 INFINITEPAY_CHECKOUT_URL = 'https://api.infinitepay.io/invoices/public/checkout/links'
 INFINITEPAY_PAYMENT_CHECK_URL = 'https://api.infinitepay.io/invoices/public/checkout/payment_check'
+INFINITEPAY_HTTP_USER_AGENT = (
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
+    'AppleWebKit/537.36 (KHTML, like Gecko) '
+    'Chrome/125.0.0.0 Safari/537.36'
+)
 
 
 @dataclass
@@ -110,6 +115,10 @@ def _post_json(url: str, payload: dict[str, Any]) -> dict[str, Any]:
         headers={
             'Content-Type': 'application/json',
             'Accept': 'application/json',
+            'User-Agent': INFINITEPAY_HTTP_USER_AGENT,
+            'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
+            'Origin': 'https://luma3.com.br',
+            'Referer': 'https://luma3.com.br/',
         },
     )
     try:
@@ -124,6 +133,11 @@ def _post_json(url: str, payload: dict[str, Any]) -> dict[str, Any]:
         except Exception:  # noqa: BLE001
             details = ''
         logger.error('InfinitePay HTTP error status=%s body=%s', exc.code, details)
+        if exc.code == 403 and ('error-1010' in details.lower() or 'browser_signature_banned' in details.lower()):
+            raise RuntimeError(
+                'InfinitePay bloqueou a requisicao (Cloudflare 1010). '
+                'Verifique bloqueio de assinatura/user-agent ou solicite liberacao ao suporte da InfinitePay.'
+            ) from exc
         raise RuntimeError(f'Erro HTTP InfinitePay ({exc.code})') from exc
     except URLError as exc:
         logger.error('InfinitePay URL error reason=%s', exc.reason)
