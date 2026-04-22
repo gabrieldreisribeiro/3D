@@ -469,6 +469,7 @@ function AdminProductsPage() {
   const [batch3dUploading, setBatch3dUploading] = useState(false);
   const [batch3dSaving, setBatch3dSaving] = useState(false);
   const [batch3dResult, setBatch3dResult] = useState(null);
+  const [applyingSubItemModelById, setApplyingSubItemModelById] = useState({});
 /*  */  const [form, setForm] = usePersistentState('modal:admin-products:form', initialForm);
   const [error, setError] = useState('');
   const [isModalOpen, setIsModalOpen] = usePersistentState('modal:admin-products:open', false);
@@ -995,6 +996,58 @@ function AdminProductsPage() {
       setError(updateError.message || 'Falha ao definir modelo principal.');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const getSubItemStlModels = (subItemId) => {
+    const target = String(subItemId || '').trim();
+    if (!target) return [];
+    return (product3dModels || [])
+      .filter((item) => String(item?.sub_item_id || '').trim() === target)
+      .filter((item) => fileExtension(item?.preview_file_url || resolveModelFileUrl(item)) === '.stl')
+      .sort((a, b) => {
+        const bySort = Number(a?.sort_order || 0) - Number(b?.sort_order || 0);
+        if (bySort !== 0) return bySort;
+        return Number(a?.id || 0) - Number(b?.id || 0);
+      });
+  };
+
+  const getSelectedSubItemStlId = (subItemId) => {
+    const models = getSubItemStlModels(subItemId);
+    return models[0]?.id ? String(models[0].id) : '';
+  };
+
+  const selectSubItemDimensionModel = async (subItemId, modelId) => {
+    if (!selectedProduct?.id || !subItemId || !modelId) return;
+    const models = getSubItemStlModels(subItemId);
+    const selected = models.find((item) => String(item.id) === String(modelId));
+    if (!selected) return;
+
+    const key = String(subItemId);
+    setApplyingSubItemModelById((current) => ({ ...current, [key]: true }));
+    setError('');
+    try {
+      const ordered = [selected, ...models.filter((item) => item.id !== selected.id)];
+      const updates = ordered
+        .map((item, index) => ({ item, sort_order: index + 1 }))
+        .filter(({ item, sort_order }) => Number(item.sort_order || 0) !== sort_order || (item.id === selected.id && !item.is_active));
+
+      for (const entry of updates) {
+        await updateAdminProduct3DModel(
+          selectedProduct.id,
+          entry.item.id,
+          toModel3dPayload(entry.item, {
+            sort_order: entry.sort_order,
+            is_active: entry.item.id === selected.id ? true : Boolean(entry.item.is_active),
+          })
+        );
+      }
+      load3dModels(selectedProduct.id);
+      loadProducts();
+    } catch (updateError) {
+      setError(updateError.message || 'Falha ao selecionar STL para dimensoes do sub item.');
+    } finally {
+      setApplyingSubItemModelById((current) => ({ ...current, [key]: false }));
     }
   };
 
@@ -1976,6 +2029,35 @@ function AdminProductsPage() {
                           Via modelo 3D
                         </button>
                       </div>
+                      {subItem.dimensions_source === 'model' ? (
+                        <div className="mt-3 space-y-2">
+                          <label className="flex flex-col gap-1.5">
+                            <span className="text-xs font-medium uppercase tracking-wide text-slate-500">STL usado nas dimensoes do sub item</span>
+                            <select
+                              className="h-10 rounded-[10px] border border-slate-200 bg-white px-3 text-sm text-slate-700"
+                              value={getSelectedSubItemStlId(subItem.id)}
+                              onChange={(event) => {
+                                const nextId = event.target.value;
+                                if (!nextId) return;
+                                void selectSubItemDimensionModel(subItem.id, nextId);
+                              }}
+                              disabled={Boolean(applyingSubItemModelById[String(subItem.id || '')]) || getSubItemStlModels(subItem.id).length === 0}
+                            >
+                              {getSubItemStlModels(subItem.id).length === 0 ? (
+                                <option value="">Nenhum STL vinculado a este sub item</option>
+                              ) : null}
+                              {getSubItemStlModels(subItem.id).map((model) => (
+                                <option key={model.id} value={model.id}>
+                                  {model.name} ({model.sort_order === 1 ? 'principal' : `ordem ${model.sort_order}`})
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                          <p className="text-xs text-slate-500">
+                            Envie/vincule STL para este sub item em "Modelos 3D". O STL selecionado vira principal e define as dimensoes.
+                          </p>
+                        </div>
+                      ) : null}
                       <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
                         <Input label="Largura (mm)" type="number" min="0" step="0.01" value={subItem.width_mm} onChange={(event) => updateSubItem(index, 'width_mm', event.target.value)} disabled={subItem.dimensions_source === 'model'} />
                         <Input label="Altura (mm)" type="number" min="0" step="0.01" value={subItem.height_mm} onChange={(event) => updateSubItem(index, 'height_mm', event.target.value)} disabled={subItem.dimensions_source === 'model'} />
