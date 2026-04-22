@@ -453,6 +453,69 @@ function ProductFormSection({ title, subtitle = null, children }) {
   );
 }
 
+const PRODUCT_WIZARD_STEPS = [
+  {
+    id: 'basic',
+    title: 'Informacoes basicas',
+    subtitle: 'Dados principais, categoria e modo de preco.',
+  },
+  {
+    id: 'media',
+    title: 'Midia e conteudo',
+    subtitle: 'Capa, galeria e descricao detalhada.',
+  },
+  {
+    id: 'pricing',
+    title: 'Preco e producao',
+    subtitle: 'Custos, personalizacao e dimensoes do produto.',
+  },
+  {
+    id: 'models',
+    title: 'Modelos 3D e extras',
+    subtitle: 'Sub itens, arquivos 3D e importacao em lote.',
+  },
+  {
+    id: 'review',
+    title: 'Revisao e status',
+    subtitle: 'Conferir dados antes de salvar.',
+  },
+];
+
+function ImagePreviewThumb({ src, alt, className = '' }) {
+  const [hasError, setHasError] = useState(false);
+
+  useEffect(() => {
+    setHasError(false);
+  }, [src]);
+
+  if (!src) {
+    return (
+      <div className={`flex min-h-[96px] items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50 px-3 py-3 text-xs text-slate-500 ${className}`.trim()}>
+        Nenhuma imagem selecionada.
+      </div>
+    );
+  }
+
+  if (hasError) {
+    return (
+      <div className={`flex min-h-[96px] flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-amber-300 bg-amber-50 px-3 py-3 text-xs text-amber-700 ${className}`.trim()}>
+        <span>Preview indisponivel para esta URL.</span>
+        <code className="max-w-full truncate text-[11px]">{src}</code>
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={src}
+      alt={alt}
+      onError={() => setHasError(true)}
+      className={`h-28 w-full rounded-xl border border-slate-200 object-cover ${className}`.trim()}
+      loading="lazy"
+    />
+  );
+}
+
 function AdminProductsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [products, setProducts] = useState([]);
@@ -478,6 +541,7 @@ function AdminProductsPage() {
   const [error, setError] = useState('');
   const [isModalOpen, setIsModalOpen] = usePersistentState('modal:admin-products:open', false);
   const [editingId, setEditingId] = usePersistentState('modal:admin-products:editing-id', null);
+  const [productWizardStep, setProductWizardStep] = useState(0);
   const [confirmTarget, setConfirmTarget] = usePersistentState('modal:admin-products:confirm-target', null);
   const [selectedProduct, setSelectedProduct] = usePersistentState('modal:admin-products:selected', null);
   const [modalMode, setModalMode] = usePersistentState('modal:admin-products:mode', 'create');
@@ -495,6 +559,31 @@ function AdminProductsPage() {
   const [autoOpenedEditId, setAutoOpenedEditId] = useState(null);
   const [openActionMenuId, setOpenActionMenuId] = useState(null);
   const actionMenuRef = useRef(null);
+  const currentWizardStep = PRODUCT_WIZARD_STEPS[productWizardStep] || PRODUCT_WIZARD_STEPS[0];
+  const isFirstWizardStep = productWizardStep === 0;
+  const isLastWizardStep = productWizardStep === PRODUCT_WIZARD_STEPS.length - 1;
+  const coverImageUrl = String(form.cover_image || '').trim();
+  const extraImageLinks = useMemo(() => parseImageLinks(form.images), [form.images]);
+
+  const closeProductModal = () => {
+    setIsModalOpen(false);
+    setProductWizardStep(0);
+  };
+
+  const goToNextWizardStep = () => {
+    setProductWizardStep((current) => Math.min(PRODUCT_WIZARD_STEPS.length - 1, current + 1));
+  };
+
+  const goToPreviousWizardStep = () => {
+    setProductWizardStep((current) => Math.max(0, current - 1));
+  };
+
+  const removeExtraImageAtIndex = (index) => {
+    setForm((current) => {
+      const nextLinks = parseImageLinks(current.images).filter((_, linkIndex) => linkIndex !== index);
+      return { ...current, images: nextLinks.join('\n') };
+    });
+  };
 
   const loadProducts = () => {
     setLoading(true);
@@ -584,6 +673,7 @@ function AdminProductsPage() {
     setProduct3dModels([]);
     setModalMode('create');
     setOpenActionMenuId(null);
+    setProductWizardStep(0);
     setIsModalOpen(true);
   };
 
@@ -609,7 +699,18 @@ function AdminProductsPage() {
     load3dModels(product.id);
     setModalMode('edit');
     setOpenActionMenuId(null);
+    setProductWizardStep(0);
     setIsModalOpen(true);
+  };
+
+  const handleProductFormSubmit = async (event) => {
+    if (!isLastWizardStep) {
+      event.preventDefault();
+      goToNextWizardStep();
+      return;
+    }
+
+    await submitForm(event);
   };
 
   const submitForm = async (event) => {
@@ -625,6 +726,7 @@ function AdminProductsPage() {
         await createAdminProduct(payload);
       }
       setIsModalOpen(false);
+      setProductWizardStep(0);
       setEditingId(null);
       setSelectedProduct(null);
       setModalMode('create');
@@ -1546,31 +1648,65 @@ function AdminProductsPage() {
       <Modal
         open={isModalOpen}
         title={editingId ? 'Editar produto' : 'Novo produto'}
-        subtitle="Organize informacoes por bloco para cadastrar com mais clareza."
-        onClose={() => setIsModalOpen(false)}
+        subtitle={`${currentWizardStep.title} · Etapa ${productWizardStep + 1} de ${PRODUCT_WIZARD_STEPS.length}`}
+        onClose={closeProductModal}
         size="lg"
         footer={
           <>
-            <Button variant="secondary" onClick={() => setIsModalOpen(false)}>
+            <Button variant="secondary" onClick={closeProductModal}>
               Cancelar
             </Button>
-            <Button loading={saving} onClick={submitForm}>
-              {editingId ? 'Salvar alteracoes' : 'Criar produto'}
-            </Button>
+            {!isFirstWizardStep ? <Button variant="secondary" onClick={goToPreviousWizardStep}>Voltar</Button> : null}
+            {!isLastWizardStep ? (
+              <Button onClick={goToNextWizardStep}>Proximo</Button>
+            ) : (
+              <Button loading={saving} onClick={submitForm}>
+                {editingId ? 'Salvar alteracoes' : 'Criar produto'}
+              </Button>
+            )}
           </>
         }
       >
-        <form className="space-y-4" onSubmit={submitForm}>
+        <form className="space-y-4" onSubmit={handleProductFormSubmit}>
+          <div className="sticky top-0 z-20 -mx-4 border-b border-slate-200 bg-white/95 px-4 py-3 backdrop-blur sm:-mx-5 sm:px-5">
+            <div className="flex gap-2 overflow-x-auto pb-1">
+              {PRODUCT_WIZARD_STEPS.map((step, index) => {
+                const isActive = index === productWizardStep;
+                const isCompleted = index < productWizardStep;
+                return (
+                  <button
+                    key={step.id}
+                    type="button"
+                    onClick={() => setProductWizardStep(index)}
+                    className={`inline-flex min-w-fit items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+                      isActive
+                        ? 'border-violet-500 bg-violet-50 text-violet-700'
+                        : isCompleted
+                          ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
+                          : 'border-slate-200 bg-white text-slate-600 hover:border-violet-200 hover:text-violet-700'
+                    }`}
+                  >
+                    <span className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-current text-[11px]">
+                      {index + 1}
+                    </span>
+                    <span>{step.title}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <p className="mt-2 text-xs text-slate-500">{currentWizardStep.subtitle}</p>
+          </div>
           {selectedProduct?.generated_by_ai ? (
             <div className="rounded-xl border border-violet-200 bg-violet-50 px-3 py-2 text-sm text-violet-700">
               Produto criado a partir de anuncio gerado por IA
               {selectedProduct?.source_ad_generation_id ? ` (geracao #${selectedProduct.source_ad_generation_id}).` : '.'}
             </div>
           ) : null}
-          <ProductFormSection
-            title="Informacoes basicas"
-            subtitle="Dados principais do produto, descricao e configuracao base de preco."
-          >
+          {productWizardStep === 0 ? (
+            <ProductFormSection
+              title="Informacoes basicas"
+              subtitle="Dados principais do produto, descricao e configuracao base de preco."
+            >
           <Input label="Titulo" value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} required />
           <Input label="Slug" value={form.slug} onChange={(event) => setForm({ ...form, slug: event.target.value })} required />
           <Select label="Categoria" options={categoryOptions} value={form.category_id} onChange={(event) => setForm({ ...form, category_id: event.target.value })} />
@@ -1617,12 +1753,14 @@ function AdminProductsPage() {
             onChange={(event) => setForm({ ...form, short_description: event.target.value })}
             required
           />
-          </ProductFormSection>
+            </ProductFormSection>
+          ) : null}
 
-          <ProductFormSection
-            title="Midia e conteudo"
-            subtitle="Imagem de capa, galeria e descricao detalhada."
-          >
+          {productWizardStep === 1 ? (
+            <ProductFormSection
+              title="Midia e conteudo"
+              subtitle="Imagem de capa, galeria e descricao detalhada."
+            >
           <Input
             label="URL da capa"
             value={form.cover_image}
@@ -1643,6 +1781,22 @@ function AdminProductsPage() {
             <small className="text-xs text-slate-500">Voce pode colar URL, enviar arquivo ou colar imagem com Ctrl+V no campo URL.</small>
             {uploadingCover ? <small className="text-xs text-slate-500">Enviando imagem da capa...</small> : null}
           </label>
+          <div className="md:col-span-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Preview da capa</p>
+              {coverImageUrl ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="h-8 px-3 text-xs"
+                  onClick={() => setForm((current) => ({ ...current, cover_image: '' }))}
+                >
+                  Remover capa
+                </Button>
+              ) : null}
+            </div>
+            <ImagePreviewThumb src={coverImageUrl} alt={form.title || 'Capa do produto'} className="h-36 sm:h-44" />
+          </div>
 
           <TextArea
             label="Descricao completa"
@@ -1678,12 +1832,41 @@ function AdminProductsPage() {
             <small className="text-xs text-slate-500">Voce pode misturar links, upload do computador e Ctrl+V no campo acima.</small>
             {uploadingExtraImages ? <small className="text-xs text-slate-500">Enviando imagens extras...</small> : null}
           </label>
-          </ProductFormSection>
+          <div className="md:col-span-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
+            <div className="mb-2 flex items-center justify-between">
+              <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Preview da galeria</p>
+              <span className="text-xs text-slate-500">{extraImageLinks.length} imagem(ns)</span>
+            </div>
+            {extraImageLinks.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-slate-300 bg-white px-3 py-6 text-center text-xs text-slate-500">
+                Nenhuma imagem extra adicionada.
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                {extraImageLinks.map((link, index) => (
+                  <div key={`${link}-${index}`} className="rounded-xl border border-slate-200 bg-white p-2">
+                    <ImagePreviewThumb src={link} alt={`Imagem extra ${index + 1}`} className="h-24 sm:h-28" />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      className="mt-2 h-8 w-full px-2 text-xs"
+                      onClick={() => removeExtraImageAtIndex(index)}
+                    >
+                      Remover
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+            </ProductFormSection>
+          ) : null}
 
-          <ProductFormSection
-            title="Producao, custo e personalizacao"
-            subtitle="Controle de prazo, variacoes e calculo de preco."
-          >
+          {productWizardStep === 2 ? (
+            <ProductFormSection
+              title="Producao, custo e personalizacao"
+              subtitle="Controle de prazo, variacoes e calculo de preco."
+            >
           <Input
             label="Tempo de producao (horas)"
             type="number"
@@ -1841,8 +2024,10 @@ function AdminProductsPage() {
             </>
           ) : null}
           </ProductFormSection>
+          ) : null}
 
-          <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          {productWizardStep === 3 ? (
+            <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
               <h4 className="text-sm font-semibold text-slate-900">Sub itens do anuncio</h4>
               <Button type="button" variant="secondary" onClick={addSubItem}>Adicionar sub item</Button>
@@ -2130,8 +2315,10 @@ function AdminProductsPage() {
                 </div>
               ))}
             </div>
-          </section>
+            </section>
+          ) : null}
 
+          {productWizardStep === 2 ? (
           <ProductFormSection
             title="Dimensoes do produto"
             subtitle="Defina manualmente ou use o modelo 3D principal."
@@ -2191,11 +2378,14 @@ function AdminProductsPage() {
               Se "Usar modelo principal" estiver ativo, o sistema usa as dimensoes do modelo 3D marcado como principal.
             </p>
           </ProductFormSection>
+          ) : null}
 
-          <ProductFormSection
-            title="Importacao em lote 3D"
-            subtitle="Envie varios arquivos de uma vez, clique no card para atribuir produto/sub item e salve em lote."
-          >
+          {productWizardStep === 3 ? (
+            <>
+            <ProductFormSection
+              title="Importacao em lote 3D"
+              subtitle="Envie varios arquivos de uma vez, clique no card para atribuir produto/sub item e salve em lote."
+            >
             <div className="md:col-span-2 flex flex-wrap items-center gap-2">
               <label className="inline-flex cursor-pointer items-center rounded-[10px] border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:border-violet-200 hover:text-violet-700">
                 <input
@@ -2389,12 +2579,12 @@ function AdminProductsPage() {
                 Resultado do lote: {batch3dResult.success} salvo(s), {batch3dResult.failed} com erro.
               </div>
             ) : null}
-          </ProductFormSection>
+            </ProductFormSection>
 
-          <ProductFormSection
-            title="Modelos 3D"
-            subtitle="Associe multiplos arquivos 3D ao produto e defina qual e o principal para dimensoes no front."
-          >
+            <ProductFormSection
+              title="Modelos 3D"
+              subtitle="Associe multiplos arquivos 3D ao produto e defina qual e o principal para dimensoes no front."
+            >
             <div className="md:col-span-2 flex items-center justify-between gap-2">
               <p className="text-sm text-slate-600">
                 {selectedProduct?.id > 0
@@ -2442,7 +2632,39 @@ function AdminProductsPage() {
                 </div>
               )}
             </div>
-          </ProductFormSection>
+            </ProductFormSection>
+            </>
+          ) : null}
+
+          {productWizardStep === 4 ? (
+            <>
+          <section className="rounded-2xl border border-slate-200 bg-slate-50 p-4 shadow-sm">
+            <h4 className="text-sm font-semibold tracking-tight text-slate-900">Revisao rapida</h4>
+            <p className="mt-1 text-xs text-slate-500">Confira os principais dados antes de concluir o cadastro.</p>
+            <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="rounded-xl border border-slate-200 bg-white p-3">
+                <p className="text-xs uppercase tracking-wide text-slate-500">Produto</p>
+                <p className="mt-1 text-sm font-semibold text-slate-900">{form.title || 'Sem titulo'}</p>
+                <p className="text-xs text-slate-600">Slug: {form.slug || '-'}</p>
+                <p className="text-xs text-slate-600">Categoria: {categoryOptions.find((item) => String(item.value) === String(form.category_id))?.label || 'Sem categoria'}</p>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-white p-3">
+                <p className="text-xs uppercase tracking-wide text-slate-500">Resumo rapido</p>
+                <p className="mt-1 text-xs text-slate-600">Sub itens: {(form.sub_items || []).length}</p>
+                <p className="text-xs text-slate-600">Imagens extras: {extraImageLinks.length}</p>
+                <p className="text-xs text-slate-600">Modo de preco: {form.pricing_mode === 'manual' ? 'Preco fixo' : 'Calculo automatico'}</p>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-white p-3 sm:col-span-2">
+                <p className="mb-2 text-xs uppercase tracking-wide text-slate-500">Preview de midia</p>
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  <ImagePreviewThumb src={coverImageUrl} alt={form.title || 'Capa'} className="h-20 sm:h-24" />
+                  {extraImageLinks.slice(0, 3).map((link, index) => (
+                    <ImagePreviewThumb key={`${link}-${index}`} src={link} alt={`Imagem extra ${index + 1}`} className="h-20 sm:h-24" />
+                  ))}
+                </div>
+              </div>
+            </div>
+          </section>
 
           <ProductFormSection
             title="Publicacao e status"
@@ -2513,6 +2735,8 @@ function AdminProductsPage() {
 
           {error ? <p className="md:col-span-2 text-sm text-rose-600">{error}</p> : null}
           </ProductFormSection>
+            </>
+          ) : null}
         </form>
       </Modal>
 
