@@ -1012,6 +1012,22 @@ function AdminProductsPage() {
       });
   };
 
+  const getPrincipalStlModels = () =>
+    (product3dModels || [])
+      .filter((item) => !String(item?.sub_item_id || '').trim())
+      .filter((item) => fileExtension(item?.preview_file_url || resolveModelFileUrl(item)) === '.stl')
+      .sort((a, b) => {
+        const bySort = Number(a?.sort_order || 0) - Number(b?.sort_order || 0);
+        if (bySort !== 0) return bySort;
+        return Number(a?.id || 0) - Number(b?.id || 0);
+      });
+
+  const getSubItemSelectableStlModels = (subItemId) => {
+    const linked = getSubItemStlModels(subItemId);
+    const principal = getPrincipalStlModels().filter((item) => !linked.some((linkedItem) => linkedItem.id === item.id));
+    return [...linked, ...principal];
+  };
+
   const getSelectedSubItemStlId = (subItemId) => {
     const models = getSubItemStlModels(subItemId);
     return models[0]?.id ? String(models[0].id) : '';
@@ -1019,27 +1035,44 @@ function AdminProductsPage() {
 
   const selectSubItemDimensionModel = async (subItemId, modelId) => {
     if (!selectedProduct?.id || !subItemId || !modelId) return;
-    const models = getSubItemStlModels(subItemId);
-    const selected = models.find((item) => String(item.id) === String(modelId));
+    const linkedModels = getSubItemStlModels(subItemId);
+    const selectableModels = getSubItemSelectableStlModels(subItemId);
+    const selected = selectableModels.find((item) => String(item.id) === String(modelId));
     if (!selected) return;
 
     const key = String(subItemId);
     setApplyingSubItemModelById((current) => ({ ...current, [key]: true }));
     setError('');
     try {
-      const ordered = [selected, ...models.filter((item) => item.id !== selected.id)];
-      const updates = ordered
-        .map((item, index) => ({ item, sort_order: index + 1 }))
-        .filter(({ item, sort_order }) => Number(item.sort_order || 0) !== sort_order || (item.id === selected.id && !item.is_active));
+      const updates = [];
+
+      updates.push({
+        item: selected,
+        patch: {
+          sub_item_id: String(subItemId).trim(),
+          sort_order: 1,
+          is_active: true,
+        },
+      });
+
+      linkedModels
+        .filter((item) => item.id !== selected.id)
+        .forEach((item, index) => {
+          updates.push({
+            item,
+            patch: {
+              sub_item_id: String(subItemId).trim(),
+              sort_order: index + 2,
+              is_active: Boolean(item.is_active),
+            },
+          });
+        });
 
       for (const entry of updates) {
         await updateAdminProduct3DModel(
           selectedProduct.id,
           entry.item.id,
-          toModel3dPayload(entry.item, {
-            sort_order: entry.sort_order,
-            is_active: entry.item.id === selected.id ? true : Boolean(entry.item.is_active),
-          })
+          toModel3dPayload(entry.item, entry.patch)
         );
       }
       load3dModels(selectedProduct.id);
@@ -2041,14 +2074,14 @@ function AdminProductsPage() {
                                 if (!nextId) return;
                                 void selectSubItemDimensionModel(subItem.id, nextId);
                               }}
-                              disabled={Boolean(applyingSubItemModelById[String(subItem.id || '')]) || getSubItemStlModels(subItem.id).length === 0}
+                              disabled={Boolean(applyingSubItemModelById[String(subItem.id || '')]) || getSubItemSelectableStlModels(subItem.id).length === 0}
                             >
-                              {getSubItemStlModels(subItem.id).length === 0 ? (
-                                <option value="">Nenhum STL vinculado a este sub item</option>
+                              {getSubItemSelectableStlModels(subItem.id).length === 0 ? (
+                                <option value="">Nenhum STL disponivel neste produto</option>
                               ) : null}
-                              {getSubItemStlModels(subItem.id).map((model) => (
+                              {getSubItemSelectableStlModels(subItem.id).map((model) => (
                                 <option key={model.id} value={model.id}>
-                                  {model.name} ({model.sort_order === 1 ? 'principal' : `ordem ${model.sort_order}`})
+                                  {model.name} {String(model.sub_item_id || '').trim() ? '(vinculado ao subitem)' : '(produto principal)'}
                                 </option>
                               ))}
                             </select>
