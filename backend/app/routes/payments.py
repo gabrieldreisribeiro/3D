@@ -14,6 +14,7 @@ from app.schemas import (
     PublicPaymentReturnResponse,
 )
 from app.services.infinitepay_service import (
+    InfinitePayValidationError,
     build_payment_metadata,
     check_payment_status,
     config_is_ready,
@@ -92,6 +93,20 @@ def create_infinitepay_checkout(payload: InfinitePayCheckoutRequest, db: Session
     address = payload.address if isinstance(payload.address, dict) and payload.address else None
     try:
         checkout = create_checkout_link(order=order, config=config, customer=customer, address=address)
+    except InfinitePayValidationError as exc:
+        logger.warning('InfinitePay checkout validation failure order_id=%s: %s', order.id, exc)
+        order.payment_status = 'failed'
+        order.payment_provider = 'infinitepay'
+        order.payment_method = order.payment_method or 'pix'
+        order.sales_channel = 'online_checkout'
+        order.payment_metadata_json = build_payment_metadata(
+            order.payment_metadata_json,
+            event='checkout_validation_error',
+            payload={'error': str(exc)},
+        )
+        db.add(order)
+        db.commit()
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:  # noqa: BLE001
         logger.exception('InfinitePay checkout failure order_id=%s', order.id)
         order.payment_status = 'failed'

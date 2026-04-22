@@ -29,6 +29,10 @@ class InfinitePayCheckoutResult:
     raw_response: dict[str, Any]
 
 
+class InfinitePayValidationError(RuntimeError):
+    pass
+
+
 def _normalize_text(value: str | None) -> str | None:
     normalized = str(value or '').strip()
     return normalized or None
@@ -36,6 +40,34 @@ def _normalize_text(value: str | None) -> str | None:
 
 def _to_cents(value: float | int | None) -> int:
     return int(round(float(value or 0.0) * 100))
+
+
+def _extract_infinitepay_error_message(details: str) -> str:
+    text = str(details or '').strip()
+    if not text:
+        return ''
+    try:
+        parsed = json.loads(text)
+    except Exception:  # noqa: BLE001
+        return text[:300]
+
+    if not isinstance(parsed, dict):
+        return text[:300]
+
+    base_message = str(parsed.get('message') or '').strip()
+    errors = parsed.get('errors')
+    if isinstance(errors, dict):
+        chunks = []
+        for key, value in errors.items():
+            if isinstance(value, list):
+                joined = ', '.join([str(item).strip() for item in value if str(item).strip()])
+                if joined:
+                    chunks.append(f'{key}: {joined}')
+            elif str(value or '').strip():
+                chunks.append(f'{key}: {str(value).strip()}')
+        if chunks:
+            return f"{base_message} ({' | '.join(chunks)})".strip()
+    return base_message or text[:300]
 
 
 def _safe_json_dict(raw: Any) -> dict[str, Any]:
@@ -169,6 +201,9 @@ def _post_json(url: str, payload: dict[str, Any]) -> dict[str, Any]:
                 'InfinitePay bloqueou a requisicao (Cloudflare 1010). '
                 'Verifique bloqueio de assinatura/user-agent ou solicite liberacao ao suporte da InfinitePay.'
             ) from exc
+        if int(exc.code) == 422:
+            message = _extract_infinitepay_error_message(details) or 'Parametros invalidos no checkout'
+            raise InfinitePayValidationError(f'InfinitePay rejeitou o checkout: {message}') from exc
         raise RuntimeError(f'Erro HTTP InfinitePay ({exc.code})') from exc
     except URLError as exc:
         logger.error('InfinitePay URL error reason=%s', exc.reason)
@@ -201,15 +236,29 @@ def _build_items_payload(order: Order) -> list[dict[str, Any]]:
     return items
 
 
+def _validate_checkout_items(items: list[dict[str, Any]]) -> None:
+    total_cents = 0
+    for item in items:
+        quantity = max(1, int(item.get('quantity') or 1))
+        price_cents = int(item.get('price') or 0)
+        total_cents += quantity * price_cents
+
+    # InfinitePay exige total maior que 1 (na pratica: > R$ 1,00).
+    if total_cents <= 100:
+        raise InfinitePayValidationError('InfinitePay exige total maior que R$ 1,00 para gerar checkout.')
+
+
 def _build_checkout_payload(
     order: Order,
     config: PaymentProviderInfinitePayConfig,
     customer: dict[str, Any] | None = None,
     address: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    items = _build_items_payload(order)
+    _validate_checkout_items(items)
     payload: dict[str, Any] = {
         'handle': str(config.handle or '').strip(),
-        'items': _build_items_payload(order),
+        'items': items,
         'order_nsu': str(order.order_nsu or '').strip(),
     }
     redirect_url = _normalize_text(config.redirect_url) or _normalize_text(config.success_page_url)
