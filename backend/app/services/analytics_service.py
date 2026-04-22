@@ -176,7 +176,7 @@ def analytics_summary(db: Session, date_from: datetime | None = None, date_to: d
     if _has_order_column(db, 'payment_method'):
         try:
             payment_rows = db.query(
-                func.coalesce(Order.payment_method, 'whatsapp').label('payment_method'),
+                Order.payment_method.label('payment_method'),
                 func.count(Order.id).label('orders_count'),
                 func.coalesce(func.sum(Order.total), 0.0).label('total_value'),
             )
@@ -184,7 +184,7 @@ def analytics_summary(db: Session, date_from: datetime | None = None, date_to: d
                 payment_rows = payment_rows.filter(Order.created_at >= date_from)
             if date_to:
                 payment_rows = payment_rows.filter(Order.created_at <= date_to)
-            payment_rows = payment_rows.group_by(func.coalesce(Order.payment_method, 'whatsapp')).all()
+            payment_rows = payment_rows.group_by(Order.payment_method).all()
             for method, count, total_value in payment_rows:
                 key = str(method or 'whatsapp').strip().lower()
                 if key in {'card', 'credit'}:
@@ -353,7 +353,7 @@ def report_sales(
     if can_filter_by_payment_method:
         try:
             payment_query = db.query(
-                func.coalesce(Order.payment_method, 'whatsapp').label('payment_method'),
+                Order.payment_method.label('payment_method'),
                 func.count(Order.id).label('orders_count'),
                 func.coalesce(func.sum(Order.total), 0.0).label('total_value'),
             )
@@ -363,7 +363,7 @@ def report_sales(
                 payment_query = payment_query.filter(Order.created_at <= date_to)
             if normalized_method:
                 payment_query = payment_query.filter(func.coalesce(Order.payment_method, 'whatsapp') == normalized_method)
-            payment_rows = payment_query.group_by(func.coalesce(Order.payment_method, 'whatsapp')).all()
+            payment_rows = payment_query.group_by(Order.payment_method).all()
             for method, count, total in payment_rows:
                 key = str(method or 'whatsapp').strip().lower()
                 if key in {'card', 'credit'}:
