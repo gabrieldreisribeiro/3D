@@ -161,6 +161,7 @@ def _serialize_product_admin(product: Product) -> dict:
         'is_active': bool(product.is_active),
         'category_id': product.category_id,
         'lead_time_hours': float(product.lead_time_hours or 0),
+        'production_days': max(1, int(product.production_days or 1)),
         'allow_colors': bool(product.allow_colors),
         'available_colors': available_colors,
         'allow_secondary_color': bool(product.allow_secondary_color),
@@ -217,6 +218,7 @@ def serialize_product_payload_for_draft(product: Product) -> dict:
         'is_active': serialized['is_active'],
         'category_id': serialized['category_id'],
         'lead_time_hours': serialized['lead_time_hours'],
+        'production_days': serialized['production_days'],
         'allow_colors': serialized['allow_colors'],
         'available_colors': serialized['available_colors'],
         'allow_secondary_color': serialized['allow_secondary_color'],
@@ -282,6 +284,7 @@ def _project_product_from_payload(
     merged['available_colors'] = list(merged.get('available_colors') or [])
     merged['secondary_color_pairs'] = list(merged.get('secondary_color_pairs') or [])
     merged['dimensions_source'] = merged.get('dimensions_source') or 'manual'
+    merged['production_days'] = max(1, int(merged.get('production_days') or 1))
     merged['id'] = int(projection_id)
     merged['publication_status'] = publication_status
     merged['draft_id'] = int(draft_id)
