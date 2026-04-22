@@ -849,6 +849,55 @@ class DatabaseQueryLogsResponse(BaseModel):
     page_size: int
 
 
+class LogSettingsResponse(BaseModel):
+    logs_enabled: bool = True
+    logs_capture_request_body: bool = True
+    logs_capture_response_body: bool = False
+    logs_capture_integrations: bool = True
+    logs_capture_webhooks: bool = True
+    logs_min_level: Literal['debug', 'info', 'warning', 'error', 'critical'] = 'info'
+
+
+class LogSettingsUpdate(LogSettingsResponse):
+    pass
+
+
+class SystemLogResponse(BaseModel):
+    id: int
+    level: str
+    category: str
+    action_name: Optional[str] = None
+    request_method: Optional[str] = None
+    request_path: Optional[str] = None
+    request_query: Optional[str] = None
+    request_headers_json: dict = Field(default_factory=dict)
+    request_body_json: Optional[str] = None
+    response_status: Optional[int] = None
+    response_headers_json: dict = Field(default_factory=dict)
+    response_body_json: Optional[str] = None
+    duration_ms: Optional[float] = None
+    response_size_bytes: Optional[int] = None
+    admin_user_id: Optional[int] = None
+    admin_email: Optional[str] = None
+    session_id: Optional[str] = None
+    ip_address: Optional[str] = None
+    user_agent: Optional[str] = None
+    entity_type: Optional[str] = None
+    entity_id: Optional[str] = None
+    source_system: Optional[str] = None
+    error_message: Optional[str] = None
+    stack_trace: Optional[str] = None
+    metadata_json: dict = Field(default_factory=dict)
+    created_at: Optional[datetime] = None
+
+
+class SystemLogsListResponse(BaseModel):
+    items: List[SystemLogResponse]
+    total: int
+    page: int
+    page_size: int
+
+
 class UserEventCreate(BaseModel):
     event_type: Literal[
         'page_view',

@@ -72,6 +72,7 @@ const NAV_SECTIONS = [
     items: [
       { to: '/painel-interno/leads-conversao', label: 'Leads & Conversao', icon: <><path d="M3 3v18h18" /><path d="m7 14 3-3 3 2 4-5" /></> },
       { to: '/painel-interno/relatorios', label: 'Relatorios', icon: <><path d="M4 19h16" /><path d="M7 15V9" /><path d="M12 15V5" /><path d="M17 15v-3" /></> },
+      { to: '/painel-interno/logs', label: 'Logs', icon: <><path d="M4 5h16v14H4z" /><path d="M8 9h8M8 13h8M8 17h5" /></> },
       { to: '/painel-interno/uploads', label: 'Uploads', icon: <><path d="M12 16V4" /><path d="m7 9 5-5 5 5" /><path d="M20 16v2a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-2" /></> },
       { to: '/painel-interno/modelos-3d', label: 'Modelos 3D', icon: <><path d="M3 7l9-4 9 4-9 4-9-4z" /><path d="M3 12l9 4 9-4" /><path d="M3 17l9 4 9-4" /></> },
       { to: '/painel-interno/banco', label: 'Banco de dados', icon: <><ellipse cx="12" cy="5" rx="7" ry="3" /><path d="M5 5v14c0 1.7 3.1 3 7 3s7-1.3 7-3V5" /><path d="M5 12c0 1.7 3.1 3 7 3s7-1.3 7-3" /></> },

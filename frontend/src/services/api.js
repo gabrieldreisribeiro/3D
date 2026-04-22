@@ -822,6 +822,38 @@ export function testAdminInfinitePayConfig() {
   });
 }
 
+export function fetchAdminLogSettings() {
+  return adminRequest('/admin/logs/settings');
+}
+
+export function updateAdminLogSettings(payload) {
+  return adminRequest('/admin/logs/settings', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export function fetchAdminLogs(params = {}) {
+  const search = new URLSearchParams();
+  if (params.page) search.set('page', String(params.page));
+  if (params.page_size) search.set('page_size', String(params.page_size));
+  if (params.level) search.set('level', String(params.level));
+  if (params.category) search.set('category', String(params.category));
+  if (params.path) search.set('path', String(params.path));
+  if (params.admin_user_id) search.set('admin_user_id', String(params.admin_user_id));
+  if (params.status_code) search.set('status_code', String(params.status_code));
+  if (params.source_system) search.set('source_system', String(params.source_system));
+  if (params.text) search.set('text', String(params.text));
+  if (params.date_from) search.set('date_from', String(params.date_from));
+  if (params.date_to) search.set('date_to', String(params.date_to));
+  const query = search.toString();
+  return adminRequest(`/admin/logs${query ? `?${query}` : ''}`);
+}
+
+export function fetchAdminLogById(logId) {
+  return adminRequest(`/admin/logs/${logId}`);
+}
+
 export function fetchAdminMetaPixelConfig() {
   return adminRequest('/admin/meta-pixel/config');
 }

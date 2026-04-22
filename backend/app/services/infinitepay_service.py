@@ -1,5 +1,6 @@
 import json
 import logging
+import time
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
@@ -9,6 +10,7 @@ from urllib.request import Request, urlopen
 from sqlalchemy.orm import Session
 
 from app.models import Order, PaymentProviderInfinitePayConfig
+from app.services.system_log_service import log_custom_event_safely
 
 logger = logging.getLogger('infinitepay')
 
@@ -107,6 +109,7 @@ def config_is_ready(config: PaymentProviderInfinitePayConfig | None) -> tuple[bo
 
 
 def _post_json(url: str, payload: dict[str, Any]) -> dict[str, Any]:
+    started_at = time.perf_counter()
     body = json.dumps(payload).encode('utf-8')
     request = Request(
         url=url,
@@ -125,7 +128,21 @@ def _post_json(url: str, payload: dict[str, Any]) -> dict[str, Any]:
         with urlopen(request, timeout=12) as response:
             raw_body = response.read().decode('utf-8')
             data = json.loads(raw_body or '{}')
-            return data if isinstance(data, dict) else {'raw_response': data}
+            parsed = data if isinstance(data, dict) else {'raw_response': data}
+            log_custom_event_safely(
+                level='info',
+                category='integration',
+                action_name='InfinitePay API call',
+                request_method='POST',
+                request_path=url,
+                request_body=payload,
+                response_status=int(getattr(response, 'status', 200)),
+                response_body=parsed,
+                duration_ms=max(0.0, (time.perf_counter() - started_at) * 1000),
+                source_system='infinitepay',
+                metadata={'integration': 'infinitepay'},
+            )
+            return parsed
     except HTTPError as exc:
         details = ''
         try:
@@ -133,6 +150,20 @@ def _post_json(url: str, payload: dict[str, Any]) -> dict[str, Any]:
         except Exception:  # noqa: BLE001
             details = ''
         logger.error('InfinitePay HTTP error status=%s body=%s', exc.code, details)
+        log_custom_event_safely(
+            level='error',
+            category='integration',
+            action_name='InfinitePay API call failed',
+            request_method='POST',
+            request_path=url,
+            request_body=payload,
+            response_status=int(exc.code),
+            response_body=details,
+            duration_ms=max(0.0, (time.perf_counter() - started_at) * 1000),
+            source_system='infinitepay',
+            error_message=f'HTTP {exc.code}',
+            metadata={'integration': 'infinitepay'},
+        )
         if exc.code == 403 and ('error-1010' in details.lower() or 'browser_signature_banned' in details.lower()):
             raise RuntimeError(
                 'InfinitePay bloqueou a requisicao (Cloudflare 1010). '
@@ -141,6 +172,18 @@ def _post_json(url: str, payload: dict[str, Any]) -> dict[str, Any]:
         raise RuntimeError(f'Erro HTTP InfinitePay ({exc.code})') from exc
     except URLError as exc:
         logger.error('InfinitePay URL error reason=%s', exc.reason)
+        log_custom_event_safely(
+            level='error',
+            category='integration',
+            action_name='InfinitePay API connection failed',
+            request_method='POST',
+            request_path=url,
+            request_body=payload,
+            duration_ms=max(0.0, (time.perf_counter() - started_at) * 1000),
+            source_system='infinitepay',
+            error_message=f'URL error: {exc.reason}',
+            metadata={'integration': 'infinitepay'},
+        )
         raise RuntimeError('Falha de conexao com a InfinitePay') from exc
 
 

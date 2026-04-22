@@ -31,6 +31,7 @@ import AdminPublicationPage from './pages/AdminPublicationPage';
 import AdminUsersPage from './pages/AdminUsersPage';
 import Admin3DModelsPage from './pages/Admin3DModelsPage';
 import AdminInfinitePayPage from './pages/AdminInfinitePayPage';
+import AdminLogsPage from './pages/AdminLogsPage';
 import PaymentReturnPage from './pages/PaymentReturnPage';
 import { fetchPublicSettings, getAdminToken, trackEvent } from './services/api';
 import { applySiteFavicon } from './services/faviconService';
@@ -82,6 +83,7 @@ function AppContent() {
             <Route path="instagram" element={<AdminInstagramPage />} />
             <Route path="meta-pixel" element={<AdminMetaPixelPage />} />
             <Route path="integracoes/infinitepay" element={<AdminInfinitePayPage />} />
+            <Route path="logs" element={<AdminLogsPage />} />
             <Route path="publicacao" element={<AdminPublicationPage />} />
             <Route path="anuncios-ia" element={<AdminAdsPage />} />
             <Route path="leads-conversao" element={<AdminLeadsConversionPage />} />

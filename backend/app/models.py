@@ -172,6 +172,7 @@ class AdminUser(Base):
     updated_at = Column(DateTime, nullable=False, server_default=func.now(), onupdate=func.now())
     query_logs = relationship('DatabaseQueryLog', back_populates='admin')
     ads_generation_history = relationship('AdsGenerationHistory', back_populates='admin')
+    system_logs = relationship('SystemLog', back_populates='admin')
 
 
 class StoreSettings(Base):
@@ -181,6 +182,12 @@ class StoreSettings(Base):
     whatsapp_number = Column(String(30), nullable=True)
     pix_key = Column(String(160), nullable=True)
     favicon_url = Column(String(500), nullable=True)
+    logs_enabled = Column(Boolean, default=True)
+    logs_capture_request_body = Column(Boolean, default=True)
+    logs_capture_response_body = Column(Boolean, default=False)
+    logs_capture_integrations = Column(Boolean, default=True)
+    logs_capture_webhooks = Column(Boolean, default=True)
+    logs_min_level = Column(String(20), nullable=False, default='info')
     instagram_enabled = Column(Boolean, default=False)
     instagram_app_id = Column(String(120), nullable=True)
     instagram_app_secret = Column(String(220), nullable=True)
@@ -399,3 +406,35 @@ class PaymentProviderInfinitePayConfig(Base):
     test_mode = Column(Boolean, nullable=False, default=False)
     created_at = Column(DateTime, nullable=False, server_default=func.now())
     updated_at = Column(DateTime, nullable=False, server_default=func.now(), onupdate=func.now())
+
+
+class SystemLog(Base):
+    __tablename__ = 'system_logs'
+
+    id = Column(Integer, primary_key=True, index=True)
+    level = Column(String(20), nullable=False, default='info', index=True)
+    category = Column(String(40), nullable=False, default='http', index=True)
+    action_name = Column(String(160), nullable=True, index=True)
+    request_method = Column(String(10), nullable=True, index=True)
+    request_path = Column(String(500), nullable=True, index=True)
+    request_query = Column(Text, nullable=True)
+    request_headers_json = Column(Text, nullable=False, default='{}')
+    request_body_json = Column(Text, nullable=True)
+    response_status = Column(Integer, nullable=True, index=True)
+    response_headers_json = Column(Text, nullable=False, default='{}')
+    response_body_json = Column(Text, nullable=True)
+    duration_ms = Column(Float, nullable=True)
+    response_size_bytes = Column(Integer, nullable=True)
+    admin_user_id = Column(Integer, ForeignKey('admin_users.id', ondelete='SET NULL'), nullable=True, index=True)
+    session_id = Column(String(160), nullable=True, index=True)
+    ip_address = Column(String(120), nullable=True, index=True)
+    user_agent = Column(String(600), nullable=True)
+    entity_type = Column(String(80), nullable=True, index=True)
+    entity_id = Column(String(80), nullable=True, index=True)
+    source_system = Column(String(80), nullable=True, index=True)
+    error_message = Column(Text, nullable=True)
+    stack_trace = Column(Text, nullable=True)
+    metadata_json = Column(Text, nullable=False, default='{}')
+    created_at = Column(DateTime, nullable=False, server_default=func.now(), index=True)
+
+    admin = relationship('AdminUser', back_populates='system_logs')

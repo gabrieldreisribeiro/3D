@@ -11,6 +11,7 @@ from app.services.infinitepay_service import (
     infer_payment_method,
     infer_payment_status_from_payload,
 )
+from app.services.system_log_service import log_custom_event_safely
 
 router = APIRouter(tags=['webhooks'])
 logger = logging.getLogger('infinitepay')
@@ -20,14 +21,51 @@ logger = logging.getLogger('infinitepay')
 async def infinitepay_webhook(request: Request, db: Session = Depends(get_db)):
     payload = await request.json()
     logger.info('InfinitePay webhook received payload=%s', payload)
+    log_custom_event_safely(
+        level='info',
+        category='webhook',
+        action_name='InfinitePay webhook received',
+        request_method='POST',
+        request_path='/webhooks/infinitepay',
+        request_headers=dict(request.headers.items()),
+        request_body=payload,
+        source_system='infinitepay',
+        metadata={'integration': 'infinitepay'},
+    )
     order_nsu = str(payload.get('order_nsu') or '').strip()
     if not order_nsu:
         logger.warning('InfinitePay webhook missing order_nsu')
+        log_custom_event_safely(
+            level='warning',
+            category='webhook',
+            action_name='InfinitePay webhook invalid payload',
+            request_method='POST',
+            request_path='/webhooks/infinitepay',
+            request_body=payload,
+            response_status=400,
+            source_system='infinitepay',
+            error_message='order_nsu ausente',
+            metadata={'integration': 'infinitepay'},
+        )
         return {'success': False, 'message': 'order_nsu ausente'}
 
     order = db.query(Order).filter(Order.order_nsu == order_nsu).first()
     if not order:
         logger.warning('InfinitePay webhook order not found order_nsu=%s', order_nsu)
+        log_custom_event_safely(
+            level='warning',
+            category='webhook',
+            action_name='InfinitePay webhook order not found',
+            request_method='POST',
+            request_path='/webhooks/infinitepay',
+            request_body=payload,
+            response_status=404,
+            source_system='infinitepay',
+            entity_type='order',
+            entity_id=order_nsu,
+            error_message='pedido nao encontrado',
+            metadata={'integration': 'infinitepay'},
+        )
         return {'success': False, 'message': 'pedido nao encontrado'}
 
     transaction_nsu = str(payload.get('transaction_nsu') or '').strip() or None
@@ -65,5 +103,18 @@ async def infinitepay_webhook(request: Request, db: Session = Depends(get_db)):
     order.payment_metadata_json = build_payment_metadata(order.payment_metadata_json, event='webhook', payload=payload)
     db.add(order)
     db.commit()
+    log_custom_event_safely(
+        level='info',
+        category='webhook',
+        action_name='InfinitePay webhook processed',
+        request_method='POST',
+        request_path='/webhooks/infinitepay',
+        request_body=payload,
+        response_status=200,
+        source_system='infinitepay',
+        entity_type='order',
+        entity_id=order.id,
+        metadata={'integration': 'infinitepay', 'payment_status': order.payment_status, 'payment_method': order.payment_method},
+    )
 
     return {'success': True, 'message': None}

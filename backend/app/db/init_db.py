@@ -322,6 +322,12 @@ def _ensure_product_pricing_columns(session):
 def _ensure_store_settings_columns(session):
     required_columns = {
         'favicon_url': "VARCHAR(500)",
+        'logs_enabled': "BOOLEAN DEFAULT 1",
+        'logs_capture_request_body': "BOOLEAN DEFAULT 1",
+        'logs_capture_response_body': "BOOLEAN DEFAULT 0",
+        'logs_capture_integrations': "BOOLEAN DEFAULT 1",
+        'logs_capture_webhooks': "BOOLEAN DEFAULT 1",
+        'logs_min_level': "VARCHAR(20) DEFAULT 'info'",
         'instagram_enabled': "BOOLEAN DEFAULT 0",
         'instagram_app_id': "VARCHAR(120)",
         'instagram_app_secret': "VARCHAR(220)",
@@ -361,6 +367,93 @@ def _ensure_store_settings_columns(session):
                     f"{_normalize_postgres_column_ddl(column_ddl)}"
                 )
             )
+        session.commit()
+
+
+def _ensure_system_logs_table(session):
+    dialect = session.bind.dialect.name
+    if dialect == 'sqlite':
+        session.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS system_logs (
+                    id INTEGER PRIMARY KEY,
+                    level VARCHAR(20) NOT NULL DEFAULT 'info',
+                    category VARCHAR(40) NOT NULL DEFAULT 'http',
+                    action_name VARCHAR(160),
+                    request_method VARCHAR(10),
+                    request_path VARCHAR(500),
+                    request_query TEXT,
+                    request_headers_json TEXT DEFAULT '{}',
+                    request_body_json TEXT,
+                    response_status INTEGER,
+                    response_headers_json TEXT DEFAULT '{}',
+                    response_body_json TEXT,
+                    duration_ms REAL,
+                    response_size_bytes INTEGER,
+                    admin_user_id INTEGER,
+                    session_id VARCHAR(160),
+                    ip_address VARCHAR(120),
+                    user_agent VARCHAR(600),
+                    entity_type VARCHAR(80),
+                    entity_id VARCHAR(80),
+                    source_system VARCHAR(80),
+                    error_message TEXT,
+                    stack_trace TEXT,
+                    metadata_json TEXT DEFAULT '{}',
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY(admin_user_id) REFERENCES admin_users(id) ON DELETE SET NULL
+                )
+                """
+            )
+        )
+        session.execute(text("CREATE INDEX IF NOT EXISTS ix_system_logs_created_at ON system_logs(created_at)"))
+        session.execute(text("CREATE INDEX IF NOT EXISTS ix_system_logs_level ON system_logs(level)"))
+        session.execute(text("CREATE INDEX IF NOT EXISTS ix_system_logs_category ON system_logs(category)"))
+        session.execute(text("CREATE INDEX IF NOT EXISTS ix_system_logs_request_path ON system_logs(request_path)"))
+        session.execute(text("CREATE INDEX IF NOT EXISTS ix_system_logs_response_status ON system_logs(response_status)"))
+        session.commit()
+        return
+
+    if dialect.startswith('postgres'):
+        session.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS system_logs (
+                    id SERIAL PRIMARY KEY,
+                    level VARCHAR(20) NOT NULL DEFAULT 'info',
+                    category VARCHAR(40) NOT NULL DEFAULT 'http',
+                    action_name VARCHAR(160),
+                    request_method VARCHAR(10),
+                    request_path VARCHAR(500),
+                    request_query TEXT,
+                    request_headers_json TEXT DEFAULT '{}',
+                    request_body_json TEXT,
+                    response_status INTEGER,
+                    response_headers_json TEXT DEFAULT '{}',
+                    response_body_json TEXT,
+                    duration_ms DOUBLE PRECISION,
+                    response_size_bytes INTEGER,
+                    admin_user_id INTEGER REFERENCES admin_users(id) ON DELETE SET NULL,
+                    session_id VARCHAR(160),
+                    ip_address VARCHAR(120),
+                    user_agent VARCHAR(600),
+                    entity_type VARCHAR(80),
+                    entity_id VARCHAR(80),
+                    source_system VARCHAR(80),
+                    error_message TEXT,
+                    stack_trace TEXT,
+                    metadata_json TEXT DEFAULT '{}',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+                """
+            )
+        )
+        session.execute(text("CREATE INDEX IF NOT EXISTS ix_system_logs_created_at ON system_logs(created_at)"))
+        session.execute(text("CREATE INDEX IF NOT EXISTS ix_system_logs_level ON system_logs(level)"))
+        session.execute(text("CREATE INDEX IF NOT EXISTS ix_system_logs_category ON system_logs(category)"))
+        session.execute(text("CREATE INDEX IF NOT EXISTS ix_system_logs_request_path ON system_logs(request_path)"))
+        session.execute(text("CREATE INDEX IF NOT EXISTS ix_system_logs_response_status ON system_logs(response_status)"))
         session.commit()
 
 
@@ -667,6 +760,7 @@ def init_db() -> None:
         _ensure_coupon_columns(session)
         _ensure_product_pricing_columns(session)
         _ensure_store_settings_columns(session)
+        _ensure_system_logs_table(session)
         _ensure_user_events_columns(session)
         _ensure_ads_provider_config_columns(session)
         _ensure_admin_users_columns(session)
