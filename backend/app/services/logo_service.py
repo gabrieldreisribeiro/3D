@@ -1,16 +1,10 @@
-﻿import shutil
 from pathlib import Path
 
-from fastapi import HTTPException, UploadFile
+from fastapi import UploadFile
 
 from app.core.config import LOGO_UPLOADS_DIR
-from app.services.image_storage_service import delete_image_file_base64, persist_image_file_base64
-
-ALLOWED_CONTENT_TYPES = {
-    'image/jpeg': 'jpg',
-    'image/png': 'png',
-    'image/webp': 'webp',
-}
+from app.services.image_optimization_service import optimize_image_upload
+from app.services.image_storage_service import delete_image_file_base64
 
 
 def _logo_url_from_path(file_path: Path) -> str:
@@ -25,28 +19,24 @@ def get_public_logo_url() -> str | None:
     return _logo_url_from_path(current)
 
 
-def save_logo(file: UploadFile) -> str:
-    if file.content_type not in ALLOWED_CONTENT_TYPES:
-        raise HTTPException(status_code=400, detail='Formato invalido. Use jpg, png ou webp.')
-
-    extension = ALLOWED_CONTENT_TYPES[file.content_type]
-
-    for old_file in LOGO_UPLOADS_DIR.glob('site-logo.*'):
+def save_logo(file: UploadFile) -> dict:
+    for old_file in LOGO_UPLOADS_DIR.glob('site-logo*'):
         if old_file.is_file():
             old_url = f"/uploads/logo/{old_file.name}"
             old_file.unlink(missing_ok=True)
             delete_image_file_base64(old_url)
 
-    filename = f'site-logo.{extension}'
-    destination = LOGO_UPLOADS_DIR / filename
-
-    with destination.open('wb') as output:
-        shutil.copyfileobj(file.file, output)
-
-    persist_image_file_base64(
-        file_url=f"/uploads/logo/{filename}",
-        file_path=destination,
+    result = optimize_image_upload(
+        file=file,
+        target_dir=LOGO_UPLOADS_DIR,
+        url_prefix='/uploads/logo/',
         source='logo',
-        mime_type=file.content_type,
+        base_name='site-logo',
+        profile='logo',
     )
-    return _logo_url_from_path(destination)
+
+    # Keep legacy cache-busting behavior for header/logo consumers.
+    final_file = LOGO_UPLOADS_DIR / Path(result.url).name
+    response = result.to_response()
+    response['url'] = _logo_url_from_path(final_file)
+    return response

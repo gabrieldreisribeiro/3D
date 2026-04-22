@@ -13,6 +13,7 @@ import {
   createAdminBanner,
   deleteAdminBanner,
   fetchAdminBanners,
+  getOptimizedImageSources,
   resolveAssetUrl,
   updateAdminBanner,
   uploadAdminBannerImage,
@@ -46,6 +47,14 @@ function AdminBannersPage() {
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
   const previewUrl = useMemo(() => resolveAssetUrl(form.image_url) || form.image_url, [form.image_url]);
+  const previewSources = useMemo(
+    () =>
+      getOptimizedImageSources(form.image_url, {
+        variant: 'large',
+        sizes: '(max-width: 768px) 100vw, 960px',
+      }),
+    [form.image_url]
+  );
 
   const loadBanners = () => {
     setLoading(true);
@@ -233,7 +242,17 @@ function AdminBannersPage() {
                 <tr key={banner.id}>
                   <td>
                     <div className="flex items-center gap-3">
-                      <img className="h-14 w-24 rounded-[10px] border border-slate-200 object-cover" src={resolveAssetUrl(banner.image_url) || banner.image_url} alt={banner.title || 'Banner'} />
+                      <img
+                        className="h-14 w-24 rounded-[10px] border border-slate-200 object-cover"
+                        src={getOptimizedImageSources(banner.image_url, { variant: 'thumbnail', sizes: '96px' }).src || (resolveAssetUrl(banner.image_url) || banner.image_url)}
+                        srcSet={getOptimizedImageSources(banner.image_url, { variant: 'thumbnail', sizes: '96px' }).srcSet || undefined}
+                        sizes="96px"
+                        alt={banner.title || 'Banner'}
+                        loading="lazy"
+                        decoding="async"
+                        width="96"
+                        height="56"
+                      />
                       <div>
                         <strong className="block font-semibold text-slate-900">{banner.title || 'Sem titulo'}</strong>
                         <small className="text-xs text-slate-500">{banner.subtitle || 'Sem subtitulo'}</small>
@@ -327,7 +346,7 @@ function AdminBannersPage() {
 
           <label className="md:col-span-2 flex flex-col gap-1.5">
             <span className="text-xs font-medium uppercase tracking-wide text-slate-500">Upload de imagem</span>
-            <input className="h-11 rounded-[10px] border border-slate-200 bg-white px-3 text-sm text-slate-700" type="file" accept="image/png,image/jpeg,image/webp" onChange={uploadImage} />
+            <input className="h-11 rounded-[10px] border border-slate-200 bg-white px-3 text-sm text-slate-700" type="file" accept="image/png,image/jpeg,image/webp,image/gif" onChange={uploadImage} />
             {uploading ? <small className="text-xs text-slate-500">Enviando imagem...</small> : null}
           </label>
 
@@ -350,7 +369,19 @@ function AdminBannersPage() {
           </label>
 
           <div className="md:col-span-2 flex min-h-[180px] items-center justify-center rounded-xl border border-slate-200 bg-slate-50 p-4">
-            {previewUrl ? <img className="h-full max-h-[240px] w-full rounded-[10px] object-cover" src={previewUrl} alt="Preview" /> : <span className="text-sm text-slate-500">Preview do banner</span>}
+            {previewUrl ? (
+              <img
+                className="h-full max-h-[240px] w-full rounded-[10px] object-cover"
+                src={previewSources.src || previewUrl}
+                srcSet={previewSources.srcSet || undefined}
+                sizes={previewSources.srcSet ? '(max-width: 768px) 100vw, 960px' : undefined}
+                alt="Preview"
+                loading="lazy"
+                decoding="async"
+                width="1200"
+                height="675"
+              />
+            ) : <span className="text-sm text-slate-500">Preview do banner</span>}
           </div>
 
           {error ? <p className="md:col-span-2 text-sm text-rose-600">{error}</p> : null}

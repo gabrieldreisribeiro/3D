@@ -7,6 +7,7 @@ import Select from '../components/ui/Select';
 import {
   downloadAdminUploadsZip,
   fetchAdminUploadFiles,
+  getOptimizedImageSources,
   renameAdminUploadFile,
   resolveAssetUrl,
   uploadAdminFiles,
@@ -73,8 +74,14 @@ function AdminUploadsPage() {
     setNotice('');
     try {
       const response = await uploadAdminFiles(targetFolder, selected);
-      const count = Array.isArray(response?.items) ? response.items.length : 0;
-      setNotice(`${count} arquivo(s) enviado(s) para ${targetFolder}.`);
+      const uploadedItems = Array.isArray(response?.items) ? response.items : [];
+      const count = uploadedItems.length;
+      const animatedCount = uploadedItems.filter((item) => Boolean(item?.is_animated)).length;
+      const optimizedCount = uploadedItems.filter((item) => !item?.is_animated && item?.optimized_format === 'webp').length;
+      setNotice(
+        `${count} arquivo(s) enviado(s) para ${targetFolder}. `
+        + `${optimizedCount} imagem(ns) otimizadas e ${animatedCount} GIF(s) animado(s) preservado(s).`
+      );
       loadFiles(folder);
     } catch (uploadError) {
       setError(uploadError.message || 'Falha ao enviar arquivos.');
@@ -176,14 +183,23 @@ function AdminUploadsPage() {
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
                 {groupItems.map((item) => {
                   const key = `${item.folder}/${item.name}`;
+                  const imageSources = getOptimizedImageSources(item.url, {
+                    variant: 'thumbnail',
+                    sizes: '(max-width: 640px) 100vw, 320px',
+                  });
                   return (
                     <article key={key} className="space-y-2 rounded-xl border border-slate-200 bg-white p-3">
                       <div className="aspect-video overflow-hidden rounded-lg border border-slate-200 bg-slate-100">
                         <img
-                          src={resolveAssetUrl(item.url)}
+                          src={imageSources.src || resolveAssetUrl(item.url)}
+                          srcSet={imageSources.srcSet || undefined}
+                          sizes={imageSources.srcSet ? '(max-width: 640px) 100vw, 320px' : undefined}
                           alt={item.name}
                           className="h-full w-full object-cover"
                           loading="lazy"
+                          decoding="async"
+                          width="320"
+                          height="180"
                         />
                       </div>
                       <p className="truncate text-xs text-slate-700" title={item.name}>{item.name}</p>

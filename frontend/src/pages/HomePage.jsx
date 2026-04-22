@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-do
 import Button from '../components/ui/Button';
 import Modal from '../components/ui/Modal';
 import ProductCard from '../components/ProductCard';
-import { fetchCategories, fetchMostOrderedProducts, fetchProducts, fetchPublicBanners, resolveAssetUrl, trackEvent } from '../services/api';
+import { fetchCategories, fetchMostOrderedProducts, fetchProducts, fetchPublicBanners, getOptimizedImageSources, resolveAssetUrl, trackEvent } from '../services/api';
 import { useCart } from '../services/cart';
 
 const fallbackSlides = [
@@ -181,6 +181,14 @@ function HomePage() {
   }, [isFiltersModalOpen]);
 
   const visibleBanner = banners[currentBanner] || fallbackSlides[0];
+  const visibleBannerSources = useMemo(
+    () =>
+      getOptimizedImageSources(visibleBanner?.image_url, {
+        variant: 'large',
+        sizes: '(max-width: 768px) 100vw, 1400px',
+      }),
+    [visibleBanner?.image_url]
+  );
   const mostOrderedProducts = useMemo(() => mostOrdered.slice(0, 4), [mostOrdered]);
 
   const chips = [
@@ -214,9 +222,16 @@ function HomePage() {
       <section className="overflow-hidden rounded-[16px] border border-[#E6EAF0] bg-white shadow-sm">
         <div className="relative min-h-[300px] sm:min-h-[360px]">
           <img
-            src={visibleBanner.image_url}
+            src={visibleBannerSources.src || visibleBanner.image_url}
+            srcSet={visibleBannerSources.srcSet || undefined}
+            sizes={visibleBannerSources.srcSet ? '(max-width: 768px) 100vw, 1400px' : undefined}
             alt={visibleBanner.title}
             className="absolute inset-0 h-full w-full object-cover"
+            loading="eager"
+            fetchPriority="high"
+            decoding="async"
+            width="1600"
+            height="700"
           />
           <div className="absolute inset-0 bg-gradient-to-r from-slate-900/70 via-slate-900/30 to-transparent" />
 

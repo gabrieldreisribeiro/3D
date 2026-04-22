@@ -1249,6 +1249,60 @@ def _ensure_product_3d_models_product_nullable(session):
         session.commit()
 
 
+def _ensure_uploaded_images_columns(session):
+    required_columns = {
+        'mime_type': 'VARCHAR(120)',
+        'original_url': 'VARCHAR(500)',
+        'thumbnail_url': 'VARCHAR(500)',
+        'medium_url': 'VARCHAR(500)',
+        'large_url': 'VARCHAR(500)',
+        'is_animated': 'BOOLEAN DEFAULT 0',
+        'optimized_format': 'VARCHAR(20)',
+        'source': "VARCHAR(60) DEFAULT 'unknown'",
+        'size_bytes': 'INTEGER DEFAULT 0',
+        'base64_data': "TEXT DEFAULT ''",
+        'created_at': 'DATETIME DEFAULT CURRENT_TIMESTAMP',
+    }
+    dialect = session.bind.dialect.name
+    if dialect == 'sqlite':
+        table = session.execute(
+            text("SELECT name FROM sqlite_master WHERE type='table' AND name='uploaded_images'")
+        ).fetchone()
+        if not table:
+            return
+        columns = session.execute(text("PRAGMA table_info('uploaded_images')")).fetchall()
+        names = {column[1] for column in columns}
+        changed = False
+        for column_name, column_ddl in required_columns.items():
+            if column_name not in names:
+                sqlite_ddl = (
+                    column_ddl
+                    .replace('TIMESTAMP', 'DATETIME')
+                    .replace('BOOLEAN DEFAULT TRUE', 'BOOLEAN DEFAULT 1')
+                    .replace('BOOLEAN DEFAULT FALSE', 'BOOLEAN DEFAULT 0')
+                )
+                session.execute(text(f"ALTER TABLE uploaded_images ADD COLUMN {column_name} {sqlite_ddl}"))
+                changed = True
+        if changed:
+            session.commit()
+    elif dialect.startswith('postgres'):
+        for column_name, column_ddl in required_columns.items():
+            session.execute(
+                text(
+                    f"ALTER TABLE uploaded_images ADD COLUMN IF NOT EXISTS {column_name} "
+                    f"{_normalize_postgres_column_ddl(column_ddl)}"
+                )
+            )
+        session.commit()
+    else:
+        return
+
+    session.execute(text("UPDATE uploaded_images SET source = COALESCE(NULLIF(source, ''), 'unknown')"))
+    session.execute(text("UPDATE uploaded_images SET size_bytes = COALESCE(size_bytes, 0)"))
+    session.execute(text("UPDATE uploaded_images SET is_animated = COALESCE(is_animated, FALSE)"))
+    session.commit()
+
+
 def _sync_postgres_sequences(session):
     if not session.bind.dialect.name.startswith('postgres'):
         return
@@ -1354,6 +1408,7 @@ def init_db() -> None:
         _ensure_order_flow_tables(session)
         _ensure_product_3d_models_columns(session)
         _ensure_product_3d_models_product_nullable(session)
+        _ensure_uploaded_images_columns(session)
         _ensure_infinitepay_config_table(session)
         _sync_postgres_sequences(session)
         if SEED_SAMPLE_DATA:

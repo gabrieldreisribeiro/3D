@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import RatingPill from './RatingPill';
 import Button from './ui/Button';
-import { resolveAssetUrl, trackEvent } from '../services/api';
+import { getOptimizedImageSources, resolveAssetUrl, trackEvent } from '../services/api';
 
 function ProductCard({ product, onAdd, highlightLabel = '', compact = false }) {
   const location = useLocation();
@@ -11,7 +11,11 @@ function ProductCard({ product, onAdd, highlightLabel = '', compact = false }) {
   const [isAdding, setIsAdding] = useState(false);
   const price = Number(product.final_price ?? product.price ?? 0);
   const originalPrice = Number(product.original_price ?? product.price ?? product.final_price ?? 0);
-  const coverImageUrl = resolveAssetUrl(product.cover_image) || product.cover_image || '';
+  const coverImageSources = getOptimizedImageSources(product.cover_image, {
+    variant: 'medium',
+    sizes: '(max-width: 640px) 100vw, (max-width: 1200px) 50vw, 33vw',
+  });
+  const coverImageUrl = coverImageSources.src || resolveAssetUrl(product.cover_image) || product.cover_image || '';
   const hasSubItems = (product.sub_items || []).length > 0;
   const isOnSale = Boolean(product.is_on_sale && originalPrice > price);
   const ratingCount = Number(product.rating_count || 0);
@@ -54,7 +58,17 @@ function ProductCard({ product, onAdd, highlightLabel = '', compact = false }) {
     <article className={`product-card-pro ${compact ? 'product-card-pro-compact' : ''}`}>
       <Link to={productLink} className="product-card-image-link" onClick={handleProductClick}>
         <div className="product-card-image-wrap">
-          <div className="product-card-image" style={{ backgroundImage: `url(${coverImageUrl})` }} />
+          <img
+            src={coverImageUrl}
+            srcSet={coverImageSources.srcSet || undefined}
+            sizes={coverImageSources.srcSet ? '(max-width: 640px) 100vw, (max-width: 1200px) 50vw, 33vw' : undefined}
+            alt={product.title || 'Produto'}
+            className="product-card-image h-full w-full object-cover"
+            loading="lazy"
+            decoding="async"
+            width="640"
+            height="480"
+          />
           {badgeLabel ? <span className="product-card-badge">{badgeLabel}</span> : null}
         </div>
       </Link>

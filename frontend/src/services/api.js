@@ -175,6 +175,66 @@ export function resolveAssetUrl(url) {
   return `${API_BASE}${url}`;
 }
 
+function splitAssetUrl(url) {
+  const raw = String(url || '').trim();
+  if (!raw) return { base: '', suffix: '' };
+  const queryIndex = raw.indexOf('?');
+  const hashIndex = raw.indexOf('#');
+  const cutIndex = [queryIndex, hashIndex].filter((value) => value >= 0).sort((a, b) => a - b)[0];
+  if (cutIndex == null) return { base: raw, suffix: '' };
+  return {
+    base: raw.slice(0, cutIndex),
+    suffix: raw.slice(cutIndex),
+  };
+}
+
+function isAnimatedGifUrl(url) {
+  const { base } = splitAssetUrl(url);
+  return /\.gif$/i.test(base);
+}
+
+function withImageVariant(url, variant = 'large') {
+  const { base, suffix } = splitAssetUrl(url);
+  if (!base || isAnimatedGifUrl(base)) return url;
+  const variantSuffix = variant === 'thumbnail' ? '__thumb' : variant === 'medium' ? '__medium' : '__large';
+  const normalized = base.replace(/__(thumb|medium|large|orig)(?=\.[^./]+$)/i, '');
+  const extMatch = normalized.match(/(\.[^./]+)$/);
+  if (!extMatch) return url;
+  const ext = extMatch[1];
+  const stem = normalized.slice(0, -ext.length);
+  return `${stem}${variantSuffix}${ext}${suffix}`;
+}
+
+export function resolveOptimizedAssetUrl(url, variant = 'large') {
+  if (!url) return null;
+  const selected = withImageVariant(url, variant);
+  return resolveAssetUrl(selected) || selected;
+}
+
+export function getOptimizedImageSources(url, options = {}) {
+  const variant = options.variant || 'large';
+  const sizes = options.sizes || '(max-width: 768px) 100vw, 50vw';
+  if (!url) {
+    return { src: '', srcSet: '', sizes, isAnimated: false };
+  }
+  if (isAnimatedGifUrl(url)) {
+    const src = resolveAssetUrl(url) || url;
+    return { src, srcSet: '', sizes, isAnimated: true };
+  }
+  const thumbnail = resolveOptimizedAssetUrl(url, 'thumbnail');
+  const medium = resolveOptimizedAssetUrl(url, 'medium');
+  const large = resolveOptimizedAssetUrl(url, variant);
+  const srcSet = [thumbnail ? `${thumbnail} 400w` : '', medium ? `${medium} 800w` : '', large ? `${large} 1200w` : '']
+    .filter(Boolean)
+    .join(', ');
+  return {
+    src: large || medium || thumbnail || resolveAssetUrl(url) || url,
+    srcSet,
+    sizes,
+    isAnimated: false,
+  };
+}
+
 export function fetchPublicLogo() {
   return request('/public/logo');
 }

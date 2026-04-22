@@ -15,6 +15,7 @@ from app.core.config import (
 )
 from app.core.security import require_admin
 from app.models import AdminUser
+from app.services.image_optimization_service import optimize_image_upload
 from app.services.image_storage_service import delete_image_file_base64, persist_image_file_base64
 
 router = APIRouter(prefix='/admin/uploads', tags=['admin-uploads'])
@@ -43,6 +44,25 @@ def _resolve_folder(folder: str) -> tuple[Path, str, str]:
     return FOLDER_MAP[key]
 
 
+def _normalized_asset_base(name: str) -> str:
+    stem = Path(str(name or '')).stem
+    return re.sub(r'__(thumb|medium|large|orig)$', '', stem, flags=re.IGNORECASE)
+
+
+def _build_variant_rename_pairs(folder_path: Path, old_base: str, new_base: str) -> list[tuple[Path, Path]]:
+    pairs: list[tuple[Path, Path]] = []
+    pattern = re.compile(rf'^{re.escape(old_base)}(__(thumb|medium|large|orig)\.[^.]+)$', re.IGNORECASE)
+    for file_path in folder_path.iterdir():
+        if not file_path.is_file():
+            continue
+        matched = pattern.match(file_path.name)
+        if not matched:
+            continue
+        suffix = matched.group(1)
+        pairs.append((file_path, folder_path / f'{new_base}{suffix}'))
+    return pairs
+
+
 def _list_folder_files(folder_key: str) -> list[dict]:
     folder_path, url_prefix, _source = _resolve_folder(folder_key)
     if not folder_path.exists():
@@ -53,6 +73,9 @@ def _list_folder_files(folder_key: str) -> list[dict]:
             continue
         ext = file_path.suffix.lower()
         if ext not in ALLOWED_EXTENSIONS:
+            continue
+        lower_name = file_path.name.lower()
+        if '__thumb.' in lower_name or '__medium.' in lower_name or '__large.' in lower_name or '__orig.' in lower_name:
             continue
         items.append(
             {
@@ -105,18 +128,42 @@ async def upload_files(
             destination = folder_path / candidate_name
             counter += 1
 
+        if folder != 'reviews-videos':
+            optimized = optimize_image_upload(
+                file=incoming,
+                target_dir=folder_path,
+                url_prefix=url_prefix,
+                source=source,
+                base_name=Path(candidate_name).stem,
+                profile='banner' if folder == 'banners' else ('logo' if folder == 'logo' else 'product'),
+            ).to_response()
+            uploaded.append(
+                {
+                    'folder': folder,
+                    'name': Path(optimized['url']).name,
+                    'size_bytes': int(optimized.get('optimized_size_bytes') or 0),
+                    'url': optimized['url'],
+                    'original_url': optimized.get('original_url'),
+                    'thumbnail_url': optimized.get('thumbnail_url'),
+                    'medium_url': optimized.get('medium_url'),
+                    'large_url': optimized.get('large_url'),
+                    'mime_type': optimized.get('mime_type'),
+                    'is_animated': bool(optimized.get('is_animated')),
+                    'optimized_format': optimized.get('optimized_format'),
+                    'optimization_note': (
+                        'GIF animado preservado.'
+                        if bool(optimized.get('is_animated'))
+                        else 'Imagem otimizada automaticamente (WebP + variantes).'
+                    ),
+                }
+            )
+            continue
+
         content = await incoming.read()
         destination.write_bytes(content)
         file_url = f'{url_prefix}{destination.name}'
-        persist_image_file_base64(file_url=file_url, file_path=destination, source=source)
-        uploaded.append(
-            {
-                'folder': folder,
-                'name': destination.name,
-                'size_bytes': destination.stat().st_size,
-                'url': file_url,
-            }
-        )
+        persist_image_file_base64(file_url=file_url, file_path=destination, source=source, mime_type=incoming.content_type)
+        uploaded.append({'folder': folder, 'name': destination.name, 'size_bytes': destination.stat().st_size, 'url': file_url})
 
     return {'items': uploaded}
 
@@ -149,11 +196,27 @@ def rename_file(
         target_file = folder_path / target_name
         counter += 1
 
-    current_file.rename(target_file)
-    old_url = f'{url_prefix}{current_file.name}'
-    new_url = f'{url_prefix}{target_file.name}'
-    delete_image_file_base64(old_url)
-    persist_image_file_base64(file_url=new_url, file_path=target_file, source=source)
+    old_base = _normalized_asset_base(current_file.name)
+    new_base = Path(target_name).stem
+    rename_pairs = [(current_file, target_file), *_build_variant_rename_pairs(folder_path, old_base, new_base)]
+
+    source_paths = {str(src.resolve()) for src, _dst in rename_pairs}
+    for _src, destination in rename_pairs:
+        destination_path = destination.resolve()
+        if destination.exists() and str(destination_path) not in source_paths:
+            raise HTTPException(status_code=409, detail='Ja existe arquivo com o nome solicitado.')
+
+    for source_path, destination in rename_pairs:
+        if source_path.resolve() == destination.resolve():
+            continue
+        source_path.rename(destination)
+
+    for old_path, new_path in rename_pairs:
+        old_url = f'{url_prefix}{old_path.name}'
+        new_url = f'{url_prefix}{new_path.name}'
+        if old_url != new_url:
+            delete_image_file_base64(old_url)
+        persist_image_file_base64(file_url=new_url, file_path=new_path, source=source)
 
     return {
         'item': {

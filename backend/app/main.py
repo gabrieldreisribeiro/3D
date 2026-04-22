@@ -136,6 +136,14 @@ async def http_logging_middleware(request: Request, call_next):
         raise
 
 
+@app.middleware('http')
+async def uploads_cache_middleware(request: Request, call_next):
+    response = await call_next(request)
+    if request.url.path.startswith('/uploads/'):
+        response.headers['Cache-Control'] = 'public, max-age=31536000, immutable'
+    return response
+
+
 @app.get('/')
 def root():
     return {'status': 'ok', 'service': '3D Marketplace API'}

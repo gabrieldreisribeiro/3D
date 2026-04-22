@@ -20,6 +20,7 @@ import {
   fetchAdminInstagramSettings,
   fetchAdminProducts,
   fetchAdminCategories,
+  getOptimizedImageSources,
   publishAdminProductInstagram,
   setAdminProduct3DModelStatus,
   setAdminProductStatus,
@@ -488,6 +489,14 @@ const PRODUCT_WIZARD_STEPS = [
 
 function ImagePreviewThumb({ src, alt, className = '' }) {
   const [hasError, setHasError] = useState(false);
+  const optimizedSources = useMemo(
+    () =>
+      getOptimizedImageSources(src, {
+        variant: 'thumbnail',
+        sizes: '(max-width: 768px) 45vw, 260px',
+      }),
+    [src]
+  );
 
   useEffect(() => {
     setHasError(false);
@@ -512,11 +521,16 @@ function ImagePreviewThumb({ src, alt, className = '' }) {
 
   return (
     <img
-      src={src}
+      src={optimizedSources.src || src}
+      srcSet={optimizedSources.srcSet || undefined}
+      sizes={optimizedSources.srcSet ? '(max-width: 768px) 45vw, 260px' : undefined}
       alt={alt}
       onError={() => setHasError(true)}
       className={`h-28 w-full rounded-xl border border-slate-200 object-cover ${className}`.trim()}
       loading="lazy"
+      decoding="async"
+      width="400"
+      height="300"
     />
   );
 }
@@ -1781,7 +1795,7 @@ function AdminProductsPage() {
             <input
               className="h-11 rounded-[10px] border border-slate-200 bg-white px-3 text-sm text-slate-700"
               type="file"
-              accept="image/png,image/jpeg,image/webp"
+              accept="image/png,image/jpeg,image/webp,image/gif"
               onChange={(event) => uploadCoverFile(event.target.files?.[0] || null)}
             />
             <small className="text-xs text-slate-500">Voce pode colar URL, enviar arquivo ou colar imagem com Ctrl+V no campo URL.</small>
@@ -1828,7 +1842,7 @@ function AdminProductsPage() {
             <input
               className="h-11 rounded-[10px] border border-slate-200 bg-white px-3 text-sm text-slate-700"
               type="file"
-              accept="image/png,image/jpeg,image/webp"
+              accept="image/png,image/jpeg,image/webp,image/gif"
               multiple
               onChange={(event) => {
                 void uploadExtraImageFiles(event.target.files);
@@ -2229,7 +2243,7 @@ function AdminProductsPage() {
                       <input
                         className="h-11 rounded-[10px] border border-slate-200 bg-white px-3 text-sm text-slate-700"
                         type="file"
-                        accept="image/png,image/jpeg,image/webp"
+                        accept="image/png,image/jpeg,image/webp,image/gif"
                         onChange={(event) => uploadSubItemFile(index, event.target.files?.[0] || null)}
                       />
                       <small className="text-xs text-slate-500">Voce pode colar URL, enviar arquivo ou colar imagem com Ctrl+V no campo URL.</small>

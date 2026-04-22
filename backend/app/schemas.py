@@ -846,6 +846,15 @@ class AdminDashboardSummary(BaseModel):
 
 class LogoResponse(BaseModel):
     url: Optional[str]
+    original_url: Optional[str] = None
+    thumbnail_url: Optional[str] = None
+    medium_url: Optional[str] = None
+    large_url: Optional[str] = None
+    mime_type: Optional[str] = None
+    is_animated: Optional[bool] = None
+    optimized_format: Optional[str] = None
+    original_size_bytes: Optional[int] = None
+    optimized_size_bytes: Optional[int] = None
 
 
 class StoreSettingsBase(BaseModel):

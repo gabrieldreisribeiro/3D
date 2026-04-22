@@ -1,39 +1,18 @@
-import shutil
-from pathlib import Path
 from uuid import uuid4
 
-from fastapi import HTTPException, UploadFile
+from fastapi import UploadFile
 
 from app.core.config import PRODUCT_UPLOADS_DIR
-from app.services.image_storage_service import persist_image_file_base64
-
-ALLOWED_CONTENT_TYPES = {
-    'image/jpeg': 'jpg',
-    'image/png': 'png',
-    'image/webp': 'webp',
-}
+from app.services.image_optimization_service import optimize_image_upload
 
 
-def _product_image_url(file_path: Path) -> str:
-    return f"/uploads/products/{file_path.name}"
-
-
-def save_product_image(file: UploadFile) -> str:
-    if file.content_type not in ALLOWED_CONTENT_TYPES:
-        raise HTTPException(status_code=400, detail='Formato invalido. Use jpg, png ou webp.')
-
-    extension = ALLOWED_CONTENT_TYPES[file.content_type]
-    filename = f'product-{uuid4().hex}.{extension}'
-    destination = PRODUCT_UPLOADS_DIR / filename
-
-    with destination.open('wb') as output:
-        shutil.copyfileobj(file.file, output)
-
-    file_url = _product_image_url(destination)
-    persist_image_file_base64(
-        file_url=file_url,
-        file_path=destination,
+def save_product_image(file: UploadFile) -> dict:
+    result = optimize_image_upload(
+        file=file,
+        target_dir=PRODUCT_UPLOADS_DIR,
+        url_prefix='/uploads/products/',
         source='product',
-        mime_type=file.content_type,
+        base_name=f'product-{uuid4().hex}',
+        profile='product',
     )
-    return file_url
+    return result.to_response()

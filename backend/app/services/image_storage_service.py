@@ -10,6 +10,7 @@ MIME_BY_SUFFIX = {
     '.jpeg': 'image/jpeg',
     '.png': 'image/png',
     '.webp': 'image/webp',
+    '.gif': 'image/gif',
 }
 
 
@@ -23,6 +24,12 @@ def persist_image_file_base64(
     file_path: Path,
     source: str,
     mime_type: str | None = None,
+    original_url: str | None = None,
+    thumbnail_url: str | None = None,
+    medium_url: str | None = None,
+    large_url: str | None = None,
+    is_animated: bool | None = None,
+    optimized_format: str | None = None,
 ) -> None:
     if not file_path.exists() or not file_path.is_file():
         return
@@ -41,6 +48,18 @@ def persist_image_file_base64(
         item.source = source
         item.size_bytes = len(raw_bytes)
         item.base64_data = encoded
+        if hasattr(item, 'original_url'):
+            item.original_url = original_url
+        if hasattr(item, 'thumbnail_url'):
+            item.thumbnail_url = thumbnail_url
+        if hasattr(item, 'medium_url'):
+            item.medium_url = medium_url
+        if hasattr(item, 'large_url'):
+            item.large_url = large_url
+        if hasattr(item, 'is_animated') and is_animated is not None:
+            item.is_animated = bool(is_animated)
+        if hasattr(item, 'optimized_format'):
+            item.optimized_format = optimized_format
         session.add(item)
         session.commit()
     except Exception:  # noqa: BLE001
@@ -80,6 +99,9 @@ def _iter_image_files() -> list[tuple[Path, str, str]]:
             if not file_path.is_file():
                 continue
             if file_path.suffix.lower() not in MIME_BY_SUFFIX:
+                continue
+            lower_name = file_path.name.lower()
+            if '__thumb.' in lower_name or '__medium.' in lower_name or '__large.' in lower_name or '__orig.' in lower_name:
                 continue
             file_url = f'{url_prefix}{file_path.name}'
             items.append((file_path, source, file_url))

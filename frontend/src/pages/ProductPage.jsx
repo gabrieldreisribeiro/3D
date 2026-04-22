@@ -13,6 +13,7 @@ import {
   fetchProductReviews,
   fetchProductReviewSummary,
   fetchProducts,
+  getOptimizedImageSources,
   resolveAssetUrl,
   trackEvent,
 } from '../services/api';
@@ -125,6 +126,10 @@ function resolveImageUrl(url) {
   const normalized = String(url || '').trim();
   if (!normalized) return '';
   return resolveAssetUrl(normalized) || normalized;
+}
+
+function resolveImageSources(url, variant = 'medium', sizes = '(max-width: 768px) 50vw, 320px') {
+  return getOptimizedImageSources(resolveImageUrl(url), { variant, sizes });
 }
 
 function formatReviewDate(value) {
@@ -726,9 +731,29 @@ function ProductPage() {
                       <div className="flex min-w-0 flex-1 items-center gap-2">
                         {item.image_url ? (
                           <div className="subitem-image-zoom-wrap">
-                            <img src={resolveImageUrl(item.image_url)} alt={item.title} className="subitem-image-zoom" />
+                            <img
+                              src={resolveImageSources(item.image_url, 'thumbnail', '112px').src || resolveImageUrl(item.image_url)}
+                              srcSet={resolveImageSources(item.image_url, 'thumbnail', '112px').srcSet || undefined}
+                              sizes="112px"
+                              alt={item.title}
+                              className="subitem-image-zoom"
+                              loading="lazy"
+                              decoding="async"
+                              width="112"
+                              height="112"
+                            />
                             <div className="subitem-image-zoom-pop" aria-hidden="true">
-                              <img src={resolveImageUrl(item.image_url)} alt={item.title} className="subitem-image-zoom-pop-img" />
+                              <img
+                                src={resolveImageSources(item.image_url, 'large', '420px').src || resolveImageUrl(item.image_url)}
+                                srcSet={resolveImageSources(item.image_url, 'large', '420px').srcSet || undefined}
+                                sizes="420px"
+                                alt={item.title}
+                                className="subitem-image-zoom-pop-img"
+                                loading="lazy"
+                                decoding="async"
+                                width="420"
+                                height="420"
+                              />
                             </div>
                           </div>
                         ) : null}
@@ -1186,15 +1211,23 @@ function ProductPage() {
 
             {reviewPhotos.length ? (
               <div className="flex flex-wrap gap-2">
-                {reviewPhotos.map((photo, index) => (
-                  <img
-                    key={`review-photo-${index}`}
-                    src={photo}
-                    alt={`Foto de cliente ${index + 1}`}
-                    className="h-16 w-16 rounded-xl border border-slate-200 bg-white object-cover"
-                    loading="lazy"
-                  />
-                ))}
+                {reviewPhotos.map((photo, index) => {
+                  const sources = resolveImageSources(photo, 'thumbnail', '64px');
+                  return (
+                    <img
+                      key={`review-photo-${index}`}
+                      src={sources.src || photo}
+                      srcSet={sources.srcSet || undefined}
+                      sizes="64px"
+                      alt={`Foto de cliente ${index + 1}`}
+                      className="h-16 w-16 rounded-xl border border-slate-200 bg-white object-cover"
+                      loading="lazy"
+                      decoding="async"
+                      width="64"
+                      height="64"
+                    />
+                  );
+                })}
               </div>
             ) : (
               <p className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-500">
@@ -1250,15 +1283,23 @@ function ProductPage() {
 
                     {(review.photos || []).length ? (
                       <div className="mt-3 flex flex-wrap gap-2">
-                        {(review.photos || []).slice(0, 4).map((photo, photoIndex) => (
-                          <img
-                            key={`${review.id}-photo-${photoIndex}`}
-                            src={resolveImageUrl(photo)}
-                            alt={`Foto enviada por ${review.author_name}`}
-                            className="h-14 w-14 rounded-lg border border-slate-200 object-cover"
-                            loading="lazy"
-                          />
-                        ))}
+                        {(review.photos || []).slice(0, 4).map((photo, photoIndex) => {
+                          const sources = resolveImageSources(photo, 'thumbnail', '56px');
+                          return (
+                            <img
+                              key={`${review.id}-photo-${photoIndex}`}
+                              src={sources.src || resolveImageUrl(photo)}
+                              srcSet={sources.srcSet || undefined}
+                              sizes="56px"
+                              alt={`Foto enviada por ${review.author_name}`}
+                              className="h-14 w-14 rounded-lg border border-slate-200 object-cover"
+                              loading="lazy"
+                              decoding="async"
+                              width="56"
+                              height="56"
+                            />
+                          );
+                        })}
                       </div>
                     ) : null}
 

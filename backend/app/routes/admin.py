@@ -501,8 +501,8 @@ def upload_logo(
     file: UploadFile = File(...),
     _: AdminUser = Depends(require_admin),
 ):
-    url = save_logo(file)
-    return LogoResponse(url=url)
+    payload = save_logo(file)
+    return LogoResponse(**payload)
 
 
 @router.get('/settings', response_model=StoreSettingsResponse)
@@ -721,12 +721,12 @@ def test_meta_pixel_config(_: AdminUser = Depends(require_admin), db: Session = 
 
 @router.post('/banners/upload-image', response_model=LogoResponse)
 def upload_banner_image(file: UploadFile = File(...), _: AdminUser = Depends(require_admin)):
-    return LogoResponse(url=save_banner_image(file))
+    return LogoResponse(**save_banner_image(file))
 
 
 @router.post('/products/upload-image', response_model=LogoResponse)
 def upload_product_image(file: UploadFile = File(...), _: AdminUser = Depends(require_admin)):
-    return LogoResponse(url=save_product_image(file))
+    return LogoResponse(**save_product_image(file))
 
 
 @router.post('/products/3d/upload-original', response_model=Product3DModelUploadResponse)
