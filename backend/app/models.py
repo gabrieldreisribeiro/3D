@@ -106,7 +106,19 @@ class Order(Base):
     customer_name = Column(String(120), nullable=True)
     coupon_code = Column(String(60), nullable=True)
     payment_status = Column(String(20), nullable=False, default='pending')
+    payment_provider = Column(String(40), nullable=True)
     payment_method = Column(String(30), nullable=True)
+    sales_channel = Column(String(30), nullable=False, default='whatsapp')
+    order_nsu = Column(String(120), nullable=True, index=True)
+    invoice_slug = Column(String(160), nullable=True, index=True)
+    transaction_nsu = Column(String(160), nullable=True, index=True)
+    receipt_url = Column(String(600), nullable=True)
+    checkout_url = Column(String(600), nullable=True)
+    capture_method = Column(String(40), nullable=True)
+    paid_amount = Column(Float, nullable=True)
+    installments = Column(Integer, nullable=True)
+    paid_at = Column(DateTime, nullable=True)
+    payment_metadata_json = Column(Text, nullable=False, default='{}')
     subtotal = Column(Float, nullable=False)
     discount = Column(Float, nullable=False)
     total = Column(Float, nullable=False)
@@ -370,3 +382,19 @@ class PromotionProduct(Base):
 
     promotion = relationship('Promotion', back_populates='product_links')
     product = relationship('Product', back_populates='promotion_links')
+
+
+class PaymentProviderInfinitePayConfig(Base):
+    __tablename__ = 'payment_provider_infinitepay_config'
+
+    id = Column(Integer, primary_key=True, index=True, default=1)
+    is_enabled = Column(Boolean, nullable=False, default=False)
+    handle = Column(String(120), nullable=True)
+    redirect_url = Column(String(500), nullable=True)
+    webhook_url = Column(String(500), nullable=True)
+    default_currency = Column(String(10), nullable=False, default='BRL')
+    success_page_url = Column(String(500), nullable=True)
+    cancel_page_url = Column(String(500), nullable=True)
+    test_mode = Column(Boolean, nullable=False, default=False)
+    created_at = Column(DateTime, nullable=False, server_default=func.now())
+    updated_at = Column(DateTime, nullable=False, server_default=func.now(), onupdate=func.now())

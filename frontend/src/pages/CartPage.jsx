@@ -7,7 +7,14 @@ import EmptyState from '../components/ui/EmptyState';
 import Input from '../components/ui/Input';
 import SectionHeader from '../components/ui/SectionHeader';
 import { WHATSAPP_NUMBER } from '../config/endpoints';
-import { createOrder, fetchPublicLogo, fetchPublicSettings, resolveAssetUrl, trackEvent } from '../services/api';
+import {
+  createInfinitePayCheckout,
+  createOrder,
+  fetchPublicLogo,
+  fetchPublicSettings,
+  resolveAssetUrl,
+  trackEvent,
+} from '../services/api';
 import { getLogoSizeConfig, getLogoSizeKey } from '../services/logoSettings';
 import { useCart } from '../services/cart';
 
@@ -46,7 +53,7 @@ function CartPage() {
   const [customerName, setCustomerName] = useState('');
   const [loading, setLoading] = useState(false);
   const [pendingLoading, setPendingLoading] = useState(false);
-  const [paidLoading, setPaidLoading] = useState(false);
+  const [onlineLoading, setOnlineLoading] = useState(false);
   const [pdfLoading, setPdfLoading] = useState(false);
   const [showPixBox, setShowPixBox] = useState(false);
   const [storeSettings, setStoreSettings] = useState({ whatsapp_number: '', pix_key: '' });
@@ -309,25 +316,41 @@ function CartPage() {
     }
   };
 
-  const handleCheckout = async (paymentStatus) => {
-    const isPaid = paymentStatus === 'paid';
+  const buildOrderPayload = ({ paymentStatus, paymentMethod }) => ({
+    items: items.map((item) => ({
+      slug: item.slug,
+      quantity: item.quantity,
+      unit_price: getItemPrice(item),
+      selected_color: item.selected_color || null,
+      selected_secondary_color: item.selected_secondary_color || null,
+      name_personalizations: getNamePersonalizations(item),
+      selected_sub_items: (item.selected_sub_items || []).map((subItem) => ({
+        slug: subItem.slug || null,
+        title: subItem.title,
+        quantity: Number(subItem.quantity || 1),
+        unit_price: Number(subItem.unit_price || 0),
+        selected_color: subItem.selected_color || null,
+        selected_secondary_color: subItem.selected_secondary_color || null,
+      })),
+    })),
+    coupon: coupon?.code || null,
+    payment_status: paymentStatus,
+    payment_method: paymentMethod,
+  });
+
+  const handleCheckoutWhatsapp = async () => {
+    const paymentStatus = 'pending';
     if (!whatsappNumber) {
       alert('Configure o numero de WhatsApp no painel para concluir este fluxo.');
       return;
     }
 
-    if (isPaid && !pixKey) {
-      alert('Configure a chave Pix no painel para enviar pedido com status pago.');
-      return;
-    }
-
-    if (isPaid) setPaidLoading(true);
-    else setPendingLoading(true);
+    setPendingLoading(true);
     setLoading(true);
     trackEvent({
       event_type: 'start_checkout',
       product_id: null,
-      cta_name: isPaid ? 'checkout_pix' : 'checkout_whatsapp_pending',
+      cta_name: 'checkout_whatsapp_pending',
       metadata_json: {
         value: total,
         currency: 'BRL',
@@ -339,27 +362,7 @@ function CartPage() {
     }).catch(() => {});
 
     try {
-      const order = await createOrder({
-        items: items.map((item) => ({
-          slug: item.slug,
-          quantity: item.quantity,
-          unit_price: getItemPrice(item),
-          selected_color: item.selected_color || null,
-          selected_secondary_color: item.selected_secondary_color || null,
-          name_personalizations: getNamePersonalizations(item),
-          selected_sub_items: (item.selected_sub_items || []).map((subItem) => ({
-            slug: subItem.slug || null,
-            title: subItem.title,
-            quantity: Number(subItem.quantity || 1),
-            unit_price: Number(subItem.unit_price || 0),
-            selected_color: subItem.selected_color || null,
-            selected_secondary_color: subItem.selected_secondary_color || null,
-          })),
-        })),
-        coupon: coupon?.code || null,
-        payment_status: isPaid ? 'paid' : 'pending',
-        payment_method: isPaid ? 'pix' : 'whatsapp',
-      });
+      const order = await createOrder(buildOrderPayload({ paymentStatus: 'pending', paymentMethod: 'whatsapp' }));
 
       trackEvent({
         event_type: 'order_created',
@@ -414,8 +417,8 @@ function CartPage() {
         })
         .join('\n\n');
       const totalItems = items.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
-      const statusText = isPaid ? 'PAGO (Pix)' : 'PENDENTE';
-      const proofLine = isPaid ? '\nComprovante: vou enviar em anexo nesta conversa.' : '';
+      const statusText = 'PENDENTE';
+      const proofLine = '';
       const customerLine = customerName.trim() ? `Cliente: ${customerName.trim()}\n` : '';
       const generatedAt = new Date().toLocaleString('pt-BR');
       const message = [
@@ -460,8 +463,41 @@ function CartPage() {
     } catch (error) {
       alert(error.message || 'Erro ao finalizar pedido.');
     } finally {
-      if (isPaid) setPaidLoading(false);
-      else setPendingLoading(false);
+      setPendingLoading(false);
+      setLoading(false);
+    }
+  };
+
+  const handleCheckoutOnline = async () => {
+    setOnlineLoading(true);
+    setLoading(true);
+    trackEvent({
+      event_type: 'start_checkout',
+      product_id: null,
+      cta_name: 'checkout_online_infinitepay',
+      metadata_json: {
+        value: total,
+        currency: 'BRL',
+        num_items: items.reduce((sum, item) => sum + Number(item.quantity || 0), 0),
+        payment_status: 'pending_payment',
+        payment_method: 'infinitepay',
+      },
+    }).catch(() => {});
+
+    try {
+      const order = await createOrder(buildOrderPayload({ paymentStatus: 'pending_payment', paymentMethod: 'pix' }));
+      const checkout = await createInfinitePayCheckout({
+        order_id: Number(order.id),
+        customer_name: customerName || undefined,
+      });
+      if (!checkout?.checkout_url) {
+        throw new Error('Checkout nao retornou URL de pagamento.');
+      }
+      window.location.href = checkout.checkout_url;
+    } catch (error) {
+      alert(error.message || 'Erro ao iniciar pagamento online.');
+    } finally {
+      setOnlineLoading(false);
       setLoading(false);
     }
   };
@@ -564,12 +600,12 @@ function CartPage() {
             </Button>
 
             <Button variant="secondary" onClick={() => setShowPixBox((current) => !current)}>
-              {showPixBox ? 'Fechar pagamento Pix' : 'Pagar com Pix (QR Code)'}
+              {showPixBox ? 'Fechar ajuda Pix manual' : 'Ver opcao Pix manual (backup)'}
             </Button>
 
             {showPixBox ? (
               <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
-                <p className="text-xs text-slate-600">Escaneie o QR Code Pix com seu banco e depois envie o pedido como pago.</p>
+                <p className="text-xs text-slate-600">Fluxo de backup: use apenas se quiser finalizar manualmente via WhatsApp.</p>
                 {pixQrCodeUrl ? (
                   <img src={pixQrCodeUrl} alt="QR Code Pix" className="mx-auto h-56 w-56 rounded-xl border border-slate-200 bg-white p-2" />
                 ) : (
@@ -584,15 +620,19 @@ function CartPage() {
               </div>
             ) : null}
 
-            {showPixBox ? (
-              <Button loading={paidLoading} disabled={loading || !pixKey} onClick={() => handleCheckout('paid')}>
-                Enviar pedido pago no WhatsApp
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
+              <p><strong>Finalizar pelo WhatsApp:</strong> envia o pedido para atendimento manual.</p>
+              <p><strong>Pagar online:</strong> abre checkout InfinitePay (Pix ou cartao) com confirmacao automatica.</p>
+            </div>
+
+            <div className="grid gap-2">
+              <Button variant="ghost" loading={pendingLoading} disabled={loading} onClick={handleCheckoutWhatsapp}>
+                Finalizar pelo WhatsApp
               </Button>
-            ) : (
-              <Button variant="ghost" loading={pendingLoading} disabled={loading} onClick={() => handleCheckout('pending')}>
-                Enviar pedido pendente no WhatsApp
+              <Button loading={onlineLoading} disabled={loading} onClick={handleCheckoutOnline}>
+                Pagar online
               </Button>
-            )}
+            </div>
           </Card>
         </div>
       )}

@@ -176,6 +176,12 @@ function AdminDashboardPage() {
             <MetricCard label="Ticket medio estimado" value={formatMoney((summary.total_sold || 0) / Math.max(summary.total_orders || 0, 1))} helper="Vendas / pedidos" />
           </div>
 
+          <div className="admin-card-grid-3">
+            <MetricCard label="Pedidos via WhatsApp" value={summary.whatsapp_orders || 0} helper={formatMoney(summary.whatsapp_total || 0)} />
+            <MetricCard label="Pedidos pagos via Pix" value={summary.pix_orders || 0} helper={formatMoney(summary.pix_total || 0)} />
+            <MetricCard label="Pedidos pagos via Cartao" value={summary.credit_card_orders || 0} helper={formatMoney(summary.credit_card_total || 0)} />
+          </div>
+
           <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
             <ChartCard title="Vendas por periodo">
               <MiniBarChart points={summary.sales_series || []} money />
@@ -206,6 +212,15 @@ function AdminDashboardPage() {
             </ChartCard>
             <ChartCard title="Top cidades">
               <StatList items={summary.top_cities || []} />
+            </ChartCard>
+            <ChartCard title="Pedidos por metodo">
+              <MiniBarChart points={summary.payment_method_counts || []} />
+            </ChartCard>
+            <ChartCard title="Valor por metodo">
+              <MiniBarChart points={summary.payment_method_values || []} money />
+            </ChartCard>
+            <ChartCard title="Participacao por metodo (%)">
+              <MiniBarChart points={summary.payment_method_share || []} />
             </ChartCard>
           </div>
         </>

@@ -304,6 +304,29 @@ export function createOrder(payload) {
   });
 }
 
+export function createInfinitePayCheckout(payload) {
+  return request('/payments/infinitepay/checkout', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export function checkInfinitePayStatus(payload) {
+  return request('/payments/infinitepay/status-check', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export function fetchPublicInfinitePayReturnStatus(params = {}) {
+  const search = new URLSearchParams();
+  if (params.order_nsu) search.set('order_nsu', String(params.order_nsu));
+  if (params.slug) search.set('slug', String(params.slug));
+  if (params.transaction_nsu) search.set('transaction_nsu', String(params.transaction_nsu));
+  const query = search.toString();
+  return request(`/public/payments/infinitepay/return${query ? `?${query}` : ''}`);
+}
+
 export function saveAdminToken(token) {
   localStorage.setItem(ADMIN_TOKEN_KEY, token);
 }
@@ -592,6 +615,7 @@ export function fetchAdminReportSales(params = {}) {
   const search = new URLSearchParams();
   if (params.date_from) search.set('date_from', params.date_from);
   if (params.date_to) search.set('date_to', params.date_to);
+  if (params.payment_method) search.set('payment_method', params.payment_method);
   const query = search.toString();
   return adminRequest(`/admin/reports/sales${query ? `?${query}` : ''}`);
 }
@@ -600,6 +624,7 @@ export function fetchAdminReportTopProducts(params = {}) {
   const search = new URLSearchParams();
   if (params.date_from) search.set('date_from', params.date_from);
   if (params.date_to) search.set('date_to', params.date_to);
+  if (params.payment_method) search.set('payment_method', params.payment_method);
   const query = search.toString();
   return adminRequest(`/admin/reports/top-products${query ? `?${query}` : ''}`);
 }
@@ -751,6 +776,23 @@ export function updateAdminInstagramSettings(payload) {
 
 export function testAdminInstagramConnection() {
   return adminRequest('/admin/integrations/instagram/test', {
+    method: 'POST',
+  });
+}
+
+export function fetchAdminInfinitePayConfig() {
+  return adminRequest('/admin/integrations/infinitepay');
+}
+
+export function updateAdminInfinitePayConfig(payload) {
+  return adminRequest('/admin/integrations/infinitepay', {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  });
+}
+
+export function testAdminInfinitePayConfig() {
+  return adminRequest('/admin/integrations/infinitepay/test', {
     method: 'POST',
   });
 }

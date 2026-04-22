@@ -44,10 +44,30 @@ function AdminOrdersPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  const getStatusTone = (status) => (status === 'paid' ? 'success' : 'warning');
-  const getStatusLabel = (status) => (status === 'paid' ? 'Pago' : 'Pendente');
+  const getStatusTone = (status) => {
+    const normalized = String(status || '').toLowerCase();
+    if (normalized === 'paid') return 'success';
+    if (normalized === 'failed' || normalized === 'canceled') return 'danger';
+    return 'warning';
+  };
+  const getStatusLabel = (status) => {
+    const normalized = String(status || '').toLowerCase();
+    if (normalized === 'paid') return 'Pago';
+    if (normalized === 'pending_payment') return 'Aguardando pagamento';
+    if (normalized === 'awaiting_confirmation') return 'Aguardando confirmacao';
+    if (normalized === 'failed') return 'Falhou';
+    if (normalized === 'canceled') return 'Cancelado';
+    return 'Pendente';
+  };
+  const getProviderLabel = (provider) => {
+    const normalized = String(provider || '').toLowerCase();
+    if (normalized === 'infinitepay') return 'InfinitePay';
+    if (normalized === 'whatsapp') return 'WhatsApp';
+    return provider || '-';
+  };
   const getMethodLabel = (method) => {
     if (method === 'pix') return 'Pix';
+    if (method === 'credit_card') return 'Cartao';
     if (method === 'whatsapp') return 'WhatsApp';
     return method || '-';
   };
@@ -103,7 +123,11 @@ function AdminOrdersPage() {
               >
                 <option value="all">Todos status</option>
                 <option value="pending">Pendente</option>
+                <option value="pending_payment">Aguardando pagamento</option>
+                <option value="awaiting_confirmation">Aguardando confirmacao</option>
                 <option value="paid">Pago</option>
+                <option value="failed">Falhou</option>
+                <option value="canceled">Cancelado</option>
               </select>
               <select
                 value={paymentFilter}
@@ -112,6 +136,7 @@ function AdminOrdersPage() {
               >
                 <option value="all">Todos pagamentos</option>
                 <option value="pix">Pix</option>
+                <option value="credit_card">Cartao</option>
                 <option value="whatsapp">WhatsApp</option>
               </select>
               <select
@@ -126,7 +151,7 @@ function AdminOrdersPage() {
             </div>
 
             <Table
-              columns={['Pedido', 'Data', 'Total', 'Status', 'Pagamento', 'Acoes']}
+              columns={['Pedido', 'Data', 'Total', 'Status', 'Provider', 'Metodo', 'Acoes']}
               rows={paginatedOrders}
               empty={<div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center text-sm text-slate-500">Nenhum pedido registrado.</div>}
               renderRow={(order) => (
@@ -136,6 +161,9 @@ function AdminOrdersPage() {
                   <td>R$ {Number(order.total || 0).toFixed(2)}</td>
                   <td>
                     <StatusBadge tone={getStatusTone(order.payment_status)}>{getStatusLabel(order.payment_status)}</StatusBadge>
+                  </td>
+                  <td>
+                    <span className="text-sm text-slate-600">{getProviderLabel(order.payment_provider)}</span>
                   </td>
                   <td>
                     <span className="text-sm text-slate-600">{getMethodLabel(order.payment_method)}</span>
@@ -179,7 +207,16 @@ function AdminOrdersPage() {
             <p>Desconto: <strong className="text-slate-900">R$ {Number(selectedOrder.discount || 0).toFixed(2)}</strong></p>
             <p>Total: <strong className="text-slate-900">R$ {Number(selectedOrder.total || 0).toFixed(2)}</strong></p>
             <p>Status: <strong className="text-slate-900">{getStatusLabel(selectedOrder.payment_status)}</strong></p>
+            <p>Provider: <strong className="text-slate-900">{getProviderLabel(selectedOrder.payment_provider)}</strong></p>
             <p>Pagamento: <strong className="text-slate-900">{getMethodLabel(selectedOrder.payment_method)}</strong></p>
+            <p>Order NSU: <strong className="text-slate-900">{selectedOrder.order_nsu || '-'}</strong></p>
+            <p>Invoice slug: <strong className="text-slate-900">{selectedOrder.invoice_slug || '-'}</strong></p>
+            <p>Transaction NSU: <strong className="text-slate-900">{selectedOrder.transaction_nsu || '-'}</strong></p>
+            <p>Checkout URL: <strong className="text-slate-900">{selectedOrder.checkout_url || '-'}</strong></p>
+            <p>Receipt URL: <strong className="text-slate-900">{selectedOrder.receipt_url || '-'}</strong></p>
+            <p>Parcelas: <strong className="text-slate-900">{selectedOrder.installments || '-'}</strong></p>
+            <p>Valor pago: <strong className="text-slate-900">R$ {Number(selectedOrder.paid_amount || 0).toFixed(2)}</strong></p>
+            <p>Pago em: <strong className="text-slate-900">{selectedOrder.paid_at ? new Date(selectedOrder.paid_at).toLocaleString('pt-BR') : '-'}</strong></p>
             <ul className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
               {(selectedOrder.items || []).map((item) => {
                 const computedLineTotal = Number(item.unit_price || 0) * Number(item.quantity || 0);

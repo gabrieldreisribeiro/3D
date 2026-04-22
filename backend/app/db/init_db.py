@@ -3,7 +3,18 @@
 from app.core.config import SEED_DEFAULT_ADMIN, SEED_SAMPLE_DATA
 from app.core.security import hash_password
 from app.db.session import Base, SessionLocal, engine
-from app.models import AdminUser, Banner, Category, Coupon, HighlightItem, Product, Product3DModel, ProductReview, StoreSettings
+from app.models import (
+    AdminUser,
+    Banner,
+    Category,
+    Coupon,
+    HighlightItem,
+    PaymentProviderInfinitePayConfig,
+    Product,
+    Product3DModel,
+    ProductReview,
+    StoreSettings,
+)
 
 PRODUCTS = [
 ]
@@ -66,6 +77,134 @@ def _ensure_orders_created_at_column(session):
         session.execute(text("ALTER TABLE orders ADD COLUMN payment_method VARCHAR(30)"))
     session.execute(text("UPDATE orders SET payment_status = COALESCE(payment_status, 'pending')"))
     session.commit()
+
+
+def _ensure_orders_payment_columns(session):
+    required_columns = {
+        'payment_provider': "VARCHAR(40)",
+        'sales_channel': "VARCHAR(30) DEFAULT 'whatsapp'",
+        'order_nsu': "VARCHAR(120)",
+        'invoice_slug': "VARCHAR(160)",
+        'transaction_nsu': "VARCHAR(160)",
+        'receipt_url': "VARCHAR(600)",
+        'checkout_url': "VARCHAR(600)",
+        'capture_method': "VARCHAR(40)",
+        'paid_amount': "REAL",
+        'installments': "INTEGER",
+        'paid_at': "DATETIME",
+        'payment_metadata_json': "TEXT DEFAULT '{}'",
+    }
+    dialect = session.bind.dialect.name
+    if dialect == 'sqlite':
+        columns = session.execute(text("PRAGMA table_info('orders')")).fetchall()
+        names = {column[1] for column in columns}
+        for column_name, column_ddl in required_columns.items():
+            if column_name not in names:
+                session.execute(text(f"ALTER TABLE orders ADD COLUMN {column_name} {column_ddl}"))
+    elif dialect.startswith('postgres'):
+        for column_name, column_ddl in required_columns.items():
+            session.execute(
+                text(
+                    f"ALTER TABLE orders ADD COLUMN IF NOT EXISTS {column_name} "
+                    f"{_normalize_postgres_column_ddl(column_ddl)}"
+                )
+            )
+    else:
+        return
+
+    session.execute(text("UPDATE orders SET payment_metadata_json = COALESCE(NULLIF(payment_metadata_json, ''), '{}')"))
+    session.execute(text("UPDATE orders SET sales_channel = COALESCE(NULLIF(sales_channel, ''), 'whatsapp')"))
+    session.execute(
+        text(
+            """
+            UPDATE orders
+            SET payment_provider = CASE
+                WHEN LOWER(COALESCE(payment_method, '')) = 'whatsapp' THEN 'whatsapp'
+                WHEN LOWER(COALESCE(payment_method, '')) IN ('pix', 'credit_card') THEN 'infinitepay'
+                ELSE payment_provider
+            END
+            """
+        )
+    )
+    session.execute(
+        text(
+            """
+            UPDATE orders
+            SET sales_channel = CASE
+                WHEN LOWER(COALESCE(payment_method, '')) = 'whatsapp' THEN 'whatsapp'
+                WHEN LOWER(COALESCE(payment_method, '')) IN ('pix', 'credit_card') THEN 'online_checkout'
+                ELSE sales_channel
+            END
+            """
+        )
+    )
+    session.execute(text("CREATE INDEX IF NOT EXISTS ix_orders_order_nsu ON orders(order_nsu)"))
+    session.execute(text("CREATE INDEX IF NOT EXISTS ix_orders_invoice_slug ON orders(invoice_slug)"))
+    session.execute(text("CREATE INDEX IF NOT EXISTS ix_orders_transaction_nsu ON orders(transaction_nsu)"))
+    session.commit()
+
+
+def _ensure_infinitepay_config_table(session):
+    dialect = session.bind.dialect.name
+    if dialect == 'sqlite':
+        session.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS payment_provider_infinitepay_config (
+                    id INTEGER PRIMARY KEY,
+                    is_enabled BOOLEAN NOT NULL DEFAULT 0,
+                    handle VARCHAR(120),
+                    redirect_url VARCHAR(500),
+                    webhook_url VARCHAR(500),
+                    default_currency VARCHAR(10) NOT NULL DEFAULT 'BRL',
+                    success_page_url VARCHAR(500),
+                    cancel_page_url VARCHAR(500),
+                    test_mode BOOLEAN NOT NULL DEFAULT 0,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                )
+                """
+            )
+        )
+        session.commit()
+    elif dialect.startswith('postgres'):
+        session.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS payment_provider_infinitepay_config (
+                    id INTEGER PRIMARY KEY,
+                    is_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+                    handle VARCHAR(120),
+                    redirect_url VARCHAR(500),
+                    webhook_url VARCHAR(500),
+                    default_currency VARCHAR(10) NOT NULL DEFAULT 'BRL',
+                    success_page_url VARCHAR(500),
+                    cancel_page_url VARCHAR(500),
+                    test_mode BOOLEAN NOT NULL DEFAULT FALSE,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+                """
+            )
+        )
+        session.commit()
+
+    existing = session.query(PaymentProviderInfinitePayConfig).first()
+    if not existing:
+        session.add(
+            PaymentProviderInfinitePayConfig(
+                id=1,
+                is_enabled=False,
+                handle=None,
+                redirect_url=None,
+                webhook_url=None,
+                default_currency='BRL',
+                success_page_url=None,
+                cancel_page_url=None,
+                test_mode=False,
+            )
+        )
+        session.commit()
 
 
 def _ensure_order_items_columns(session):
@@ -522,6 +661,7 @@ def init_db() -> None:
     session = SessionLocal()
     try:
         _ensure_orders_created_at_column(session)
+        _ensure_orders_payment_columns(session)
         _ensure_order_items_columns(session)
         _ensure_coupon_columns(session)
         _ensure_product_pricing_columns(session)
@@ -531,6 +671,7 @@ def init_db() -> None:
         _ensure_admin_users_columns(session)
         _ensure_product_3d_models_columns(session)
         _ensure_product_3d_models_product_nullable(session)
+        _ensure_infinitepay_config_table(session)
         _sync_postgres_sequences(session)
         if SEED_SAMPLE_DATA:
             _seed_categories(session)

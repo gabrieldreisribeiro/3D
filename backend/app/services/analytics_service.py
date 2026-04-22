@@ -147,6 +147,45 @@ def analytics_summary(db: Session, date_from: datetime | None = None, date_to: d
             for label, value in sorted(data.items(), key=lambda item: item[1], reverse=True)[:limit]
         ]
 
+    payment_rows = db.query(
+        func.coalesce(Order.payment_method, 'whatsapp').label('payment_method'),
+        func.count(Order.id).label('orders_count'),
+        func.coalesce(func.sum(Order.total), 0.0).label('total_value'),
+    )
+    if date_from:
+        payment_rows = payment_rows.filter(Order.created_at >= date_from)
+    if date_to:
+        payment_rows = payment_rows.filter(Order.created_at <= date_to)
+    payment_rows = payment_rows.group_by(func.coalesce(Order.payment_method, 'whatsapp')).all()
+
+    normalized_methods = {
+        'whatsapp': {'label': 'WhatsApp', 'orders': 0, 'total': 0.0},
+        'pix': {'label': 'Pix', 'orders': 0, 'total': 0.0},
+        'credit_card': {'label': 'Cartao', 'orders': 0, 'total': 0.0},
+    }
+    for method, count, total_value in payment_rows:
+        key = str(method or 'whatsapp').strip().lower()
+        if key in {'card', 'credit'}:
+            key = 'credit_card'
+        if key not in normalized_methods:
+            continue
+        normalized_methods[key]['orders'] = int(count or 0)
+        normalized_methods[key]['total'] = float(total_value or 0.0)
+
+    grand_total = sum(item['total'] for item in normalized_methods.values())
+    payment_method_counts = [
+        {'label': item['label'], 'value': float(item['orders'])}
+        for item in normalized_methods.values()
+    ]
+    payment_method_values = [
+        {'label': item['label'], 'value': float(item['total'])}
+        for item in normalized_methods.values()
+    ]
+    payment_method_share = [
+        {'label': item['label'], 'value': round(((item['total'] / grand_total) * 100) if grand_total else 0.0, 2)}
+        for item in normalized_methods.values()
+    ]
+
     return {
         'total_orders': total_orders,
         'total_items_sold': total_items_sold,
@@ -156,6 +195,15 @@ def analytics_summary(db: Session, date_from: datetime | None = None, date_to: d
         'top_countries': _top_map(country_counts),
         'top_states': _top_map(state_counts),
         'top_cities': _top_map(city_counts),
+        'payment_method_counts': payment_method_counts,
+        'payment_method_values': payment_method_values,
+        'payment_method_share': payment_method_share,
+        'whatsapp_orders': int(normalized_methods['whatsapp']['orders']),
+        'pix_orders': int(normalized_methods['pix']['orders']),
+        'credit_card_orders': int(normalized_methods['credit_card']['orders']),
+        'whatsapp_total': float(normalized_methods['whatsapp']['total']),
+        'pix_total': float(normalized_methods['pix']['total']),
+        'credit_card_total': float(normalized_methods['credit_card']['total']),
     }
 
 
@@ -249,7 +297,15 @@ def parse_period(date_from: str | None, date_to: str | None) -> tuple[datetime |
     return start, end
 
 
-def report_sales(db: Session, date_from: datetime | None = None, date_to: datetime | None = None) -> dict:
+def report_sales(
+    db: Session,
+    date_from: datetime | None = None,
+    date_to: datetime | None = None,
+    payment_method: str | None = None,
+) -> dict:
+    normalized_method = str(payment_method or '').strip().lower() or None
+    if normalized_method in {'card', 'credit'}:
+        normalized_method = 'credit_card'
     query = db.query(
         func.count(Order.id).label('orders'),
         func.coalesce(func.sum(Order.total), 0.0).label('total'),
@@ -258,19 +314,92 @@ def report_sales(db: Session, date_from: datetime | None = None, date_to: dateti
         query = query.filter(Order.created_at >= date_from)
     if date_to:
         query = query.filter(Order.created_at <= date_to)
+    if normalized_method:
+        query = query.filter(func.coalesce(Order.payment_method, 'whatsapp') == normalized_method)
     row = query.first()
     order_count = int(row[0] or 0)
     total_value = float(row[1] or 0.0)
     avg_ticket = total_value / order_count if order_count else 0.0
+
+    payment_query = db.query(
+        func.coalesce(Order.payment_method, 'whatsapp').label('payment_method'),
+        func.count(Order.id).label('orders_count'),
+        func.coalesce(func.sum(Order.total), 0.0).label('total_value'),
+    )
+    if date_from:
+        payment_query = payment_query.filter(Order.created_at >= date_from)
+    if date_to:
+        payment_query = payment_query.filter(Order.created_at <= date_to)
+    if normalized_method:
+        payment_query = payment_query.filter(func.coalesce(Order.payment_method, 'whatsapp') == normalized_method)
+    payment_rows = payment_query.group_by(func.coalesce(Order.payment_method, 'whatsapp')).all()
+    labels = {'whatsapp': 'WhatsApp', 'pix': 'Pix', 'credit_card': 'Cartao'}
+    totals_by_method: dict[str, float] = {'whatsapp': 0.0, 'pix': 0.0, 'credit_card': 0.0}
+    count_by_method: dict[str, int] = {'whatsapp': 0, 'pix': 0, 'credit_card': 0}
+    for method, count, total in payment_rows:
+        key = str(method or 'whatsapp').strip().lower()
+        if key in {'card', 'credit'}:
+            key = 'credit_card'
+        if key not in totals_by_method:
+            continue
+        totals_by_method[key] = float(total or 0.0)
+        count_by_method[key] = int(count or 0)
+
     return {
         'total_value': total_value,
         'order_count': order_count,
         'avg_ticket': round(avg_ticket, 2),
+        'by_payment_method': [{'label': labels[key], 'value': float(totals_by_method[key])} for key in ['whatsapp', 'pix', 'credit_card']],
+        'avg_ticket_by_method': [
+            {
+                'label': labels[key],
+                'value': round((totals_by_method[key] / count_by_method[key]), 2) if count_by_method[key] else 0.0,
+            }
+            for key in ['whatsapp', 'pix', 'credit_card']
+        ],
     }
 
 
-def report_top_products(db: Session, date_from: datetime | None = None, date_to: datetime | None = None) -> list[dict]:
-    return _sold_product_ranking(db, limit=20, date_from=date_from, date_to=date_to)
+def report_top_products(
+    db: Session,
+    date_from: datetime | None = None,
+    date_to: datetime | None = None,
+    payment_method: str | None = None,
+) -> list[dict]:
+    normalized_method = str(payment_method or '').strip().lower() or None
+    if normalized_method in {'card', 'credit'}:
+        normalized_method = 'credit_card'
+    query = (
+        db.query(
+            Product.id,
+            OrderItem.title,
+            func.sum(OrderItem.quantity).label('qty'),
+            func.sum(OrderItem.line_total).label('total_value'),
+        )
+        .outerjoin(Product, Product.slug == OrderItem.product_slug)
+        .join(Order, Order.id == OrderItem.order_id)
+    )
+    if date_from:
+        query = query.filter(Order.created_at >= date_from)
+    if date_to:
+        query = query.filter(Order.created_at <= date_to)
+    if normalized_method:
+        query = query.filter(func.coalesce(Order.payment_method, 'whatsapp') == normalized_method)
+    rows = (
+        query.group_by(Product.id, OrderItem.title)
+        .order_by(func.sum(OrderItem.quantity).desc())
+        .limit(20)
+        .all()
+    )
+    return [
+        {
+            'product_id': row[0],
+            'product_title': row[1] or f'Produto #{row[0]}' if row[0] else 'Produto nao identificado',
+            'value': int(row[2] or 0),
+            'total_value': float(row[3] or 0.0),
+        }
+        for row in rows
+    ]
 
 
 def report_leads(db: Session, date_from: datetime | None = None, date_to: datetime | None = None) -> dict:

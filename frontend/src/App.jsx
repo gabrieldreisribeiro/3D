@@ -30,6 +30,8 @@ import AdminHighlightsPage from './pages/AdminHighlightsPage';
 import AdminPublicationPage from './pages/AdminPublicationPage';
 import AdminUsersPage from './pages/AdminUsersPage';
 import Admin3DModelsPage from './pages/Admin3DModelsPage';
+import AdminInfinitePayPage from './pages/AdminInfinitePayPage';
+import PaymentReturnPage from './pages/PaymentReturnPage';
 import { getAdminToken, trackEvent } from './services/api';
 
 function PreviewGuard({ children }) {
@@ -72,6 +74,7 @@ function AppContent() {
             <Route path="configuracoes" element={<AdminSettingsPage />} />
             <Route path="instagram" element={<AdminInstagramPage />} />
             <Route path="meta-pixel" element={<AdminMetaPixelPage />} />
+            <Route path="integracoes/infinitepay" element={<AdminInfinitePayPage />} />
             <Route path="publicacao" element={<AdminPublicationPage />} />
             <Route path="anuncios-ia" element={<AdminAdsPage />} />
             <Route path="leads-conversao" element={<AdminLeadsConversionPage />} />
@@ -93,9 +96,11 @@ function AppContent() {
         <Route path="/" element={<HomePage />} />
         <Route path="/product/:slug" element={<ProductPage />} />
         <Route path="/cart" element={<CartPage />} />
+        <Route path="/pagamento/retorno" element={<PaymentReturnPage />} />
         <Route path="/preview" element={<PreviewGuard><HomePage /></PreviewGuard>} />
         <Route path="/preview/product/:slug" element={<PreviewGuard><ProductPage /></PreviewGuard>} />
         <Route path="/preview/cart" element={<PreviewGuard><CartPage /></PreviewGuard>} />
+        <Route path="/preview/pagamento/retorno" element={<PreviewGuard><PaymentReturnPage /></PreviewGuard>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </AppShell>

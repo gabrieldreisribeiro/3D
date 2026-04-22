@@ -48,22 +48,24 @@ def get_analytics_products(_: AdminUser = Depends(require_admin), db: Session = 
 def get_report_sales(
     date_from: str | None = Query(default=None),
     date_to: str | None = Query(default=None),
+    payment_method: str | None = Query(default=None),
     _: AdminUser = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
     start, end = parse_period(date_from, date_to)
-    return ReportSalesResponse(**report_sales(db, date_from=start, date_to=end))
+    return ReportSalesResponse(**report_sales(db, date_from=start, date_to=end, payment_method=payment_method))
 
 
 @router.get('/reports/top-products', response_model=ReportTopProductsResponse)
 def get_report_top_products(
     date_from: str | None = Query(default=None),
     date_to: str | None = Query(default=None),
+    payment_method: str | None = Query(default=None),
     _: AdminUser = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
     start, end = parse_period(date_from, date_to)
-    return ReportTopProductsResponse(items=report_top_products(db, date_from=start, date_to=end))
+    return ReportTopProductsResponse(items=report_top_products(db, date_from=start, date_to=end, payment_method=payment_method))
 
 
 @router.get('/reports/leads', response_model=ReportLeadsResponse)

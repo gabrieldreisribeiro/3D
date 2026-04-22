@@ -8,17 +8,62 @@ from app.models import Order, OrderItem, Product
 
 
 def create_order(db: Session, items, coupon_code, subtotal, discount, total):
-    return _create_order(db, items, coupon_code, subtotal, discount, total, 'pending', None)
+    return _create_order(
+        db,
+        items,
+        coupon_code,
+        subtotal,
+        discount,
+        total,
+        payment_status='pending',
+        payment_method='whatsapp',
+        payment_provider='whatsapp',
+        sales_channel='whatsapp',
+    )
 
 
-def _create_order(db: Session, items, coupon_code, subtotal, discount, total, payment_status, payment_method):
+def _create_order(
+    db: Session,
+    items,
+    coupon_code,
+    subtotal,
+    discount,
+    total,
+    payment_status,
+    payment_method,
+    *,
+    payment_provider=None,
+    sales_channel='whatsapp',
+    order_nsu=None,
+    invoice_slug=None,
+    transaction_nsu=None,
+    receipt_url=None,
+    checkout_url=None,
+    capture_method=None,
+    paid_amount=None,
+    installments=None,
+    paid_at=None,
+    payment_metadata_json='{}',
+):
     order = Order(
         subtotal=subtotal,
         discount=discount,
         total=total,
         coupon_code=coupon_code,
         payment_status=payment_status or 'pending',
-        payment_method=payment_method,
+        payment_method=payment_method or 'whatsapp',
+        payment_provider=payment_provider or ('whatsapp' if (payment_method or 'whatsapp') == 'whatsapp' else None),
+        sales_channel=sales_channel or 'whatsapp',
+        order_nsu=order_nsu,
+        invoice_slug=invoice_slug,
+        transaction_nsu=transaction_nsu,
+        receipt_url=receipt_url,
+        checkout_url=checkout_url,
+        capture_method=capture_method,
+        paid_amount=paid_amount,
+        installments=installments,
+        paid_at=paid_at,
+        payment_metadata_json=payment_metadata_json or '{}',
     )
     db.add(order)
     db.flush()
@@ -41,8 +86,18 @@ def _create_order(db: Session, items, coupon_code, subtotal, discount, total, pa
     return order
 
 
-def create_order_with_payment(db: Session, items, coupon_code, subtotal, discount, total, payment_status, payment_method):
-    return _create_order(db, items, coupon_code, subtotal, discount, total, payment_status, payment_method)
+def create_order_with_payment(
+    db: Session,
+    items,
+    coupon_code,
+    subtotal,
+    discount,
+    total,
+    payment_status,
+    payment_method,
+    **kwargs,
+):
+    return _create_order(db, items, coupon_code, subtotal, discount, total, payment_status, payment_method, **kwargs)
 
 
 def _safe_parse_selected_sub_items(raw_value):
@@ -115,7 +170,19 @@ def serialize_order(order: Order) -> dict:
         'total': float(order.total or 0),
         'coupon_code': order.coupon_code,
         'payment_status': order.payment_status,
+        'payment_provider': order.payment_provider,
         'payment_method': order.payment_method,
+        'sales_channel': order.sales_channel,
+        'order_nsu': order.order_nsu,
+        'invoice_slug': order.invoice_slug,
+        'transaction_nsu': order.transaction_nsu,
+        'receipt_url': order.receipt_url,
+        'checkout_url': order.checkout_url,
+        'capture_method': order.capture_method,
+        'paid_amount': float(order.paid_amount) if order.paid_amount is not None else None,
+        'installments': int(order.installments) if order.installments is not None else None,
+        'paid_at': order.paid_at,
+        'payment_metadata_json': order.payment_metadata_json,
         'items': [serialize_order_item(item) for item in (order.items or [])],
     }
 
@@ -224,7 +291,9 @@ def dashboard_order_status(db: Session, date_from: datetime | None = None, date_
     mapped = {str(status or 'pending').lower(): int(count) for status, count in rows}
     return [
         {'status': 'Pago', 'value': mapped.get('paid', 0)},
-        {'status': 'Pendente', 'value': mapped.get('pending', 0)},
+        {'status': 'Pendente', 'value': mapped.get('pending', 0) + mapped.get('pending_payment', 0) + mapped.get('awaiting_confirmation', 0)},
+        {'status': 'Falhou', 'value': mapped.get('failed', 0)},
+        {'status': 'Cancelado', 'value': mapped.get('canceled', 0)},
     ]
 
 

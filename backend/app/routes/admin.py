@@ -56,6 +56,9 @@ from app.schemas import (
     HighlightItemResponse,
     HighlightItemUpdate,
     InstagramConnectionTestResponse,
+    InfinitePayConfigResponse,
+    InfinitePayConfigUpdate,
+    InfinitePayConnectionTestResponse,
     InstagramSettingsResponse,
     InstagramSettingsUpdate,
     LogoResponse,
@@ -111,6 +114,13 @@ from app.services.order_service import (
     serialize_admin_order,
 )
 from app.services.instagram_service import test_instagram_connection, try_publish_product_to_instagram
+from app.services.infinitepay_service import (
+    check_payment_status,
+    config_is_ready,
+    get_or_create_infinitepay_config,
+    serialize_infinitepay_config,
+    update_infinitepay_config,
+)
 from app.services.product_service import (
     admin_category_slug_exists,
     admin_create_category,
@@ -551,6 +561,54 @@ def instagram_test_connection(_: AdminUser = Depends(require_admin), db: Session
     )
 
 
+@router.get('/integrations/infinitepay', response_model=InfinitePayConfigResponse)
+def read_infinitepay_settings(_: AdminUser = Depends(require_admin), db: Session = Depends(get_db)):
+    config = get_or_create_infinitepay_config(db)
+    return InfinitePayConfigResponse(**serialize_infinitepay_config(config))
+
+
+@router.put('/integrations/infinitepay', response_model=InfinitePayConfigResponse)
+def save_infinitepay_settings(
+    payload: InfinitePayConfigUpdate,
+    _: AdminUser = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    config = update_infinitepay_config(
+        db,
+        is_enabled=payload.enabled,
+        handle=payload.handle,
+        redirect_url=payload.redirect_url,
+        webhook_url=payload.webhook_url,
+        default_currency=payload.default_currency,
+        success_page_url=payload.success_page_url,
+        cancel_page_url=payload.cancel_page_url,
+        test_mode=payload.test_mode,
+    )
+    return InfinitePayConfigResponse(**serialize_infinitepay_config(config))
+
+
+@router.post('/integrations/infinitepay/test', response_model=InfinitePayConnectionTestResponse)
+def test_infinitepay_integration(_: AdminUser = Depends(require_admin), db: Session = Depends(get_db)):
+    config = get_or_create_infinitepay_config(db)
+    ready, message = config_is_ready(config)
+    if not ready:
+        return InfinitePayConnectionTestResponse(ok=False, message=message)
+    try:
+        sample_order_nsu = f'test-{datetime.utcnow().strftime("%Y%m%d%H%M%S")}'
+        result = check_payment_status(
+            config=config,
+            order_nsu=sample_order_nsu,
+            slug='test-slug',
+            transaction_nsu='test-transaction',
+        )
+        return InfinitePayConnectionTestResponse(
+            ok=True,
+            message=f'Integracao respondeu com sucesso. success={bool(result.get("success"))}',
+        )
+    except Exception as exc:  # noqa: BLE001
+        return InfinitePayConnectionTestResponse(ok=False, message=f'Falha no teste de integracao: {exc}')
+
+
 @router.get('/meta-pixel/config', response_model=MetaPixelAdminConfigResponse)
 def read_meta_pixel_config(_: AdminUser = Depends(require_admin), db: Session = Depends(get_db)):
     settings = get_or_create_settings(db)
@@ -975,6 +1033,15 @@ def dashboard_summary(
         top_countries=summary.get('top_countries', []),
         top_states=summary.get('top_states', []),
         top_cities=summary.get('top_cities', []),
+        payment_method_counts=summary.get('payment_method_counts', []),
+        payment_method_values=summary.get('payment_method_values', []),
+        payment_method_share=summary.get('payment_method_share', []),
+        whatsapp_orders=int(summary.get('whatsapp_orders', 0) or 0),
+        pix_orders=int(summary.get('pix_orders', 0) or 0),
+        credit_card_orders=int(summary.get('credit_card_orders', 0) or 0),
+        whatsapp_total=float(summary.get('whatsapp_total', 0) or 0),
+        pix_total=float(summary.get('pix_total', 0) or 0),
+        credit_card_total=float(summary.get('credit_card_total', 0) or 0),
     )
 
 

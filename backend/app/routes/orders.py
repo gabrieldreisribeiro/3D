@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 from types import SimpleNamespace
@@ -100,8 +102,14 @@ def create_order_endpoint(payload: OrderCreate, request: Request, db: Session = 
             raise HTTPException(status_code=400, detail='Tipo de cupom invalido')
 
     total = subtotal - discount
-    payment_status = payload.payment_status if payload.payment_status in {'pending', 'paid'} else 'pending'
-    payment_method = (payload.payment_method or '').strip() or None
+    valid_status = {'pending', 'paid', 'pending_payment', 'failed', 'canceled', 'awaiting_confirmation'}
+    payment_status = payload.payment_status if payload.payment_status in valid_status else 'pending'
+    payment_method = (payload.payment_method or '').strip().lower() or 'whatsapp'
+    if payment_method not in {'whatsapp', 'pix', 'credit_card'}:
+        payment_method = 'whatsapp'
+    payment_provider = 'whatsapp' if payment_method == 'whatsapp' else 'infinitepay'
+    sales_channel = 'whatsapp' if payment_method == 'whatsapp' else 'online_checkout'
+    paid_at = datetime.utcnow() if payment_status == 'paid' else None
     order = create_order_with_payment(
         db,
         order_items,
@@ -111,6 +119,9 @@ def create_order_endpoint(payload: OrderCreate, request: Request, db: Session = 
         total,
         payment_status,
         payment_method,
+        payment_provider=payment_provider,
+        sales_channel=sales_channel,
+        paid_at=paid_at,
     )
     if coupon:
         register_coupon_usage(db, coupon, client_hash, order.id)

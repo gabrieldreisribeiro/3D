@@ -12,6 +12,7 @@ import {
 function AdminReportsPage() {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState('all');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [sales, setSales] = useState(null);
@@ -24,6 +25,7 @@ function AdminReportsPage() {
     const params = {
       date_from: dateFrom || undefined,
       date_to: dateTo || undefined,
+      payment_method: paymentMethod === 'all' ? undefined : paymentMethod,
     };
     Promise.all([
       fetchAdminReportSales(params),
@@ -69,6 +71,19 @@ function AdminReportsPage() {
               className="h-9 rounded-lg border border-slate-200 px-3 text-xs text-slate-700 outline-none focus:border-violet-300"
             />
           </label>
+          <label className="grid gap-1 text-xs text-slate-600">
+            Metodo de pagamento
+            <select
+              value={paymentMethod}
+              onChange={(event) => setPaymentMethod(event.target.value)}
+              className="h-9 rounded-lg border border-slate-200 px-3 text-xs text-slate-700 outline-none focus:border-violet-300"
+            >
+              <option value="all">Todos</option>
+              <option value="whatsapp">WhatsApp</option>
+              <option value="pix">Pix</option>
+              <option value="credit_card">Cartao</option>
+            </select>
+          </label>
           <Button onClick={loadReports} loading={loading} loadingText="Aplicando..." className="w-full sm:w-auto">
             Aplicar filtro
           </Button>
@@ -86,6 +101,35 @@ function AdminReportsPage() {
         </DataCard>
         <DataCard title="Ticket medio">
           <p className="text-2xl font-semibold text-slate-900">R$ {Number(sales?.avg_ticket || 0).toFixed(2)}</p>
+        </DataCard>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <DataCard title="Total por metodo">
+          <Table
+            columns={['Metodo', 'Total']}
+            rows={sales?.by_payment_method || []}
+            empty={<div className="text-sm text-slate-500">Sem dados por metodo.</div>}
+            renderRow={(item) => (
+              <tr key={item.label}>
+                <td>{item.label}</td>
+                <td>R$ {Number(item.value || 0).toFixed(2)}</td>
+              </tr>
+            )}
+          />
+        </DataCard>
+        <DataCard title="Ticket medio por metodo">
+          <Table
+            columns={['Metodo', 'Ticket medio']}
+            rows={sales?.avg_ticket_by_method || []}
+            empty={<div className="text-sm text-slate-500">Sem dados de ticket por metodo.</div>}
+            renderRow={(item) => (
+              <tr key={item.label}>
+                <td>{item.label}</td>
+                <td>R$ {Number(item.value || 0).toFixed(2)}</td>
+              </tr>
+            )}
+          />
         </DataCard>
       </div>
 

@@ -391,7 +391,7 @@ class OrderItemCreate(BaseModel):
 class OrderCreate(BaseModel):
     items: List[OrderItemCreate]
     coupon: Optional[str] = None
-    payment_status: Literal['pending', 'paid'] = 'pending'
+    payment_status: Literal['pending', 'pending_payment', 'paid', 'failed', 'canceled', 'awaiting_confirmation'] = 'pending'
     payment_method: Optional[str] = None
 
 
@@ -417,7 +417,19 @@ class OrderResponse(BaseModel):
     total: float
     coupon_code: Optional[str]
     payment_status: str
+    payment_provider: Optional[str]
     payment_method: Optional[str]
+    sales_channel: Optional[str]
+    order_nsu: Optional[str] = None
+    invoice_slug: Optional[str] = None
+    transaction_nsu: Optional[str] = None
+    receipt_url: Optional[str] = None
+    checkout_url: Optional[str] = None
+    capture_method: Optional[str] = None
+    paid_amount: Optional[float] = None
+    installments: Optional[int] = None
+    paid_at: Optional[datetime] = None
+    payment_metadata_json: Optional[str] = None
     items: List[OrderItemResponse]
 
 class AdminLoginRequest(BaseModel):
@@ -564,7 +576,19 @@ class AdminOrderResponse(BaseModel):
     total: float
     coupon_code: Optional[str]
     payment_status: str
+    payment_provider: Optional[str]
     payment_method: Optional[str]
+    sales_channel: Optional[str]
+    order_nsu: Optional[str] = None
+    invoice_slug: Optional[str] = None
+    transaction_nsu: Optional[str] = None
+    receipt_url: Optional[str] = None
+    checkout_url: Optional[str] = None
+    capture_method: Optional[str] = None
+    paid_amount: Optional[float] = None
+    installments: Optional[int] = None
+    paid_at: Optional[datetime] = None
+    payment_metadata_json: Optional[str] = None
     created_at: Optional[datetime]
     items: List[AdminOrderItemResponse]
 
@@ -602,6 +626,15 @@ class AdminDashboardSummary(BaseModel):
     top_countries: List[DashboardSeriesPoint] = Field(default_factory=list)
     top_states: List[DashboardSeriesPoint] = Field(default_factory=list)
     top_cities: List[DashboardSeriesPoint] = Field(default_factory=list)
+    payment_method_counts: List[DashboardSeriesPoint] = Field(default_factory=list)
+    payment_method_values: List[DashboardSeriesPoint] = Field(default_factory=list)
+    payment_method_share: List[DashboardSeriesPoint] = Field(default_factory=list)
+    whatsapp_orders: int = 0
+    pix_orders: int = 0
+    credit_card_orders: int = 0
+    whatsapp_total: float = 0
+    pix_total: float = 0
+    credit_card_total: float = 0
 
 
 class LogoResponse(BaseModel):
@@ -619,6 +652,33 @@ class StoreSettingsUpdate(StoreSettingsBase):
 
 class StoreSettingsResponse(StoreSettingsBase):
     pass
+
+
+class InfinitePayConfigBase(BaseModel):
+    enabled: bool = False
+    handle: Optional[str] = None
+    redirect_url: Optional[str] = None
+    webhook_url: Optional[str] = None
+    default_currency: str = 'BRL'
+    success_page_url: Optional[str] = None
+    cancel_page_url: Optional[str] = None
+    test_mode: bool = False
+
+
+class InfinitePayConfigUpdate(InfinitePayConfigBase):
+    pass
+
+
+class InfinitePayConfigResponse(InfinitePayConfigBase):
+    id: int = 1
+    is_ready: bool = False
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+
+class InfinitePayConnectionTestResponse(BaseModel):
+    ok: bool
+    message: str
 
 
 class InstagramSettingsBase(BaseModel):
@@ -1008,6 +1068,8 @@ class ReportSalesResponse(BaseModel):
     total_value: float
     order_count: int
     avg_ticket: float
+    by_payment_method: List[DashboardSeriesPoint] = Field(default_factory=list)
+    avg_ticket_by_method: List[DashboardSeriesPoint] = Field(default_factory=list)
 
 
 class ReportTopProductsResponse(BaseModel):
@@ -1026,6 +1088,52 @@ class ReportLeadsResponse(BaseModel):
     total_leads: int
     items: List[LeadPoint]
     top_products: List[AnalyticsProductPoint]
+
+
+class InfinitePayCheckoutRequest(BaseModel):
+    order_id: int = Field(..., ge=1)
+    customer_name: Optional[str] = None
+    customer_email: Optional[str] = None
+    customer_phone: Optional[str] = None
+    customer_document: Optional[str] = None
+    address: dict = Field(default_factory=dict)
+
+
+class InfinitePayCheckoutResponse(BaseModel):
+    ok: bool
+    order_id: int
+    order_nsu: str
+    checkout_url: str
+    payment_status: str
+
+
+class InfinitePayStatusCheckRequest(BaseModel):
+    order_id: Optional[int] = Field(default=None, ge=1)
+    order_nsu: Optional[str] = None
+    slug: Optional[str] = None
+    transaction_nsu: Optional[str] = None
+
+
+class InfinitePayStatusCheckResponse(BaseModel):
+    ok: bool
+    payment_status: str
+    payment_method: Optional[str] = None
+    paid: Optional[bool] = None
+    amount: Optional[float] = None
+    paid_amount: Optional[float] = None
+    installments: Optional[int] = None
+    capture_method: Optional[str] = None
+    raw: dict = Field(default_factory=dict)
+
+
+class PublicPaymentReturnResponse(BaseModel):
+    order_id: Optional[int] = None
+    order_nsu: Optional[str] = None
+    payment_status: str
+    payment_method: Optional[str] = None
+    receipt_url: Optional[str] = None
+    total: float = 0
+    paid_amount: Optional[float] = None
 
 
 class AdsProviderConfigUpdate(BaseModel):
