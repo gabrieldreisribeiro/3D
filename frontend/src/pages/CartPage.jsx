@@ -42,13 +42,8 @@ function CheckoutOptionCard({
   title,
   description,
   benefits = [],
-  helper = '',
-  ctaLabel,
   selected = false,
   onSelect,
-  onAction,
-  loading = false,
-  disabled = false,
 }) {
   const tone = accent === 'green'
     ? {
@@ -58,7 +53,6 @@ function CheckoutOptionCard({
       icon: 'bg-emerald-100 text-emerald-700',
       bullet: 'bg-emerald-500',
       badge: 'border-emerald-200 bg-emerald-50 text-emerald-700',
-      button: 'border-emerald-200 text-emerald-700 hover:border-emerald-300 hover:bg-emerald-50',
     }
     : {
       card: selected
@@ -67,7 +61,6 @@ function CheckoutOptionCard({
       icon: 'bg-violet-100 text-violet-700',
       bullet: 'bg-violet-500',
       badge: 'border-violet-200 bg-violet-50 text-violet-700',
-      button: '',
     };
 
   return (
@@ -87,9 +80,7 @@ function CheckoutOptionCard({
         <div className={`inline-flex h-10 w-10 items-center justify-center rounded-xl ${tone.icon}`.trim()}>
           {icon}
         </div>
-        <span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${tone.badge}`.trim()}>
-          {selected ? 'Selecionado' : 'Opcao'}
-        </span>
+        {selected ? <span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${tone.badge}`.trim()}>Ativo</span> : null}
       </div>
       <h4 className="text-sm font-semibold text-slate-900">{title}</h4>
       <p className="mt-1 text-xs leading-relaxed text-slate-600">{description}</p>
@@ -101,19 +92,6 @@ function CheckoutOptionCard({
           </li>
         ))}
       </ul>
-      {helper ? <p className="mt-3 text-[11px] text-slate-500">{helper}</p> : null}
-      <Button
-        variant={accent === 'green' ? 'secondary' : 'primary'}
-        className={`mt-4 w-full ${tone.button}`.trim()}
-        loading={loading}
-        disabled={disabled}
-        onClick={(event) => {
-          event.stopPropagation();
-          onAction();
-        }}
-      >
-        {ctaLabel}
-      </Button>
     </div>
   );
 }
@@ -137,7 +115,6 @@ function CartPage() {
   const [pendingLoading, setPendingLoading] = useState(false);
   const [onlineLoading, setOnlineLoading] = useState(false);
   const [pdfLoading, setPdfLoading] = useState(false);
-  const [showPixBox, setShowPixBox] = useState(false);
   const [selectedCheckoutOption, setSelectedCheckoutOption] = useState('online');
   const [storeSettings, setStoreSettings] = useState({ whatsapp_number: '', pix_key: '' });
   const navigate = useNavigate();
@@ -197,56 +174,6 @@ function CartPage() {
     if (configured) return configured.replace(/[^\d+]/g, '');
     return String(WHATSAPP_NUMBER || '').trim().replace(/[^\d+]/g, '');
   }, [storeSettings.whatsapp_number]);
-
-  const pixKey = String(storeSettings.pix_key || '').trim();
-
-  const formatPixField = (id, value) => {
-    const content = String(value || '');
-    return `${id}${String(content.length).padStart(2, '0')}${content}`;
-  };
-
-  const crc16 = (value) => {
-    let crc = 0xffff;
-    for (let i = 0; i < value.length; i += 1) {
-      crc ^= value.charCodeAt(i) << 8;
-      for (let j = 0; j < 8; j += 1) {
-        if (crc & 0x8000) {
-          crc = (crc << 1) ^ 0x1021;
-        } else {
-          crc <<= 1;
-        }
-        crc &= 0xffff;
-      }
-    }
-    return crc.toString(16).toUpperCase().padStart(4, '0');
-  };
-
-  const pixPayload = useMemo(() => {
-    if (!pixKey) return '';
-    const merchantAccountInfo = formatPixField(
-      '26',
-      `${formatPixField('00', 'BR.GOV.BCB.PIX')}${formatPixField('01', pixKey)}`
-    );
-    const payloadWithoutCrc = [
-      formatPixField('00', '01'),
-      formatPixField('01', '12'),
-      merchantAccountInfo,
-      formatPixField('52', '0000'),
-      formatPixField('53', '986'),
-      formatPixField('54', total.toFixed(2)),
-      formatPixField('58', 'BR'),
-      formatPixField('59', 'LUMA3D'),
-      formatPixField('60', 'BELEM PA'),
-      formatPixField('62', formatPixField('05', '***')),
-      '6304',
-    ].join('');
-    return `${payloadWithoutCrc}${crc16(payloadWithoutCrc)}`;
-  }, [pixKey, total]);
-
-  const pixQrCodeUrl = useMemo(() => {
-    if (!pixPayload) return '';
-    return `https://api.qrserver.com/v1/create-qr-code/?size=280x280&data=${encodeURIComponent(pixPayload)}`;
-  }, [pixPayload]);
 
   const fileToDataUrl = (blob) =>
     new Promise((resolve, reject) => {
@@ -585,6 +512,13 @@ function CartPage() {
     }
   };
 
+  const isWhatsappSelected = selectedCheckoutOption === 'whatsapp';
+  const isPrimaryLoading = isWhatsappSelected ? pendingLoading : onlineLoading;
+  const primaryButtonLabel = isWhatsappSelected ? 'Continuar no WhatsApp' : 'Ir para pagamento';
+  const primaryButtonHelper = isWhatsappSelected
+    ? 'Voce sera redirecionado para conversar no WhatsApp.'
+    : 'Voce sera redirecionado para o pagamento seguro.';
+
   return (
     <section className="container cart-page-pro">
       <SectionHeader title="Carrinho" subtitle="Revise os itens antes de concluir" />
@@ -684,9 +618,9 @@ function CartPage() {
 
             <div className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
               <div>
-                <h4 className="text-sm font-semibold text-slate-900">Como voce quer finalizar seu pedido?</h4>
+                <h4 className="text-sm font-semibold text-slate-900">Como deseja finalizar seu pedido?</h4>
                 <p className="mt-1 text-xs text-slate-600">
-                  Voce pode escolher a opcao mais conveniente para concluir seu pedido.
+                  Escolha a forma mais conveniente para concluir sua compra.
                 </p>
               </div>
 
@@ -710,15 +644,10 @@ function CartPage() {
                   title="Finalizar pelo WhatsApp"
                   description="Ideal para quem quer tirar duvidas, combinar detalhes, confirmar personalizacao e falar direto comigo."
                   benefits={[
-                    'Atendimento direto e suporte humano',
-                    'Combinacao de detalhes da personalizacao',
-                    'Perfeito para pedidos sob medida',
+                    'Tirar duvidas antes de comprar',
+                    'Combinar personalizacoes',
+                    'Atendimento rapido',
                   ]}
-                  helper="Perfeito para pedidos personalizados e atendimento direto."
-                  ctaLabel="Enviar pedido no WhatsApp"
-                  loading={pendingLoading}
-                  disabled={loading}
-                  onAction={handleCheckoutWhatsapp}
                 />
 
                 <CheckoutOptionCard
@@ -735,44 +664,24 @@ function CartPage() {
                   title="Pagar online"
                   description="Finalize com Pix ou cartao com pagamento rapido em um checkout seguro."
                   benefits={[
-                    'Rapidez para concluir em poucos passos',
-                    'Praticidade com Pix e cartao',
-                    'Aprovacao imediata quando aplicavel',
+                    'Pagamento rapido e seguro',
+                    'Pix ou cartao',
+                    'Confirmacao automatica',
                   ]}
-                  helper="Conclua sua compra com Pix ou cartao em poucos passos."
-                  ctaLabel="Ir para pagamento"
-                  loading={onlineLoading}
-                  disabled={loading}
-                  onAction={handleCheckoutOnline}
                 />
               </div>
 
-              <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">
-                <button
-                  type="button"
-                  className="text-xs font-medium text-slate-700 underline decoration-slate-300 underline-offset-2 hover:text-slate-900"
-                  onClick={() => setShowPixBox((current) => !current)}
+              <div className="space-y-2">
+                <Button
+                  className="w-full"
+                  loading={isPrimaryLoading}
+                  disabled={loading}
+                  onClick={isWhatsappSelected ? handleCheckoutWhatsapp : handleCheckoutOnline}
                 >
-                  {showPixBox ? 'Ocultar opcao Pix manual (backup)' : 'Precisa de backup? Ver opcao Pix manual'}
-                </button>
+                  {primaryButtonLabel}
+                </Button>
+                <p className="text-center text-xs text-slate-500">{primaryButtonHelper}</p>
               </div>
-
-              {showPixBox ? (
-                <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-3">
-                  <p className="text-xs text-slate-600">Fluxo de backup: use apenas se quiser finalizar manualmente via WhatsApp.</p>
-                  {pixQrCodeUrl ? (
-                    <img src={pixQrCodeUrl} alt="QR Code Pix" className="mx-auto h-56 w-56 rounded-xl border border-slate-200 bg-white p-2" />
-                  ) : (
-                    <p className="text-xs text-rose-600">Chave Pix nao configurada no painel.</p>
-                  )}
-                  {pixPayload ? (
-                    <div className="space-y-2">
-                      <p className="text-[11px] text-slate-500">Pix copia e cola:</p>
-                      <textarea readOnly className="h-24 w-full rounded-[10px] border border-slate-200 bg-white p-2 text-[11px] text-slate-700" value={pixPayload} />
-                    </div>
-                  ) : null}
-                </div>
-              ) : null}
             </div>
           </Card>
         </div>
