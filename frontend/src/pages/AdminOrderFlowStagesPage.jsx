@@ -35,6 +35,17 @@ function AdminOrderFlowStagesPage() {
     [stages]
   );
 
+  const stats = useMemo(() => {
+    const total = orderedStages.length;
+    const active = orderedStages.filter((item) => item.is_active).length;
+    const visible = orderedStages.filter((item) => item.is_visible_to_customer).length;
+    return {
+      total,
+      active,
+      internal: Math.max(0, total - visible),
+    };
+  }, [orderedStages]);
+
   const loadStages = () => {
     setLoading(true);
     fetchAdminOrderFlowStages()
@@ -139,58 +150,89 @@ function AdminOrderFlowStagesPage() {
         subtitle="Configure as etapas exibidas no Kanban e na timeline do cliente."
       />
 
+      <section className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Total de etapas</p>
+          <p className="mt-2 text-3xl font-bold tracking-tight text-slate-900">{stats.total}</p>
+        </div>
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-emerald-700">Etapas ativas</p>
+          <p className="mt-2 text-3xl font-bold tracking-tight text-emerald-800">{stats.active}</p>
+        </div>
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-amber-700">Etapas internas</p>
+          <p className="mt-2 text-3xl font-bold tracking-tight text-amber-800">{stats.internal}</p>
+        </div>
+      </section>
+
       <DataCard title={editingId ? 'Editar etapa' : 'Nova etapa'}>
-        <form className="grid gap-3 md:grid-cols-2" onSubmit={handleSave}>
-          <Input
-            label="Nome"
-            value={form.name}
-            onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
-            required
-          />
-          <Input
-            label="Icone (opcional)"
-            value={form.icon_name}
-            onChange={(event) => setForm((current) => ({ ...current, icon_name: event.target.value }))}
-            placeholder="truck, check-circle..."
-          />
-          <Input
-            label="Descricao (opcional)"
-            className="md:col-span-2"
-            value={form.description}
-            onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))}
-          />
-          <Input
-            label="Cor"
-            value={form.color}
-            onChange={(event) => setForm((current) => ({ ...current, color: event.target.value }))}
-            placeholder="#64748B"
-          />
-          <Input
-            label="Ordem (opcional)"
-            type="number"
-            min="1"
-            value={form.sort_order}
-            onChange={(event) => setForm((current) => ({ ...current, sort_order: event.target.value }))}
-          />
+        <form className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]" onSubmit={handleSave}>
+          <div className="space-y-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Dados da etapa</p>
+            <div className="grid gap-3 md:grid-cols-2">
+              <Input
+                label="Nome"
+                value={form.name}
+                onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
+                required
+              />
+              <Input
+                label="Icone (opcional)"
+                value={form.icon_name}
+                onChange={(event) => setForm((current) => ({ ...current, icon_name: event.target.value }))}
+                placeholder="truck, check-circle..."
+              />
+              <Input
+                label="Descricao (opcional)"
+                className="md:col-span-2"
+                value={form.description}
+                onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))}
+              />
+              <Input
+                label="Cor"
+                value={form.color}
+                onChange={(event) => setForm((current) => ({ ...current, color: event.target.value }))}
+                placeholder="#64748B"
+              />
+              <Input
+                label="Ordem (opcional)"
+                type="number"
+                min="1"
+                value={form.sort_order}
+                onChange={(event) => setForm((current) => ({ ...current, sort_order: event.target.value }))}
+              />
+            </div>
+          </div>
 
-          <label className="inline-flex items-center gap-2 text-sm text-slate-700">
-            <input
-              type="checkbox"
-              checked={form.is_active}
-              onChange={(event) => setForm((current) => ({ ...current, is_active: event.target.checked }))}
-            />
-            Etapa ativa
-          </label>
-          <label className="inline-flex items-center gap-2 text-sm text-slate-700">
-            <input
-              type="checkbox"
-              checked={form.is_visible_to_customer}
-              onChange={(event) => setForm((current) => ({ ...current, is_visible_to_customer: event.target.checked }))}
-            />
-            Exibir para cliente
-          </label>
+          <div className="space-y-4 rounded-xl border border-slate-200 bg-white p-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Visibilidade</p>
+            <label className="inline-flex items-center gap-2 text-sm text-slate-700">
+              <input
+                type="checkbox"
+                checked={form.is_active}
+                onChange={(event) => setForm((current) => ({ ...current, is_active: event.target.checked }))}
+              />
+              Etapa ativa
+            </label>
+            <label className="inline-flex items-center gap-2 text-sm text-slate-700">
+              <input
+                type="checkbox"
+                checked={form.is_visible_to_customer}
+                onChange={(event) => setForm((current) => ({ ...current, is_visible_to_customer: event.target.checked }))}
+              />
+              Exibir para cliente
+            </label>
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Preview</p>
+              <div className="mt-2 flex items-center gap-2">
+                <span className="inline-block h-3 w-3 rounded-full" style={{ backgroundColor: form.color || '#64748B' }} />
+                <strong className="text-sm text-slate-900">{form.name || 'Nome da etapa'}</strong>
+              </div>
+              <p className="mt-1 text-xs text-slate-500">{form.description || 'Descricao da etapa para equipe e timeline.'}</p>
+            </div>
+          </div>
 
-          <div className="md:col-span-2 flex flex-wrap gap-3">
+          <div className="lg:col-span-2 flex flex-wrap gap-3">
             <Button type="submit" loading={saving}>
               {editingId ? 'Salvar etapa' : 'Criar etapa'}
             </Button>
@@ -206,16 +248,23 @@ function AdminOrderFlowStagesPage() {
       <DataCard title="Etapas cadastradas">
         {loading ? <p className="text-sm text-slate-500">Carregando etapas...</p> : null}
         {!loading ? (
-          <div className="space-y-2">
+          <div className="space-y-3">
             {orderedStages.map((stage) => (
-              <article key={stage.id} className="rounded-xl border border-slate-200 bg-white p-3">
+              <article key={stage.id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
                 <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <p className="font-semibold text-slate-900">{stage.name}</p>
-                    <p className="text-xs text-slate-500">
-                      Ordem {stage.sort_order} · {stage.is_active ? 'Ativa' : 'Inativa'} · {stage.is_visible_to_customer ? 'Visivel ao cliente' : 'Interna'}
-                    </p>
-                    {stage.description ? <p className="text-sm text-slate-600">{stage.description}</p> : null}
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="inline-block h-3 w-3 rounded-full" style={{ backgroundColor: stage.color || '#64748B' }} />
+                      <p className="font-semibold text-slate-900">{stage.name}</p>
+                      <span className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold ${stage.is_active ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-slate-100 text-slate-600'}`}>
+                        {stage.is_active ? 'Ativa' : 'Inativa'}
+                      </span>
+                      <span className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold ${stage.is_visible_to_customer ? 'border-violet-200 bg-violet-50 text-violet-700' : 'border-amber-200 bg-amber-50 text-amber-700'}`}>
+                        {stage.is_visible_to_customer ? 'Cliente' : 'Interna'}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-xs text-slate-500">Ordem {stage.sort_order}</p>
+                    {stage.description ? <p className="mt-2 text-sm text-slate-600">{stage.description}</p> : null}
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <Button type="button" variant="secondary" className="h-9 px-3 text-xs" onClick={() => moveStage(stage.id, -1)}>
@@ -227,7 +276,7 @@ function AdminOrderFlowStagesPage() {
                     <Button type="button" variant="secondary" className="h-9 px-3 text-xs" onClick={() => handleEdit(stage)}>
                       Editar
                     </Button>
-                    <Button type="button" className="h-9 px-3 text-xs" onClick={() => handleDelete(stage.id)}>
+                    <Button type="button" variant="danger" className="h-9 px-3 text-xs" onClick={() => handleDelete(stage.id)}>
                       Excluir
                     </Button>
                   </div>

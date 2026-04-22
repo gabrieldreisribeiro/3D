@@ -79,6 +79,25 @@ function productionBadgeTone(status) {
   return 'neutral';
 }
 
+function firstNonEmpty(...values) {
+  for (const value of values) {
+    const text = String(value || '').trim();
+    if (text) return text;
+  }
+  return '';
+}
+
+function resolveOrderItemThumb(item) {
+  return firstNonEmpty(
+    item?.image_url_snapshot,
+    item?.image_url,
+    item?.cover_image_snapshot,
+    item?.cover_image,
+    item?.product_image,
+    item?.product_cover_image,
+  );
+}
+
 function CustomerAccountPage() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('overview');
@@ -308,6 +327,36 @@ function CustomerAccountPage() {
                         </StatusBadge>
                       </div>
 
+                      <section className="customer-order-hero">
+                        <div className="customer-order-hero-main">
+                          <p className="customer-order-hero-label">Status do pedido</p>
+                          <div className="customer-order-hero-status-wrap">
+                            <StatusBadge tone={statusBadgeTone(selectedOrder.payment_status)}>
+                              {paymentStatusLabel(selectedOrder.payment_status)}
+                            </StatusBadge>
+                            <StatusBadge tone={productionBadgeTone(selectedOrder.production_status)}>
+                              {selectedOrder.current_stage_name || productionStatusLabel(selectedOrder.production_status)}
+                            </StatusBadge>
+                          </div>
+                          <h4 className="customer-order-hero-title">
+                            {selectedOrder.current_stage_name || productionStatusLabel(selectedOrder.production_status)}
+                          </h4>
+                          <p className="customer-order-hero-subtitle">
+                            Acompanhe abaixo cada etapa da producao e atualizacoes do pedido em tempo real.
+                          </p>
+                        </div>
+                        <div className="customer-order-hero-metrics">
+                          <div className="customer-order-hero-metric">
+                            <span>Previsao de conclusao</span>
+                            <strong>{selectedOrder.estimated_ready_at ? formatDateTime(selectedOrder.estimated_ready_at) : '-'}</strong>
+                          </div>
+                          <div className="customer-order-hero-metric">
+                            <span>Status do pagamento</span>
+                            <strong>{paymentStatusLabel(selectedOrder.payment_status)}</strong>
+                          </div>
+                        </div>
+                      </section>
+
                       <div className="customer-detail-grid">
                         <div className="customer-detail-block">
                           <h4>Resumo</h4>
@@ -341,12 +390,14 @@ function CustomerAccountPage() {
                         {(selectedOrder.timeline || []).length ? (
                           <div className="customer-timeline">
                             {(selectedOrder.timeline || []).map((step) => (
-                              <div key={step.stage_id} className="customer-timeline-item">
+                              <div key={step.stage_id} className={`customer-timeline-item ${step.is_current ? 'is-current' : step.is_completed ? 'is-completed' : 'is-pending'}`}>
                                 <div className="customer-timeline-track" aria-hidden="true">
                                   <span
                                     className={`customer-timeline-dot ${step.is_current ? 'is-current' : step.is_completed ? 'is-completed' : 'is-pending'}`}
                                     style={{ backgroundColor: step.color || undefined }}
-                                  />
+                                  >
+                                    {step.is_completed ? 'v' : null}
+                                  </span>
                                   <span className={`customer-timeline-line ${step.is_completed ? 'is-completed' : ''}`} />
                                 </div>
                                 <div className="customer-timeline-content">
@@ -380,15 +431,27 @@ function CustomerAccountPage() {
                           <p className="text-sm text-slate-500">Nenhum item encontrado para este pedido.</p>
                         ) : (
                           <div className="customer-items-list">
-                            {selectedOrder.items.map((item, index) => (
-                              <div key={`${item.product_slug}-${index}`} className="customer-item-row">
-                              <div>
-                                <p className="customer-item-title">{item.title}</p>
-                                <p className="customer-item-muted">Quantidade: {item.quantity} | Prazo: {Math.max(1, Number(item.production_days_snapshot || 1))} dia(s)</p>
-                              </div>
-                                <strong>{formatMoney(item.line_total)}</strong>
-                              </div>
-                            ))}
+                            {selectedOrder.items.map((item, index) => {
+                              const thumbUrl = resolveOrderItemThumb(item);
+                              return (
+                                <div key={`${item.product_slug}-${index}`} className="customer-item-row">
+                                  <div className="customer-item-left">
+                                    <div className="customer-item-thumb">
+                                      {thumbUrl ? (
+                                        <img src={thumbUrl} alt={item.title} loading="lazy" />
+                                      ) : (
+                                        <span>{(item.title || '?').slice(0, 1).toUpperCase()}</span>
+                                      )}
+                                    </div>
+                                    <div>
+                                      <p className="customer-item-title">{item.title}</p>
+                                      <p className="customer-item-muted">Quantidade: {item.quantity} | Prazo: {Math.max(1, Number(item.production_days_snapshot || 1))} dia(s)</p>
+                                    </div>
+                                  </div>
+                                  <strong className="customer-item-price">{formatMoney(item.line_total)}</strong>
+                                </div>
+                              );
+                            })}
                           </div>
                         )}
                       </div>

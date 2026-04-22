@@ -113,62 +113,89 @@ function AdminInfinitePayPage() {
       />
 
       <DataCard title="Status da integracao">
-        <div className={`rounded-xl border px-3 py-2 text-sm font-medium ${visualStatus.tone}`}>
-          {visualStatus.label} - {statusText || 'Sem status'}
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.4fr_1fr]">
+          <div className={`rounded-2xl border px-4 py-4 ${visualStatus.tone}`}>
+            <p className="text-xs font-semibold uppercase tracking-[0.14em]">Status atual</p>
+            <p className="mt-2 text-xl font-bold tracking-tight">{visualStatus.label}</p>
+            <p className="mt-1 text-sm">{statusText || 'Sem status'}</p>
+          </div>
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Checklist rapido</p>
+            <ul className="mt-2 space-y-1.5 text-sm text-slate-600">
+              <li>Handle configurado: {form.handle ? 'Sim' : 'Nao'}</li>
+              <li>Redirect configurado: {form.redirect_url ? 'Sim' : 'Nao'}</li>
+              <li>Webhook configurado: {form.webhook_url ? 'Sim' : 'Nao'}</li>
+              <li>Modo de teste: {form.test_mode ? 'Ativo' : 'Desativado'}</li>
+            </ul>
+          </div>
         </div>
       </DataCard>
 
       <DataCard title="Configuracao da InfinitePay">
         {loading ? <p className="text-sm text-slate-500">Carregando configuracoes...</p> : null}
         {!loading ? (
-          <form className="grid max-w-3xl gap-4" onSubmit={handleSave}>
-            <label className="flex items-center gap-2 text-sm text-slate-700">
-              <input
-                type="checkbox"
-                checked={form.enabled}
-                onChange={(event) => handleChange('enabled', event.target.checked)}
-              />
-              Integracao habilitada
-            </label>
+          <form className="space-y-4" onSubmit={handleSave}>
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Controles gerais</p>
+              <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
+                <label className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={form.enabled}
+                    onChange={(event) => handleChange('enabled', event.target.checked)}
+                  />
+                  Integracao habilitada
+                </label>
+                <label className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={form.test_mode}
+                    onChange={(event) => handleChange('test_mode', event.target.checked)}
+                  />
+                  Modo de teste
+                </label>
+              </div>
+            </div>
 
-            <label className="space-y-1">
-              <span className="text-xs font-medium uppercase tracking-wide text-slate-500">Handle</span>
-              <input className="h-11 rounded-[10px] border border-slate-200 bg-white px-3 text-sm" value={form.handle} onChange={(event) => handleChange('handle', event.target.value)} placeholder="sua_infinite_tag" />
-            </label>
+            <div className="rounded-2xl border border-slate-200 bg-white p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Credenciais e endpoints</p>
+              <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
+                <label className="space-y-1">
+                  <span className="text-xs font-medium uppercase tracking-wide text-slate-500">Handle</span>
+                  <input className="h-11 rounded-[10px] border border-slate-200 bg-white px-3 text-sm" value={form.handle} onChange={(event) => handleChange('handle', event.target.value)} placeholder="sua_infinite_tag" />
+                </label>
 
-            <label className="space-y-1">
-              <span className="text-xs font-medium uppercase tracking-wide text-slate-500">Redirect URL</span>
-              <input className="h-11 rounded-[10px] border border-slate-200 bg-white px-3 text-sm" value={form.redirect_url} onChange={(event) => handleChange('redirect_url', event.target.value)} placeholder="https://seusite.com/pagamento/retorno" />
-            </label>
+                <label className="space-y-1">
+                  <span className="text-xs font-medium uppercase tracking-wide text-slate-500">Moeda padrao</span>
+                  <input className="h-11 rounded-[10px] border border-slate-200 bg-white px-3 text-sm" value={form.default_currency} onChange={(event) => handleChange('default_currency', event.target.value.toUpperCase())} placeholder="BRL" />
+                </label>
 
-            <label className="space-y-1">
-              <span className="text-xs font-medium uppercase tracking-wide text-slate-500">Webhook URL</span>
-              <input className="h-11 rounded-[10px] border border-slate-200 bg-white px-3 text-sm" value={form.webhook_url} onChange={(event) => handleChange('webhook_url', event.target.value)} placeholder="https://seusite.com/webhooks/infinitepay" />
-            </label>
+                <label className="space-y-1 md:col-span-2">
+                  <span className="text-xs font-medium uppercase tracking-wide text-slate-500">Redirect URL</span>
+                  <input className="h-11 rounded-[10px] border border-slate-200 bg-white px-3 text-sm" value={form.redirect_url} onChange={(event) => handleChange('redirect_url', event.target.value)} placeholder="https://seusite.com/pagamento/retorno" />
+                </label>
 
-            <label className="space-y-1">
-              <span className="text-xs font-medium uppercase tracking-wide text-slate-500">Moeda padrao</span>
-              <input className="h-11 rounded-[10px] border border-slate-200 bg-white px-3 text-sm" value={form.default_currency} onChange={(event) => handleChange('default_currency', event.target.value.toUpperCase())} placeholder="BRL" />
-            </label>
+                <label className="space-y-1 md:col-span-2">
+                  <span className="text-xs font-medium uppercase tracking-wide text-slate-500">Webhook URL</span>
+                  <input className="h-11 rounded-[10px] border border-slate-200 bg-white px-3 text-sm" value={form.webhook_url} onChange={(event) => handleChange('webhook_url', event.target.value)} placeholder="https://seusite.com/webhooks/infinitepay" />
+                </label>
+              </div>
+            </div>
 
-            <label className="space-y-1">
-              <span className="text-xs font-medium uppercase tracking-wide text-slate-500">Success page URL (opcional)</span>
-              <input className="h-11 rounded-[10px] border border-slate-200 bg-white px-3 text-sm" value={form.success_page_url} onChange={(event) => handleChange('success_page_url', event.target.value)} placeholder="https://seusite.com/pagamento/aprovado" />
-            </label>
+            <div className="rounded-2xl border border-slate-200 bg-white p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Paginas de retorno (opcional)</p>
+              <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
+                <label className="space-y-1">
+                  <span className="text-xs font-medium uppercase tracking-wide text-slate-500">Success page URL</span>
+                  <input className="h-11 rounded-[10px] border border-slate-200 bg-white px-3 text-sm" value={form.success_page_url} onChange={(event) => handleChange('success_page_url', event.target.value)} placeholder="https://seusite.com/pagamento/aprovado" />
+                </label>
 
-            <label className="space-y-1">
-              <span className="text-xs font-medium uppercase tracking-wide text-slate-500">Cancel page URL (opcional)</span>
-              <input className="h-11 rounded-[10px] border border-slate-200 bg-white px-3 text-sm" value={form.cancel_page_url} onChange={(event) => handleChange('cancel_page_url', event.target.value)} placeholder="https://seusite.com/pagamento/cancelado" />
-            </label>
-
-            <label className="flex items-center gap-2 text-sm text-slate-700">
-              <input
-                type="checkbox"
-                checked={form.test_mode}
-                onChange={(event) => handleChange('test_mode', event.target.checked)}
-              />
-              Modo de teste
-            </label>
+                <label className="space-y-1">
+                  <span className="text-xs font-medium uppercase tracking-wide text-slate-500">Cancel page URL</span>
+                  <input className="h-11 rounded-[10px] border border-slate-200 bg-white px-3 text-sm" value={form.cancel_page_url} onChange={(event) => handleChange('cancel_page_url', event.target.value)} placeholder="https://seusite.com/pagamento/cancelado" />
+                </label>
+              </div>
+            </div>
 
             <div className="flex flex-wrap gap-3">
               <Button type="submit" loading={saving}>

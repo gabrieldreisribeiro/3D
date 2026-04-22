@@ -461,6 +461,14 @@ function Admin3DModelsPage() {
     return Array.from(map.values()).sort((a, b) => a.productTitle.localeCompare(b.productTitle));
   }, [visibleRows]);
 
+  const modelStats = useMemo(() => {
+    const total = filteredRows.length;
+    const active = filteredRows.filter((item) => item.is_active).length;
+    const downloadable = filteredRows.filter((item) => item.allow_download).length;
+    const unassigned = filteredRows.filter((item) => item.product_id == null).length;
+    return { total, active, downloadable, unassigned };
+  }, [filteredRows]);
+
   useEffect(() => {
     setSelectedRowIds((current) => {
       const available = new Set((rows || []).map((item) => String(item.id)));
@@ -997,6 +1005,25 @@ function Admin3DModelsPage() {
       {error ? <p className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p> : null}
       {notice ? <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{notice}</p> : null}
 
+      <section className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Modelos filtrados</p>
+          <p className="mt-2 text-3xl font-bold tracking-tight text-slate-900">{modelStats.total}</p>
+        </div>
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-emerald-700">Ativos</p>
+          <p className="mt-2 text-3xl font-bold tracking-tight text-emerald-800">{modelStats.active}</p>
+        </div>
+        <div className="rounded-2xl border border-sky-200 bg-sky-50 p-4 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-sky-700">Download liberado</p>
+          <p className="mt-2 text-3xl font-bold tracking-tight text-sky-800">{modelStats.downloadable}</p>
+        </div>
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-amber-700">Nao atribuidos</p>
+          <p className="mt-2 text-3xl font-bold tracking-tight text-amber-800">{modelStats.unassigned}</p>
+        </div>
+      </section>
+
       <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         <div className="mb-3 flex flex-wrap items-center gap-2">
           <label className="inline-flex cursor-pointer items-center rounded-[10px] border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:border-violet-200 hover:text-violet-700">
@@ -1253,10 +1280,19 @@ function Admin3DModelsPage() {
         <section className="space-y-6">
           {groupedRows.map((group) => (
             <article key={group.key} className="space-y-3">
-              <header className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
-                <h3 className="text-sm font-semibold text-slate-800">
-                  {group.productTitle} <span className="text-slate-500">({group.items.length} modelos)</span>
-                </h3>
+              <header className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+                <div className="min-w-0">
+                  <h3 className="text-sm font-semibold text-slate-800">
+                    {group.productTitle}
+                  </h3>
+                  <p className="text-xs text-slate-500">{group.items.length} modelo(s) neste grupo</p>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  <StatusBadge tone="neutral">{group.items.length} total</StatusBadge>
+                  <StatusBadge tone="success">{group.items.filter((item) => item.is_active).length} ativos</StatusBadge>
+                  <StatusBadge tone="info">{group.items.filter((item) => item.allow_download).length} download</StatusBadge>
+                  {group.productId == null ? <StatusBadge tone="warning">Atribuicao pendente</StatusBadge> : null}
+                </div>
               </header>
 
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
