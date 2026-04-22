@@ -4,7 +4,9 @@ import json
 from sqlalchemy import func
 from sqlalchemy.orm import Session, selectinload
 
-from app.models import Order, OrderItem, Product
+from app.models import Order, OrderItem, OrderStageHistory, Product
+from app.services.order_flow_service import ensure_order_has_stage, serialize_order_stage_history
+from app.services.production_service import ensure_order_production_estimate
 
 
 def create_order(db: Session, items, coupon_code, subtotal, discount, total):
@@ -48,6 +50,10 @@ def _create_order(
     paid_amount=None,
     installments=None,
     paid_at=None,
+    production_status=None,
+    production_started_at=None,
+    estimated_ready_at=None,
+    ready_at=None,
     payment_metadata_json='{}',
 ):
     order = Order(
@@ -73,6 +79,10 @@ def _create_order(
         paid_amount=paid_amount,
         installments=installments,
         paid_at=paid_at,
+        production_status=production_status,
+        production_started_at=production_started_at,
+        estimated_ready_at=estimated_ready_at,
+        ready_at=ready_at,
         payment_metadata_json=payment_metadata_json or '{}',
     )
     db.add(order)
@@ -85,12 +95,15 @@ def _create_order(
             quantity=item['quantity'],
             unit_price=item['unit_price'],
             line_total=item.get('line_total') or (float(item['unit_price']) * int(item['quantity'])),
+            production_days_snapshot=max(1, int(item.get('production_days_snapshot') or 1)),
             selected_color=item.get('selected_color'),
             selected_secondary_color=item.get('selected_secondary_color'),
             selected_sub_items=json.dumps(item.get('selected_sub_items') or [], ensure_ascii=False),
             name_personalizations=json.dumps(item.get('name_personalizations') or [], ensure_ascii=False),
         )
         db.add(order_item)
+    ensure_order_has_stage(db, order, note='order_created')
+    ensure_order_production_estimate(order)
     db.commit()
     db.refresh(order)
     return order
@@ -165,6 +178,7 @@ def serialize_order_item(item: OrderItem) -> dict:
         'quantity': quantity,
         'unit_price': unit_price,
         'line_total': line_total,
+        'production_days_snapshot': max(1, int(item.production_days_snapshot or 1)),
         'selected_color': item.selected_color,
         'selected_secondary_color': item.selected_secondary_color,
         'selected_sub_items': _safe_parse_selected_sub_items(item.selected_sub_items),
@@ -173,6 +187,7 @@ def serialize_order_item(item: OrderItem) -> dict:
 
 
 def serialize_order(order: Order) -> dict:
+    stage_history = order.stage_history or []
     return {
         'id': order.id,
         'subtotal': float(order.subtotal or 0),
@@ -192,12 +207,22 @@ def serialize_order(order: Order) -> dict:
         'paid_amount': float(order.paid_amount) if order.paid_amount is not None else None,
         'installments': int(order.installments) if order.installments is not None else None,
         'paid_at': order.paid_at,
+        'current_stage_id': order.current_stage_id,
+        'current_stage_updated_at': order.current_stage_updated_at,
+        'current_stage_name': order.current_stage.name if order.current_stage else None,
+        'current_stage_color': order.current_stage.color if order.current_stage else None,
+        'production_status': order.production_status,
+        'production_started_at': order.production_started_at,
+        'estimated_ready_at': order.estimated_ready_at,
+        'ready_at': order.ready_at,
         'payment_metadata_json': order.payment_metadata_json,
         'customer_account_id': order.customer_account_id,
         'customer_name': order.customer_name,
         'customer_email_snapshot': order.customer_email_snapshot,
         'customer_phone_snapshot': order.customer_phone_snapshot,
         'shipping_address_snapshot': order.shipping_address_snapshot,
+        'stage_history': [serialize_order_stage_history(entry) for entry in stage_history],
+        'timeline': [],
         'items': [serialize_order_item(item) for item in (order.items or [])],
     }
 
@@ -210,7 +235,16 @@ def serialize_admin_order(order: Order) -> dict:
 
 
 def admin_list_orders(db: Session):
-    return db.query(Order).options(selectinload(Order.items)).order_by(Order.id.desc()).all()
+    return (
+        db.query(Order)
+        .options(
+            selectinload(Order.items),
+            selectinload(Order.current_stage),
+            selectinload(Order.stage_history).selectinload(OrderStageHistory.stage),
+        )
+        .order_by(Order.id.desc())
+        .all()
+    )
 
 
 def admin_total_orders(db: Session) -> int:

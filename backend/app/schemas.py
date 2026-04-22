@@ -88,6 +88,7 @@ class ProductBase(BaseModel):
     rating_count: int
     category_id: Optional[int] = None
     lead_time_hours: float
+    production_days: int = 1
     allow_colors: bool
     available_colors: List[str]
     allow_secondary_color: bool
@@ -187,6 +188,7 @@ class AdminProductBase(BaseModel):
     is_active: bool = True
     category_id: Optional[int] = Field(default=None)
     lead_time_hours: float = Field(default=0, ge=0)
+    production_days: int = Field(default=1, ge=1, le=365)
     allow_colors: bool = False
     available_colors: List[str] = Field(default_factory=list)
     allow_secondary_color: bool = False
@@ -237,6 +239,7 @@ class AdminProductResponse(BaseModel):
     is_active: bool
     category_id: Optional[int] = None
     lead_time_hours: float
+    production_days: int
     allow_colors: bool
     available_colors: List[str]
     allow_secondary_color: bool
@@ -399,6 +402,71 @@ class OrderCreate(BaseModel):
     shipping_address_snapshot: dict = Field(default_factory=dict)
 
 
+class OrderFlowStageResponse(BaseModel):
+    id: int
+    name: str
+    description: Optional[str] = None
+    color: Optional[str] = None
+    icon_name: Optional[str] = None
+    sort_order: int
+    is_active: bool
+    is_visible_to_customer: bool
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+
+class AdminOrderFlowStageCreate(BaseModel):
+    name: str = Field(..., min_length=2, max_length=120)
+    description: Optional[str] = Field(default=None, max_length=260)
+    color: Optional[str] = Field(default=None, max_length=30)
+    icon_name: Optional[str] = Field(default=None, max_length=60)
+    sort_order: Optional[int] = Field(default=None, ge=1, le=999)
+    is_active: bool = True
+    is_visible_to_customer: bool = True
+
+
+class AdminOrderFlowStageUpdate(BaseModel):
+    name: str = Field(..., min_length=2, max_length=120)
+    description: Optional[str] = Field(default=None, max_length=260)
+    color: Optional[str] = Field(default=None, max_length=30)
+    icon_name: Optional[str] = Field(default=None, max_length=60)
+    sort_order: Optional[int] = Field(default=None, ge=1, le=999)
+    is_active: bool = True
+    is_visible_to_customer: bool = True
+
+
+class AdminOrderFlowStageReorderRequest(BaseModel):
+    stage_ids: List[int] = Field(default_factory=list)
+
+
+class AdminOrderMoveStageRequest(BaseModel):
+    stage_id: int = Field(..., ge=1)
+    note: Optional[str] = Field(default=None, max_length=400)
+
+
+class OrderStageHistoryResponse(BaseModel):
+    id: int
+    order_id: int
+    stage_id: Optional[int] = None
+    stage_name: Optional[str] = None
+    stage_color: Optional[str] = None
+    moved_by_admin_user_id: Optional[int] = None
+    note: Optional[str] = None
+    created_at: Optional[datetime] = None
+
+
+class OrderTimelineStageResponse(BaseModel):
+    stage_id: int
+    name: str
+    description: Optional[str] = None
+    color: Optional[str] = None
+    icon_name: Optional[str] = None
+    sort_order: int
+    is_current: bool = False
+    is_completed: bool = False
+    completed_at: Optional[datetime] = None
+
+
 class OrderItemResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -407,6 +475,7 @@ class OrderItemResponse(BaseModel):
     quantity: int
     unit_price: float
     line_total: float
+    production_days_snapshot: int = 1
     selected_color: Optional[str] = None
     selected_secondary_color: Optional[str] = None
     selected_sub_items: List[dict] = Field(default_factory=list)
@@ -433,12 +502,22 @@ class OrderResponse(BaseModel):
     paid_amount: Optional[float] = None
     installments: Optional[int] = None
     paid_at: Optional[datetime] = None
+    current_stage_id: Optional[int] = None
+    current_stage_updated_at: Optional[datetime] = None
+    current_stage_name: Optional[str] = None
+    current_stage_color: Optional[str] = None
+    production_status: Optional[str] = None
+    production_started_at: Optional[datetime] = None
+    estimated_ready_at: Optional[datetime] = None
+    ready_at: Optional[datetime] = None
     payment_metadata_json: Optional[str] = None
     customer_account_id: Optional[int] = None
     customer_name: Optional[str] = None
     customer_email_snapshot: Optional[str] = None
     customer_phone_snapshot: Optional[str] = None
     shipping_address_snapshot: Optional[str] = None
+    stage_history: List[OrderStageHistoryResponse] = Field(default_factory=list)
+    timeline: List[OrderTimelineStageResponse] = Field(default_factory=list)
     items: List[OrderItemResponse]
 
 class AdminLoginRequest(BaseModel):
@@ -572,6 +651,7 @@ class AdminOrderItemResponse(BaseModel):
     quantity: int
     unit_price: float
     line_total: float
+    production_days_snapshot: int = 1
     selected_color: Optional[str] = None
     selected_secondary_color: Optional[str] = None
     selected_sub_items: List[dict] = Field(default_factory=list)
@@ -597,12 +677,21 @@ class AdminOrderResponse(BaseModel):
     paid_amount: Optional[float] = None
     installments: Optional[int] = None
     paid_at: Optional[datetime] = None
+    current_stage_id: Optional[int] = None
+    current_stage_updated_at: Optional[datetime] = None
+    current_stage_name: Optional[str] = None
+    current_stage_color: Optional[str] = None
+    production_status: Optional[str] = None
+    production_started_at: Optional[datetime] = None
+    estimated_ready_at: Optional[datetime] = None
+    ready_at: Optional[datetime] = None
     payment_metadata_json: Optional[str] = None
     customer_account_id: Optional[int] = None
     customer_name: Optional[str] = None
     customer_email_snapshot: Optional[str] = None
     customer_phone_snapshot: Optional[str] = None
     shipping_address_snapshot: Optional[str] = None
+    stage_history: List[OrderStageHistoryResponse] = Field(default_factory=list)
     created_at: Optional[datetime]
     items: List[AdminOrderItemResponse]
 
@@ -676,6 +765,14 @@ class CustomerOrderListItem(BaseModel):
     payment_method: Optional[str] = None
     payment_provider: Optional[str] = None
     sales_channel: Optional[str] = None
+    current_stage_id: Optional[int] = None
+    current_stage_name: Optional[str] = None
+    current_stage_color: Optional[str] = None
+    current_stage_updated_at: Optional[datetime] = None
+    production_status: Optional[str] = None
+    estimated_ready_at: Optional[datetime] = None
+    production_started_at: Optional[datetime] = None
+    ready_at: Optional[datetime] = None
     created_at: Optional[datetime] = None
     receipt_url: Optional[str] = None
 
@@ -690,6 +787,10 @@ class CustomerOrderListResponse(BaseModel):
 class CustomerLinkLegacyOrdersResponse(BaseModel):
     linked_orders_count: int = 0
     message: str
+
+
+class AdminOrderProductionUpdateRequest(BaseModel):
+    production_status: Literal['paid', 'in_production', 'ready']
 
 
 class DashboardSeriesPoint(BaseModel):

@@ -12,6 +12,9 @@ from app.models import (
     EmailProviderConfig,
     EmailTemplate,
     HighlightItem,
+    Order,
+    OrderFlowStage,
+    OrderStageHistory,
     PaymentProviderInfinitePayConfig,
     Product,
     Product3DModel,
@@ -185,6 +188,12 @@ def _ensure_orders_payment_columns(session):
         'paid_amount': "REAL",
         'installments': "INTEGER",
         'paid_at': "DATETIME",
+        'current_stage_id': "INTEGER",
+        'current_stage_updated_at': "DATETIME",
+        'production_status': "VARCHAR(20)",
+        'production_started_at': "DATETIME",
+        'estimated_ready_at': "DATETIME",
+        'ready_at': "DATETIME",
         'payment_metadata_json': "TEXT DEFAULT '{}'",
     }
     dialect = session.bind.dialect.name
@@ -231,13 +240,157 @@ def _ensure_orders_payment_columns(session):
             """
         )
     )
+    session.execute(
+        text(
+            """
+            UPDATE orders
+            SET production_status = 'paid'
+            WHERE LOWER(COALESCE(payment_status, '')) = 'paid'
+              AND COALESCE(NULLIF(production_status, ''), '') = ''
+            """
+        )
+    )
     session.execute(text("CREATE INDEX IF NOT EXISTS ix_orders_order_nsu ON orders(order_nsu)"))
     session.execute(text("CREATE INDEX IF NOT EXISTS ix_orders_invoice_slug ON orders(invoice_slug)"))
     session.execute(text("CREATE INDEX IF NOT EXISTS ix_orders_transaction_nsu ON orders(transaction_nsu)"))
     session.execute(text("CREATE INDEX IF NOT EXISTS ix_orders_customer_account_id ON orders(customer_account_id)"))
     session.execute(text("CREATE INDEX IF NOT EXISTS ix_orders_customer_email_snapshot ON orders(customer_email_snapshot)"))
     session.execute(text("CREATE INDEX IF NOT EXISTS ix_orders_customer_phone_snapshot ON orders(customer_phone_snapshot)"))
+    session.execute(text("CREATE INDEX IF NOT EXISTS ix_orders_current_stage_id ON orders(current_stage_id)"))
+    session.execute(text("CREATE INDEX IF NOT EXISTS ix_orders_production_status ON orders(production_status)"))
+    session.execute(text("CREATE INDEX IF NOT EXISTS ix_orders_estimated_ready_at ON orders(estimated_ready_at)"))
     session.commit()
+
+
+def _ensure_order_flow_tables(session):
+    dialect = session.bind.dialect.name
+    if dialect == 'sqlite':
+        session.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS order_flow_stages (
+                    id INTEGER PRIMARY KEY,
+                    name VARCHAR(120) NOT NULL,
+                    description VARCHAR(260),
+                    color VARCHAR(30),
+                    icon_name VARCHAR(60),
+                    sort_order INTEGER NOT NULL DEFAULT 1,
+                    is_active BOOLEAN NOT NULL DEFAULT 1,
+                    is_visible_to_customer BOOLEAN NOT NULL DEFAULT 1,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                )
+                """
+            )
+        )
+        session.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS order_stage_history (
+                    id INTEGER PRIMARY KEY,
+                    order_id INTEGER NOT NULL,
+                    stage_id INTEGER,
+                    moved_by_admin_user_id INTEGER,
+                    note VARCHAR(400),
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY(order_id) REFERENCES orders(id) ON DELETE CASCADE,
+                    FOREIGN KEY(stage_id) REFERENCES order_flow_stages(id) ON DELETE SET NULL,
+                    FOREIGN KEY(moved_by_admin_user_id) REFERENCES admin_users(id) ON DELETE SET NULL
+                )
+                """
+            )
+        )
+    elif dialect.startswith('postgres'):
+        session.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS order_flow_stages (
+                    id SERIAL PRIMARY KEY,
+                    name VARCHAR(120) NOT NULL,
+                    description VARCHAR(260),
+                    color VARCHAR(30),
+                    icon_name VARCHAR(60),
+                    sort_order INTEGER NOT NULL DEFAULT 1,
+                    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+                    is_visible_to_customer BOOLEAN NOT NULL DEFAULT TRUE,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+                """
+            )
+        )
+        session.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS order_stage_history (
+                    id SERIAL PRIMARY KEY,
+                    order_id INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+                    stage_id INTEGER REFERENCES order_flow_stages(id) ON DELETE SET NULL,
+                    moved_by_admin_user_id INTEGER REFERENCES admin_users(id) ON DELETE SET NULL,
+                    note VARCHAR(400),
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+                """
+            )
+        )
+    else:
+        return
+
+    session.execute(text("CREATE INDEX IF NOT EXISTS ix_order_flow_stages_sort_order ON order_flow_stages(sort_order)"))
+    session.execute(text("CREATE INDEX IF NOT EXISTS ix_order_flow_stages_is_active ON order_flow_stages(is_active)"))
+    session.execute(text("CREATE INDEX IF NOT EXISTS ix_order_stage_history_order_id ON order_stage_history(order_id)"))
+    session.execute(text("CREATE INDEX IF NOT EXISTS ix_order_stage_history_stage_id ON order_stage_history(stage_id)"))
+    session.execute(text("CREATE INDEX IF NOT EXISTS ix_order_stage_history_created_at ON order_stage_history(created_at)"))
+    session.commit()
+
+    if session.query(OrderFlowStage).count() == 0:
+        default_stages = [
+            OrderFlowStage(name='Pedido recebido', description='Pedido criado no sistema', color='#64748B', icon_name='inbox', sort_order=1, is_active=True, is_visible_to_customer=True),
+            OrderFlowStage(name='Pago', description='Pagamento confirmado', color='#16A34A', icon_name='check-circle', sort_order=2, is_active=True, is_visible_to_customer=True),
+            OrderFlowStage(name='Em producao', description='Pedido em producao', color='#2563EB', icon_name='cog', sort_order=3, is_active=True, is_visible_to_customer=True),
+            OrderFlowStage(name='Pronto', description='Pedido pronto para envio/retirada', color='#7C3AED', icon_name='package-check', sort_order=4, is_active=True, is_visible_to_customer=True),
+            OrderFlowStage(name='Enviado', description='Pedido enviado', color='#F59E0B', icon_name='truck', sort_order=5, is_active=True, is_visible_to_customer=True),
+            OrderFlowStage(name='Entregue', description='Pedido finalizado', color='#059669', icon_name='home', sort_order=6, is_active=True, is_visible_to_customer=True),
+        ]
+        for stage in default_stages:
+            session.add(stage)
+        session.commit()
+
+    stages = session.query(OrderFlowStage).order_by(OrderFlowStage.sort_order.asc(), OrderFlowStage.id.asc()).all()
+    if not stages:
+        return
+    first_stage = stages[0]
+    paid_stage = next((stage for stage in stages if 'pago' in str(stage.name or '').strip().lower() or 'paid' in str(stage.name or '').strip().lower()), first_stage)
+    production_stage = next((stage for stage in stages if 'produc' in str(stage.name or '').strip().lower()), paid_stage)
+    ready_stage = next((stage for stage in stages if 'pronto' in str(stage.name or '').strip().lower() or 'ready' in str(stage.name or '').strip().lower()), production_stage)
+
+    rows = session.query(Order).filter(Order.current_stage_id.is_(None)).all()
+    changed = False
+    for row in rows:
+        payment_status = str(row.payment_status or '').strip().lower()
+        production_status = str(row.production_status or '').strip().lower()
+        target = first_stage
+        if production_status == 'ready':
+            target = ready_stage
+        elif production_status == 'in_production':
+            target = production_stage
+        elif payment_status == 'paid':
+            target = paid_stage
+        row.current_stage_id = target.id
+        row.current_stage_updated_at = row.current_stage_updated_at or row.created_at
+        session.add(row)
+        if session.query(OrderStageHistory).filter(OrderStageHistory.order_id == row.id).first() is None:
+            session.add(
+                OrderStageHistory(
+                    order_id=row.id,
+                    stage_id=target.id,
+                    moved_by_admin_user_id=None,
+                    note='auto_bootstrap_stage_assignment',
+                )
+            )
+        changed = True
+    if changed:
+        session.commit()
 
 
 def _ensure_infinitepay_config_table(session):
@@ -258,6 +411,27 @@ def _ensure_infinitepay_config_table(session):
                     test_mode BOOLEAN NOT NULL DEFAULT 0,
                     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                )
+                """
+            )
+        )
+        session.commit()
+    elif dialect.startswith('postgres'):
+        session.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS payment_provider_infinitepay_config (
+                    id INTEGER PRIMARY KEY,
+                    is_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+                    handle VARCHAR(120),
+                    redirect_url VARCHAR(500),
+                    webhook_url VARCHAR(500),
+                    default_currency VARCHAR(10) NOT NULL DEFAULT 'BRL',
+                    success_page_url VARCHAR(500),
+                    cancel_page_url VARCHAR(500),
+                    test_mode BOOLEAN NOT NULL DEFAULT FALSE,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
                 """
             )
@@ -348,28 +522,6 @@ def _ensure_customer_accounts_tables(session):
         session.execute(text("CREATE INDEX IF NOT EXISTS ix_customer_password_reset_tokens_token ON customer_password_reset_tokens(token)"))
         session.execute(text("CREATE INDEX IF NOT EXISTS ix_customer_password_reset_tokens_account_id ON customer_password_reset_tokens(customer_account_id)"))
         session.commit()
-    elif dialect.startswith('postgres'):
-        session.execute(
-            text(
-                """
-                CREATE TABLE IF NOT EXISTS payment_provider_infinitepay_config (
-                    id INTEGER PRIMARY KEY,
-                    is_enabled BOOLEAN NOT NULL DEFAULT FALSE,
-                    handle VARCHAR(120),
-                    redirect_url VARCHAR(500),
-                    webhook_url VARCHAR(500),
-                    default_currency VARCHAR(10) NOT NULL DEFAULT 'BRL',
-                    success_page_url VARCHAR(500),
-                    cancel_page_url VARCHAR(500),
-                    test_mode BOOLEAN NOT NULL DEFAULT FALSE,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-                """
-            )
-        )
-        session.commit()
-
     existing = session.query(PaymentProviderInfinitePayConfig).first()
     if not existing:
         session.add(
@@ -391,6 +543,7 @@ def _ensure_customer_accounts_tables(session):
 def _ensure_order_items_columns(session):
     required_columns = {
         'line_total': "REAL DEFAULT 0",
+        'production_days_snapshot': "INTEGER DEFAULT 1",
         'selected_color': "VARCHAR(20)",
         'selected_secondary_color': "VARCHAR(20)",
         'selected_sub_items': "TEXT DEFAULT ''",
@@ -414,6 +567,8 @@ def _ensure_order_items_columns(session):
         return
 
     session.execute(text("UPDATE order_items SET line_total = COALESCE(line_total, unit_price * quantity)"))
+    session.execute(text("UPDATE order_items SET production_days_snapshot = COALESCE(production_days_snapshot, 1)"))
+    session.execute(text("UPDATE order_items SET production_days_snapshot = 1 WHERE production_days_snapshot <= 0"))
     session.commit()
 
 
@@ -437,6 +592,7 @@ def _ensure_product_pricing_columns(session):
         'category_id': "INTEGER",
         'sub_items': "TEXT DEFAULT ''",
         'lead_time_hours': "REAL DEFAULT 0",
+        'production_days': "INTEGER DEFAULT 1",
         'allow_colors': "BOOLEAN DEFAULT 0",
         'available_colors': "TEXT DEFAULT ''",
         'allow_secondary_color': "BOOLEAN DEFAULT 0",
@@ -497,6 +653,8 @@ def _ensure_product_pricing_columns(session):
 
     session.execute(text("UPDATE products SET instagram_post_status = COALESCE(instagram_post_status, 'not_published')"))
     session.execute(text("UPDATE products SET dimensions_source = COALESCE(NULLIF(dimensions_source, ''), 'manual')"))
+    session.execute(text("UPDATE products SET production_days = COALESCE(production_days, 1)"))
+    session.execute(text("UPDATE products SET production_days = 1 WHERE production_days <= 0"))
     session.commit()
 
 
@@ -1106,6 +1264,7 @@ def init_db() -> None:
         _ensure_user_events_columns(session)
         _ensure_ads_provider_config_columns(session)
         _ensure_admin_users_columns(session)
+        _ensure_order_flow_tables(session)
         _ensure_product_3d_models_columns(session)
         _ensure_product_3d_models_product_nullable(session)
         _ensure_infinitepay_config_table(session)

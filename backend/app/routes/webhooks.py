@@ -12,6 +12,8 @@ from app.services.infinitepay_service import (
     infer_payment_status_from_payload,
 )
 from app.services.email_service import send_order_paid_email
+from app.services.order_flow_service import sync_order_stage_from_business_status
+from app.services.production_service import ensure_order_production_estimate, set_order_production_status
 from app.services.system_log_service import log_custom_event_safely
 
 router = APIRouter(tags=['webhooks'])
@@ -115,6 +117,10 @@ async def infinitepay_webhook(request: Request, db: Session = Depends(get_db)):
         order.installments = int(installments or 1)
     if status == 'paid' and not order.paid_at:
         order.paid_at = datetime.utcnow()
+    if status == 'paid':
+        set_order_production_status(order, 'paid')
+        ensure_order_production_estimate(order)
+        sync_order_stage_from_business_status(db, order, note='auto_on_payment_paid_webhook')
     order.payment_metadata_json = build_payment_metadata(order.payment_metadata_json, event='webhook', payload=payload)
     db.add(order)
     db.commit()

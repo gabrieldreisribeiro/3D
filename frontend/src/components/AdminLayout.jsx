@@ -47,6 +47,11 @@ const NAV_SECTIONS = [
         icon: <><path d="M6 7h12" /><path d="M6 12h12" /><path d="M6 17h8" /><path d="M4 3h16v18H4z" /></>,
       },
       {
+        to: '/painel-interno/pedidos/fluxo',
+        label: 'Fluxo de pedidos',
+        icon: <><path d="M4 6h6v4H4z" /><path d="M14 6h6v4h-6z" /><path d="M9 16h6v4H9z" /><path d="M10 8h4M12 10v6" /></>,
+      },
+      {
         to: '/painel-interno/avaliacoes',
         label: 'Avaliacoes',
         icon: <path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1 6.2L12 17.4 6.5 20.2l1-6.2L3 9.6l6.2-.9z" />,

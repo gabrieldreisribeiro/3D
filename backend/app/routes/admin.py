@@ -8,7 +8,7 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
 from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy import func
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.core.security import (
     create_admin_token,
@@ -19,7 +19,7 @@ from app.core.security import (
     require_super_admin,
     verify_password,
 )
-from app.models import AdminUser, Product3DModel, PublicationDraft
+from app.models import AdminUser, Order, OrderFlowStage, OrderStageHistory, Product3DModel, PublicationDraft
 from app.schemas import (
     AdminAuthUserResponse,
     AdminCategoryCreate,
@@ -32,6 +32,11 @@ from app.schemas import (
     AdminLoginRequest,
     AdminLoginResponse,
     AdminOrderResponse,
+    AdminOrderFlowStageCreate,
+    AdminOrderFlowStageReorderRequest,
+    AdminOrderFlowStageUpdate,
+    AdminOrderMoveStageRequest,
+    AdminOrderProductionUpdateRequest,
     AdminUserCreateRequest,
     AdminUserPasswordUpdateRequest,
     AdminUserResponse,
@@ -59,6 +64,7 @@ from app.schemas import (
     InfinitePayConfigResponse,
     InfinitePayConfigUpdate,
     InfinitePayConnectionTestResponse,
+    OrderFlowStageResponse,
     InstagramSettingsResponse,
     InstagramSettingsUpdate,
     LogoResponse,
@@ -173,6 +179,21 @@ from app.services.publication_service import (
     serialize_product_payload_for_draft,
 )
 from app.services.review_service import delete_review, get_review_by_id, list_admin_reviews, set_review_status
+from app.services.production_service import ensure_order_production_estimate, set_order_production_status
+from app.services.order_flow_service import (
+    can_delete_order_flow_stage,
+    create_order_flow_stage,
+    delete_order_flow_stage,
+    ensure_default_order_flow_stages,
+    ensure_order_has_stage,
+    get_order_flow_stage_by_id,
+    list_order_flow_stages,
+    move_order_to_stage,
+    reorder_order_flow_stages,
+    serialize_order_flow_stage,
+    sync_order_stage_from_business_status,
+    update_order_flow_stage,
+)
 from app.services.settings_service import (
     get_or_create_settings,
     is_meta_pixel_config_valid,
@@ -1321,8 +1342,175 @@ def remove_review(review_id: int, _: AdminUser = Depends(require_admin), db: Ses
 
 
 @router.get('/orders', response_model=list[AdminOrderResponse])
-def list_admin_orders(_: AdminUser = Depends(require_admin), db: Session = Depends(get_db)):
-    return [serialize_admin_order(order) for order in admin_list_orders(db)]
+def list_admin_orders(
+    stage_id: int | None = Query(default=None),
+    payment_status: str | None = Query(default=None),
+    payment_method: str | None = Query(default=None),
+    search: str | None = Query(default=None),
+    _: AdminUser = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    ensure_default_order_flow_stages(db)
+    query = db.query(Order).options(
+        selectinload(Order.items),
+        selectinload(Order.current_stage),
+        selectinload(Order.stage_history).selectinload(OrderStageHistory.stage),
+    )
+    if stage_id:
+        query = query.filter(Order.current_stage_id == stage_id)
+    if payment_status:
+        query = query.filter(Order.payment_status == payment_status)
+    if payment_method:
+        query = query.filter(Order.payment_method == payment_method)
+    if search:
+        normalized = f"%{str(search).strip()}%"
+        query = query.filter(
+            (Order.customer_name.ilike(normalized))
+            | (Order.customer_email_snapshot.ilike(normalized))
+            | (Order.customer_phone_snapshot.ilike(normalized))
+        )
+    orders = query.order_by(Order.id.desc()).all()
+    changed = False
+    for order in orders:
+        before = order.current_stage_id
+        ensure_order_has_stage(db, order, note='auto_assign_on_admin_list')
+        if before != order.current_stage_id:
+            changed = True
+    if changed:
+        db.commit()
+        for order in orders:
+            db.refresh(order)
+    return [serialize_admin_order(order) for order in orders]
+
+
+@router.patch('/orders/{order_id}/production-status', response_model=AdminOrderResponse)
+def update_admin_order_production_status(
+    order_id: int,
+    payload: AdminOrderProductionUpdateRequest,
+    _: AdminUser = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    order = (
+        db.query(Order)
+        .options(selectinload(Order.items), selectinload(Order.current_stage), selectinload(Order.stage_history).selectinload(OrderStageHistory.stage))
+        .filter(Order.id == order_id)
+        .first()
+    )
+    if not order:
+        raise HTTPException(status_code=404, detail='Pedido nao encontrado')
+    if str(order.payment_status or '').strip().lower() != 'paid':
+        raise HTTPException(status_code=400, detail='Status de producao so pode ser atualizado para pedidos pagos')
+
+    set_order_production_status(order, payload.production_status)
+    ensure_order_production_estimate(order)
+    sync_order_stage_from_business_status(db, order, note='auto_sync_on_admin_production_update')
+    db.add(order)
+    db.commit()
+    db.refresh(order)
+    return serialize_admin_order(order)
+
+
+@router.patch('/orders/{order_id}/stage', response_model=AdminOrderResponse)
+def move_admin_order_stage(
+    order_id: int,
+    payload: AdminOrderMoveStageRequest,
+    admin: AdminUser = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    ensure_default_order_flow_stages(db)
+    order = (
+        db.query(Order)
+        .options(selectinload(Order.items), selectinload(Order.current_stage), selectinload(Order.stage_history).selectinload(OrderStageHistory.stage))
+        .filter(Order.id == order_id)
+        .first()
+    )
+    if not order:
+        raise HTTPException(status_code=404, detail='Pedido nao encontrado')
+    stage = get_order_flow_stage_by_id(db, payload.stage_id)
+    if not stage or not bool(stage.is_active):
+        raise HTTPException(status_code=404, detail='Etapa nao encontrada ou inativa')
+    changed = move_order_to_stage(
+        db,
+        order=order,
+        stage=stage,
+        moved_by_admin_user_id=admin.id,
+        note=payload.note or 'moved_on_kanban',
+        prevent_regression=False,
+    )
+    if changed:
+        db.add(order)
+        db.commit()
+    db.refresh(order)
+    return serialize_admin_order(order)
+
+
+@router.get('/order-flow-stages', response_model=list[OrderFlowStageResponse])
+def list_admin_order_flow_stages(
+    only_active: bool = Query(default=False),
+    only_customer_visible: bool = Query(default=False),
+    _: AdminUser = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    ensure_default_order_flow_stages(db)
+    rows = list_order_flow_stages(db, active_only=only_active, customer_visible_only=only_customer_visible)
+    return [serialize_order_flow_stage(item) for item in rows]
+
+
+@router.post('/order-flow-stages', response_model=OrderFlowStageResponse)
+def create_admin_order_flow_stage(
+    payload: AdminOrderFlowStageCreate,
+    _: AdminUser = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    row = create_order_flow_stage(
+        db,
+        name=payload.name,
+        description=payload.description,
+        color=payload.color,
+        icon_name=payload.icon_name,
+        sort_order=payload.sort_order,
+        is_active=payload.is_active,
+        is_visible_to_customer=payload.is_visible_to_customer,
+    )
+    return serialize_order_flow_stage(row)
+
+
+@router.put('/order-flow-stages/{stage_id}', response_model=OrderFlowStageResponse)
+def update_admin_order_flow_stage(
+    stage_id: int,
+    payload: AdminOrderFlowStageUpdate,
+    _: AdminUser = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    row = get_order_flow_stage_by_id(db, stage_id)
+    if not row:
+        raise HTTPException(status_code=404, detail='Etapa nao encontrada')
+    updated = update_order_flow_stage(db, row, payload.model_dump())
+    return serialize_order_flow_stage(updated)
+
+
+@router.post('/order-flow-stages/reorder', response_model=list[OrderFlowStageResponse])
+def reorder_admin_order_flow_stage(
+    payload: AdminOrderFlowStageReorderRequest,
+    _: AdminUser = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    rows = reorder_order_flow_stages(db, payload.stage_ids)
+    return [serialize_order_flow_stage(item) for item in rows]
+
+
+@router.delete('/order-flow-stages/{stage_id}', status_code=204)
+def delete_admin_order_flow_stage(
+    stage_id: int,
+    _: AdminUser = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    row = get_order_flow_stage_by_id(db, stage_id)
+    if not row:
+        raise HTTPException(status_code=404, detail='Etapa nao encontrada')
+    if not can_delete_order_flow_stage(db, stage_id):
+        raise HTTPException(status_code=400, detail='Nao e possivel excluir etapa com pedidos vinculados')
+    delete_order_flow_stage(db, row)
 
 
 @router.get('/coupons', response_model=list[AdminCouponResponse])

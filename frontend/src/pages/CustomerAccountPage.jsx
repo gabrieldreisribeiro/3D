@@ -55,12 +55,28 @@ function paymentMethodLabel(method) {
   return key || '-';
 }
 
+function productionStatusLabel(status) {
+  const key = String(status || '').toLowerCase();
+  if (key === 'paid') return 'Pago';
+  if (key === 'in_production') return 'Em producao';
+  if (key === 'ready') return 'Pronto';
+  return '-';
+}
+
 function statusBadgeTone(status) {
   const key = String(status || '').toLowerCase();
   if (key === 'paid') return 'success';
   if (key === 'pending' || key === 'pending_payment' || key === 'awaiting_confirmation') return 'warning';
   if (key === 'failed' || key === 'canceled') return 'danger';
   return 'info';
+}
+
+function productionBadgeTone(status) {
+  const key = String(status || '').toLowerCase();
+  if (key === 'ready') return 'success';
+  if (key === 'in_production') return 'info';
+  if (key === 'paid') return 'warning';
+  return 'neutral';
 }
 
 function CustomerAccountPage() {
@@ -272,6 +288,8 @@ function CustomerAccountPage() {
                           <div className="customer-order-meta">
                             <p><span>Pagamento</span><strong>{paymentMethodLabel(order.payment_method)}</strong></p>
                             <p><span>Total</span><strong>{formatMoney(order.total)}</strong></p>
+                            <p><span>Etapa</span><strong>{order.current_stage_name || productionStatusLabel(order.production_status)}</strong></p>
+                            <p><span>Previsao</span><strong>{order.estimated_ready_at ? formatDateTime(order.estimated_ready_at) : '-'}</strong></p>
                           </div>
                           <Button variant="secondary" className="w-full sm:w-auto" onClick={() => handleOpenOrder(order.id)}>
                             Ver detalhes
@@ -318,6 +336,44 @@ function CustomerAccountPage() {
                             <span className="text-sm text-slate-400">Comprovante indisponivel</span>
                           )}
                         </div>
+                        <div className="customer-detail-block">
+                          <h4>Producao</h4>
+                          <p><span>Status</span><strong>{productionStatusLabel(selectedOrder.production_status)}</strong></p>
+                          <p><span>Inicio</span><strong>{selectedOrder.production_started_at ? formatDateTime(selectedOrder.production_started_at) : '-'}</strong></p>
+                          <p><span>Previsao</span><strong>{selectedOrder.estimated_ready_at ? formatDateTime(selectedOrder.estimated_ready_at) : '-'}</strong></p>
+                          <p><span>Concluido em</span><strong>{selectedOrder.ready_at ? formatDateTime(selectedOrder.ready_at) : '-'}</strong></p>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <h4 className="customer-card-subtitle">Andamento</h4>
+                        {(selectedOrder.timeline || []).length ? (
+                          <div className="space-y-2">
+                            {(selectedOrder.timeline || []).map((step) => (
+                              <div key={step.stage_id} className="flex items-start justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+                                <div>
+                                  <p className="text-sm font-semibold text-slate-900">{step.name}</p>
+                                  {step.description ? <p className="text-xs text-slate-500">{step.description}</p> : null}
+                                </div>
+                                <div className="text-right">
+                                  <StatusBadge tone={step.is_current ? 'info' : step.is_completed ? 'success' : 'neutral'}>
+                                    {step.is_current ? 'Atual' : step.is_completed ? 'Concluida' : 'Pendente'}
+                                  </StatusBadge>
+                                  <p className="mt-1 text-xs text-slate-500">{step.completed_at ? formatDateTime(step.completed_at) : '-'}</p>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="flex flex-wrap gap-2">
+                            <StatusBadge tone={productionBadgeTone('paid')}>Pago</StatusBadge>
+                            <StatusBadge tone={productionBadgeTone(selectedOrder.production_status === 'in_production' || selectedOrder.production_status === 'ready' ? 'in_production' : null)}>Em producao</StatusBadge>
+                            <StatusBadge tone={productionBadgeTone(selectedOrder.production_status === 'ready' ? 'ready' : null)}>Pronto</StatusBadge>
+                          </div>
+                        )}
+                        {String(selectedOrder.payment_status || '').toLowerCase() !== 'paid' ? (
+                          <p className="text-xs text-amber-700">Aguardando confirmacao do pagamento para iniciar producao.</p>
+                        ) : null}
                       </div>
 
                       <div className="space-y-3">
@@ -328,10 +384,10 @@ function CustomerAccountPage() {
                           <div className="customer-items-list">
                             {selectedOrder.items.map((item, index) => (
                               <div key={`${item.product_slug}-${index}`} className="customer-item-row">
-                                <div>
-                                  <p className="customer-item-title">{item.title}</p>
-                                  <p className="customer-item-muted">Quantidade: {item.quantity}</p>
-                                </div>
+                              <div>
+                                <p className="customer-item-title">{item.title}</p>
+                                <p className="customer-item-muted">Quantidade: {item.quantity} | Prazo: {Math.max(1, Number(item.production_days_snapshot || 1))} dia(s)</p>
+                              </div>
                                 <strong>{formatMoney(item.line_total)}</strong>
                               </div>
                             ))}

@@ -4,194 +4,308 @@ import DataCard from '../components/ui/DataCard';
 import Modal from '../components/ui/Modal';
 import SectionHeader from '../components/ui/SectionHeader';
 import StatusBadge from '../components/ui/StatusBadge';
-import Table from '../components/ui/Table';
 import usePersistentState from '../hooks/usePersistentState';
-import { fetchAdminOrders } from '../services/api';
+import {
+  fetchAdminOrderFlowStages,
+  fetchAdminOrders,
+  moveAdminOrderStage,
+  updateAdminOrderProductionStatus,
+} from '../services/api';
 
-function ColorPreview({ primary, secondary }) {
-  const normalizedPrimary = String(primary || '').trim();
-  const normalizedSecondary = String(secondary || '').trim();
-  if (!normalizedPrimary && !normalizedSecondary) return null;
+function paymentTone(status) {
+  const key = String(status || '').toLowerCase();
+  if (key === 'paid') return 'success';
+  if (key === 'failed' || key === 'canceled') return 'danger';
+  return 'warning';
+}
 
-  const hasSecondary = Boolean(normalizedSecondary);
-  const style = hasSecondary
-    ? { background: `linear-gradient(90deg, ${normalizedPrimary || '#ffffff'} 0 50%, ${normalizedSecondary} 50% 100%)` }
-    : { backgroundColor: normalizedPrimary || normalizedSecondary };
+function paymentLabel(status) {
+  const key = String(status || '').toLowerCase();
+  if (key === 'paid') return 'Pago';
+  if (key === 'pending_payment') return 'Aguardando pagamento';
+  if (key === 'awaiting_confirmation') return 'Aguardando confirmacao';
+  if (key === 'failed') return 'Falhou';
+  if (key === 'canceled') return 'Cancelado';
+  return 'Pendente';
+}
 
-  return (
-    <span className="inline-flex items-center gap-2 text-xs text-slate-600">
-      <span className="inline-block h-4 w-4 rounded-full border border-slate-300" style={style} />
-      <span>{hasSecondary ? 'Cor + furta cor' : 'Cor principal'}</span>
-    </span>
-  );
+function paymentMethodLabel(method) {
+  const key = String(method || '').toLowerCase();
+  if (key === 'pix') return 'Pix';
+  if (key === 'credit_card') return 'Cartao';
+  if (key === 'whatsapp') return 'WhatsApp';
+  return '-';
+}
+
+function productionLabel(status) {
+  const key = String(status || '').toLowerCase();
+  if (key === 'paid') return 'Pago';
+  if (key === 'in_production') return 'Em producao';
+  if (key === 'ready') return 'Pronto';
+  return '-';
+}
+
+function productionTone(status) {
+  const key = String(status || '').toLowerCase();
+  if (key === 'ready') return 'success';
+  if (key === 'in_production') return 'info';
+  if (key === 'paid') return 'warning';
+  return 'neutral';
+}
+
+function customerName(order) {
+  const byName = String(order.customer_name || '').trim();
+  const byEmail = String(order.customer_email_snapshot || '').trim();
+  const byPhone = String(order.customer_phone_snapshot || '').trim();
+  return byName || byEmail || byPhone || 'Cliente nao identificado';
 }
 
 function AdminOrdersPage() {
   const [orders, setOrders] = useState([]);
+  const [stages, setStages] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [message, setMessage] = useState('');
   const [selectedOrder, setSelectedOrder] = usePersistentState('modal:admin-orders:selected-order', null);
+  const [draggingOrderId, setDraggingOrderId] = useState(null);
+  const [movingOrderId, setMovingOrderId] = useState(null);
+  const [updatingProduction, setUpdatingProduction] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
   const [paymentFilter, setPaymentFilter] = useState('all');
-  const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [stageFilter, setStageFilter] = useState('all');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
 
-  useEffect(() => {
-    fetchAdminOrders()
-      .then(setOrders)
+  const load = () => {
+    setLoading(true);
+    setError('');
+    Promise.all([fetchAdminOrders(), fetchAdminOrderFlowStages()])
+      .then(([ordersData, stagesData]) => {
+        setOrders(Array.isArray(ordersData) ? ordersData : []);
+        setStages(Array.isArray(stagesData) ? stagesData : []);
+      })
       .catch((requestError) => setError(requestError.message || 'Falha ao carregar pedidos.'))
       .finally(() => setLoading(false));
-  }, []);
+  };
 
-  const getStatusTone = (status) => {
-    const normalized = String(status || '').toLowerCase();
-    if (normalized === 'paid') return 'success';
-    if (normalized === 'failed' || normalized === 'canceled') return 'danger';
-    return 'warning';
-  };
-  const getStatusLabel = (status) => {
-    const normalized = String(status || '').toLowerCase();
-    if (normalized === 'paid') return 'Pago';
-    if (normalized === 'pending_payment') return 'Aguardando pagamento';
-    if (normalized === 'awaiting_confirmation') return 'Aguardando confirmacao';
-    if (normalized === 'failed') return 'Falhou';
-    if (normalized === 'canceled') return 'Cancelado';
-    return 'Pendente';
-  };
-  const getProviderLabel = (provider) => {
-    const normalized = String(provider || '').toLowerCase();
-    if (normalized === 'infinitepay') return 'InfinitePay';
-    if (normalized === 'whatsapp') return 'WhatsApp';
-    return provider || '-';
-  };
-  const getMethodLabel = (method) => {
-    if (method === 'pix') return 'Pix';
-    if (method === 'credit_card') return 'Cartao';
-    if (method === 'whatsapp') return 'WhatsApp';
-    return method || '-';
-  };
+  useEffect(() => {
+    load();
+  }, []);
 
   const filteredOrders = useMemo(() => {
     const query = String(searchTerm || '').trim().toLowerCase();
     return orders.filter((order) => {
-      const matchesQuery = !query
+      const matchesSearch = !query
         || String(order.id || '').includes(query)
-        || String(order.total || '').toLowerCase().includes(query)
-        || String(order.coupon_code || '').toLowerCase().includes(query);
-      const matchesStatus = statusFilter === 'all' || String(order.payment_status || '') === statusFilter;
+        || String(customerName(order)).toLowerCase().includes(query)
+        || String(order.customer_email_snapshot || '').toLowerCase().includes(query)
+        || String(order.customer_phone_snapshot || '').toLowerCase().includes(query);
       const matchesPayment = paymentFilter === 'all' || String(order.payment_method || '') === paymentFilter;
-      return matchesQuery && matchesStatus && matchesPayment;
+      const matchesStatus = statusFilter === 'all' || String(order.payment_status || '') === statusFilter;
+      const matchesStage = stageFilter === 'all' || Number(order.current_stage_id || 0) === Number(stageFilter || 0);
+      const createdAt = order.created_at ? new Date(order.created_at) : null;
+      const matchesFrom = !dateFrom || (createdAt && createdAt >= new Date(`${dateFrom}T00:00:00`));
+      const matchesTo = !dateTo || (createdAt && createdAt <= new Date(`${dateTo}T23:59:59`));
+      return matchesSearch && matchesPayment && matchesStatus && matchesStage && matchesFrom && matchesTo;
     });
-  }, [orders, searchTerm, statusFilter, paymentFilter]);
+  }, [orders, searchTerm, paymentFilter, statusFilter, stageFilter, dateFrom, dateTo]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredOrders.length / itemsPerPage));
-  const paginatedOrders = useMemo(() => {
-    const start = (currentPage - 1) * itemsPerPage;
-    return filteredOrders.slice(start, start + itemsPerPage);
-  }, [filteredOrders, currentPage, itemsPerPage]);
+  const stageColumns = useMemo(() => {
+    const activeStages = [...stages]
+      .filter((stage) => Boolean(stage.is_active))
+      .sort((a, b) => Number(a.sort_order || 0) - Number(b.sort_order || 0));
+    const grouped = activeStages.map((stage) => ({
+      stage,
+      orders: filteredOrders.filter((order) => Number(order.current_stage_id || 0) === Number(stage.id)),
+    }));
+    const withoutStage = filteredOrders.filter((order) => !order.current_stage_id || !activeStages.some((stage) => stage.id === order.current_stage_id));
+    if (withoutStage.length) {
+      grouped.unshift({
+        stage: { id: 0, name: 'Sem etapa', color: '#94A3B8' },
+        orders: withoutStage,
+      });
+    }
+    return grouped;
+  }, [stages, filteredOrders]);
 
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [searchTerm, statusFilter, paymentFilter, itemsPerPage]);
+  const handleMoveOrder = async (orderId, targetStageId) => {
+    if (!orderId || !targetStageId || Number(targetStageId) <= 0) return;
+    const order = orders.find((item) => item.id === orderId);
+    if (!order || Number(order.current_stage_id || 0) === Number(targetStageId)) return;
+    setMovingOrderId(orderId);
+    setError('');
+    setMessage('');
+    try {
+      const updated = await moveAdminOrderStage(orderId, { stage_id: targetStageId, note: 'kanban_drag_drop' });
+      setOrders((current) => current.map((item) => (item.id === updated.id ? updated : item)));
+      if (selectedOrder?.id === updated.id) setSelectedOrder(updated);
+      setMessage(`Pedido #${updated.id} movido com sucesso.`);
+    } catch (requestError) {
+      setError(requestError.message || 'Falha ao mover pedido.');
+    } finally {
+      setMovingOrderId(null);
+      setDraggingOrderId(null);
+    }
+  };
 
-  useEffect(() => {
-    if (currentPage > totalPages) setCurrentPage(totalPages);
-  }, [currentPage, totalPages]);
+  const applyProductionStatus = async (status) => {
+    if (!selectedOrder?.id || !status) return;
+    setUpdatingProduction(true);
+    setError('');
+    try {
+      const updated = await updateAdminOrderProductionStatus(selectedOrder.id, status);
+      setOrders((current) => current.map((item) => (item.id === updated.id ? updated : item)));
+      setSelectedOrder(updated);
+      setMessage('Status de producao atualizado.');
+    } catch (requestError) {
+      setError(requestError.message || 'Falha ao atualizar status de producao.');
+    } finally {
+      setUpdatingProduction(false);
+    }
+  };
 
   return (
     <section className="admin-page space-y-6">
-      <SectionHeader eyebrow="Operacao" title="Pedidos" subtitle="Acompanhe detalhes e totais" />
+      <SectionHeader
+        eyebrow="Operacao"
+        title="Pedidos Kanban"
+        subtitle="Arraste os pedidos entre as etapas do fluxo para acompanhar a operacao em tempo real."
+      />
 
-      <DataCard title="Lista de pedidos">
-        {loading ? <div className="rounded-xl border border-slate-200 bg-slate-50 p-6 text-sm text-slate-500">Carregando pedidos...</div> : null}
-        {error ? <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">{error}</div> : null}
-        {!loading && !error ? (
-          <>
-            <div className="mb-3 admin-filter-bar rounded-xl border border-slate-200 bg-slate-50 p-3">
-              <input
-                type="text"
-                value={searchTerm}
-                onChange={(event) => setSearchTerm(event.target.value)}
-                placeholder="Buscar por pedido, cupom ou total"
-                className="h-9 min-w-[220px] flex-1 rounded-lg border border-slate-200 bg-white px-3 text-xs text-slate-700 outline-none focus:border-violet-300"
-              />
-              <select
-                value={statusFilter}
-                onChange={(event) => setStatusFilter(event.target.value)}
-                className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-xs text-slate-700 outline-none focus:border-violet-300"
-              >
-                <option value="all">Todos status</option>
-                <option value="pending">Pendente</option>
-                <option value="pending_payment">Aguardando pagamento</option>
-                <option value="awaiting_confirmation">Aguardando confirmacao</option>
-                <option value="paid">Pago</option>
-                <option value="failed">Falhou</option>
-                <option value="canceled">Cancelado</option>
-              </select>
-              <select
-                value={paymentFilter}
-                onChange={(event) => setPaymentFilter(event.target.value)}
-                className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-xs text-slate-700 outline-none focus:border-violet-300"
-              >
-                <option value="all">Todos pagamentos</option>
-                <option value="pix">Pix</option>
-                <option value="credit_card">Cartao</option>
-                <option value="whatsapp">WhatsApp</option>
-              </select>
-              <select
-                value={itemsPerPage}
-                onChange={(event) => setItemsPerPage(Number(event.target.value))}
-                className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-xs text-slate-700 outline-none focus:border-violet-300"
-              >
-                <option value={10}>10 / pagina</option>
-                <option value={20}>20 / pagina</option>
-                <option value={50}>50 / pagina</option>
-              </select>
+      <DataCard title="Filtros">
+        <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={(event) => setSearchTerm(event.target.value)}
+            placeholder="Buscar por pedido, cliente, email ou telefone"
+            className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-violet-300"
+          />
+          <select
+            value={paymentFilter}
+            onChange={(event) => setPaymentFilter(event.target.value)}
+            className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-violet-300"
+          >
+            <option value="all">Forma de pagamento (todas)</option>
+            <option value="whatsapp">WhatsApp</option>
+            <option value="pix">Pix</option>
+            <option value="credit_card">Cartao</option>
+          </select>
+          <select
+            value={statusFilter}
+            onChange={(event) => setStatusFilter(event.target.value)}
+            className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-violet-300"
+          >
+            <option value="all">Status de pagamento (todos)</option>
+            <option value="pending">Pendente</option>
+            <option value="pending_payment">Aguardando pagamento</option>
+            <option value="awaiting_confirmation">Aguardando confirmacao</option>
+            <option value="paid">Pago</option>
+            <option value="failed">Falhou</option>
+            <option value="canceled">Cancelado</option>
+          </select>
+          <select
+            value={stageFilter}
+            onChange={(event) => setStageFilter(event.target.value)}
+            className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-violet-300"
+          >
+            <option value="all">Etapa (todas)</option>
+            {stages.map((stage) => (
+              <option key={stage.id} value={stage.id}>{stage.name}</option>
+            ))}
+          </select>
+          <input
+            type="date"
+            value={dateFrom}
+            onChange={(event) => setDateFrom(event.target.value)}
+            className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-violet-300"
+          />
+          <input
+            type="date"
+            value={dateTo}
+            onChange={(event) => setDateTo(event.target.value)}
+            className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-violet-300"
+          />
+        </div>
+        {message ? <p className="mt-3 text-sm text-emerald-600">{message}</p> : null}
+        {error ? <p className="mt-3 text-sm text-rose-600">{error}</p> : null}
+      </DataCard>
+
+      <DataCard title="Quadro operacional">
+        {loading ? <p className="text-sm text-slate-500">Carregando quadro...</p> : null}
+        {!loading ? (
+          <div className="overflow-x-auto">
+            <div className="flex min-w-max gap-4 pb-2">
+              {stageColumns.map(({ stage, orders: stageOrders }) => (
+                <section
+                  key={stage.id}
+                  className="w-[300px] rounded-2xl border border-slate-200 bg-slate-50 p-3"
+                  onDragOver={(event) => {
+                    event.preventDefault();
+                    event.dataTransfer.dropEffect = 'move';
+                  }}
+                  onDrop={() => {
+                    if (draggingOrderId && stage.id) {
+                      void handleMoveOrder(draggingOrderId, stage.id);
+                    }
+                  }}
+                >
+                  <header className="mb-3 flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className="inline-block h-3 w-3 rounded-full" style={{ backgroundColor: stage.color || '#94A3B8' }} />
+                      <h3 className="text-sm font-semibold text-slate-900">{stage.name}</h3>
+                    </div>
+                    <span className="rounded-md bg-slate-200 px-2 py-0.5 text-xs font-semibold text-slate-700">{stageOrders.length}</span>
+                  </header>
+
+                  <div className="space-y-2">
+                    {stageOrders.map((order) => (
+                      <article
+                        key={order.id}
+                        draggable
+                        onDragStart={() => setDraggingOrderId(order.id)}
+                        onDragEnd={() => setDraggingOrderId(null)}
+                        className={`rounded-xl border bg-white p-3 transition ${
+                          movingOrderId === order.id ? 'border-violet-300 opacity-70' : 'border-slate-200 hover:border-violet-200 hover:shadow-sm'
+                        }`}
+                      >
+                        <div className="mb-2 flex items-center justify-between gap-2">
+                          <p className="text-sm font-semibold text-slate-900">#{order.id}</p>
+                          <StatusBadge tone={paymentTone(order.payment_status)}>{paymentLabel(order.payment_status)}</StatusBadge>
+                        </div>
+                        <p className="line-clamp-1 text-xs text-slate-600">{customerName(order)}</p>
+                        <p className="mt-1 text-sm font-semibold text-slate-900">
+                          {Number(order.total || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                        </p>
+                        <div className="mt-2 flex flex-wrap gap-1">
+                          <StatusBadge tone="neutral">{paymentMethodLabel(order.payment_method)}</StatusBadge>
+                          <StatusBadge tone={productionTone(order.production_status)}>{productionLabel(order.production_status)}</StatusBadge>
+                        </div>
+                        <p className="mt-2 text-xs text-slate-500">
+                          Criado em {order.created_at ? new Date(order.created_at).toLocaleString('pt-BR') : '-'}
+                        </p>
+                        <p className="text-xs text-slate-500">
+                          Itens: {Array.isArray(order.items) ? order.items.length : 0}
+                        </p>
+                        <p className="text-xs text-slate-500">
+                          Previsao: {order.estimated_ready_at ? new Date(order.estimated_ready_at).toLocaleDateString('pt-BR') : '-'}
+                        </p>
+                        <Button variant="secondary" className="mt-3 w-full text-xs" onClick={() => setSelectedOrder(order)}>
+                          Ver detalhes
+                        </Button>
+                      </article>
+                    ))}
+                    {!stageOrders.length ? (
+                      <div className="rounded-lg border border-dashed border-slate-200 bg-white px-3 py-4 text-center text-xs text-slate-500">
+                        Nenhum pedido nesta etapa
+                      </div>
+                    ) : null}
+                  </div>
+                </section>
+              ))}
             </div>
-
-            <Table
-              columns={['Pedido', 'Data', 'Total', 'Status', 'Provider', 'Metodo', 'Acoes']}
-              rows={paginatedOrders}
-              empty={<div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center text-sm text-slate-500">Nenhum pedido registrado.</div>}
-              renderRow={(order) => (
-                <tr key={order.id}>
-                  <td>#{order.id}</td>
-                  <td>{order.created_at ? new Date(order.created_at).toLocaleString('pt-BR') : '-'}</td>
-                  <td>R$ {Number(order.total || 0).toFixed(2)}</td>
-                  <td>
-                    <StatusBadge tone={getStatusTone(order.payment_status)}>{getStatusLabel(order.payment_status)}</StatusBadge>
-                  </td>
-                  <td>
-                    <span className="text-sm text-slate-600">{getProviderLabel(order.payment_provider)}</span>
-                  </td>
-                  <td>
-                    <span className="text-sm text-slate-600">{getMethodLabel(order.payment_method)}</span>
-                  </td>
-                  <td>
-                    <Button variant="secondary" onClick={() => setSelectedOrder(order)}>
-                      Ver detalhes
-                    </Button>
-                  </td>
-                </tr>
-              )}
-            />
-
-            <div className="mt-3 admin-pagination-bar rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
-              <p className="text-xs text-slate-600">
-                Mostrando <strong>{filteredOrders.length ? (currentPage - 1) * itemsPerPage + 1 : 0}</strong> - <strong>{Math.min(currentPage * itemsPerPage, filteredOrders.length)}</strong> de <strong>{filteredOrders.length}</strong> pedidos
-              </p>
-              <div className="admin-pagination-actions">
-                <Button variant="secondary" className="h-8 px-3 text-xs" disabled={currentPage === 1} onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}>
-                  Anterior
-                </Button>
-                <span className="text-xs text-slate-600">Pagina {currentPage} de {totalPages}</span>
-                <Button variant="secondary" className="h-8 px-3 text-xs" disabled={currentPage === totalPages} onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}>
-                  Proxima
-                </Button>
-              </div>
-            </div>
-          </>
+          </div>
         ) : null}
       </DataCard>
 
@@ -203,67 +317,27 @@ function AdminOrdersPage() {
       >
         {selectedOrder ? (
           <div className="space-y-3 text-sm text-slate-600">
-            <p>Subtotal: <strong className="text-slate-900">R$ {Number(selectedOrder.subtotal || 0).toFixed(2)}</strong></p>
-            <p>Desconto: <strong className="text-slate-900">R$ {Number(selectedOrder.discount || 0).toFixed(2)}</strong></p>
-            <p>Total: <strong className="text-slate-900">R$ {Number(selectedOrder.total || 0).toFixed(2)}</strong></p>
-            <p>Status: <strong className="text-slate-900">{getStatusLabel(selectedOrder.payment_status)}</strong></p>
-            <p>Provider: <strong className="text-slate-900">{getProviderLabel(selectedOrder.payment_provider)}</strong></p>
-            <p>Pagamento: <strong className="text-slate-900">{getMethodLabel(selectedOrder.payment_method)}</strong></p>
-            <p>Order NSU: <strong className="text-slate-900">{selectedOrder.order_nsu || '-'}</strong></p>
-            <p>Invoice slug: <strong className="text-slate-900">{selectedOrder.invoice_slug || '-'}</strong></p>
-            <p>Transaction NSU: <strong className="text-slate-900">{selectedOrder.transaction_nsu || '-'}</strong></p>
-            <p>Checkout URL: <strong className="text-slate-900">{selectedOrder.checkout_url || '-'}</strong></p>
-            <p>Receipt URL: <strong className="text-slate-900">{selectedOrder.receipt_url || '-'}</strong></p>
-            <p>Parcelas: <strong className="text-slate-900">{selectedOrder.installments || '-'}</strong></p>
-            <p>Valor pago: <strong className="text-slate-900">R$ {Number(selectedOrder.paid_amount || 0).toFixed(2)}</strong></p>
-            <p>Pago em: <strong className="text-slate-900">{selectedOrder.paid_at ? new Date(selectedOrder.paid_at).toLocaleString('pt-BR') : '-'}</strong></p>
-            <ul className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
-              {(selectedOrder.items || []).map((item) => {
-                const computedLineTotal = Number(item.unit_price || 0) * Number(item.quantity || 0);
-                const providedLineTotal = Number(item.line_total || 0);
-                const lineTotal = providedLineTotal > 0 ? providedLineTotal : computedLineTotal;
-
-                return (
-                  <li key={item.id} className="space-y-1 rounded-lg border border-slate-200 bg-white px-3 py-2">
-                    <div className="flex items-center justify-between">
-                      <span>{item.quantity}x {item.title}</span>
-                      <strong className="text-slate-900">R$ {lineTotal.toFixed(2)}</strong>
-                    </div>
-                    <div className="flex items-center justify-between text-xs text-slate-500">
-                      <span>Unitario: R$ {Number(item.unit_price || 0).toFixed(2)}</span>
-                      {item.selected_color || item.selected_secondary_color ? (
-                        <ColorPreview primary={item.selected_color} secondary={item.selected_secondary_color} />
-                      ) : <span>Sem cor registrada</span>}
-                    </div>
-                    {(item.selected_sub_items || []).length ? (
-                      <div className="space-y-1 rounded-md bg-slate-50 px-2 py-1 text-xs text-slate-600">
-                        {(item.selected_sub_items || []).map((subItem, index) => (
-                          <div key={`${item.id}-sub-${index}`} className="flex items-center justify-between gap-2">
-                            <span className="flex items-center gap-2">
-                              <span>{subItem.quantity}x {subItem.title}</span>
-                              {subItem.selected_color || subItem.selected_secondary_color ? (
-                                <ColorPreview primary={subItem.selected_color} secondary={subItem.selected_secondary_color} />
-                              ) : null}
-                            </span>
-                            <strong>R$ {(Number(subItem.unit_price || 0) * Number(subItem.quantity || 0)).toFixed(2)}</strong>
-                          </div>
-                        ))}
-                      </div>
-                    ) : <p className="text-xs text-slate-400">Sem subitens neste item.</p>}
-                    {(item.name_personalizations || []).length ? (
-                      <div className="space-y-1 rounded-md bg-emerald-50 px-2 py-1 text-xs text-emerald-700">
-                        <p className="font-semibold">Textos para personalizacao:</p>
-                        {(item.name_personalizations || []).map((name, index) => (
-                          <p key={`${item.id}-name-${index}`}>
-                            Unidade {index + 1}: {String(name || '').trim() || '(sem texto)'}
-                          </p>
-                        ))}
-                      </div>
-                    ) : null}
-                  </li>
-                );
-              })}
-            </ul>
+            <p>Cliente: <strong className="text-slate-900">{customerName(selectedOrder)}</strong></p>
+            <p>Total: <strong className="text-slate-900">{Number(selectedOrder.total || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</strong></p>
+            <p>Status pagamento: <strong className="text-slate-900">{paymentLabel(selectedOrder.payment_status)}</strong></p>
+            <p>Metodo: <strong className="text-slate-900">{paymentMethodLabel(selectedOrder.payment_method)}</strong></p>
+            <p>Etapa atual: <strong className="text-slate-900">{selectedOrder.current_stage_name || '-'}</strong></p>
+            <p>Atualizada em: <strong className="text-slate-900">{selectedOrder.current_stage_updated_at ? new Date(selectedOrder.current_stage_updated_at).toLocaleString('pt-BR') : '-'}</strong></p>
+            <p>Producao: <strong className="text-slate-900">{productionLabel(selectedOrder.production_status)}</strong></p>
+            <p>Previsao conclusao: <strong className="text-slate-900">{selectedOrder.estimated_ready_at ? new Date(selectedOrder.estimated_ready_at).toLocaleString('pt-BR') : '-'}</strong></p>
+            {String(selectedOrder.payment_status || '').toLowerCase() === 'paid' ? (
+              <div className="flex flex-wrap gap-2">
+                <Button type="button" variant="secondary" loading={updatingProduction} onClick={() => applyProductionStatus('paid')}>
+                  Marcar como Pago
+                </Button>
+                <Button type="button" variant="secondary" loading={updatingProduction} onClick={() => applyProductionStatus('in_production')}>
+                  Marcar Em producao
+                </Button>
+                <Button type="button" variant="secondary" loading={updatingProduction} onClick={() => applyProductionStatus('ready')}>
+                  Marcar Pronto
+                </Button>
+              </div>
+            ) : null}
           </div>
         ) : null}
       </Modal>
@@ -272,5 +346,3 @@ function AdminOrdersPage() {
 }
 
 export default AdminOrdersPage;
-
-

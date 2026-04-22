@@ -25,6 +25,8 @@ from app.services.infinitepay_service import (
 )
 from app.services.email_service import send_order_paid_email
 from app.services.customer_identity_service import normalize_email, normalize_phone
+from app.services.order_flow_service import sync_order_stage_from_business_status
+from app.services.production_service import ensure_order_production_estimate, set_order_production_status
 
 router = APIRouter(tags=['payments'])
 logger = logging.getLogger('infinitepay')
@@ -199,6 +201,10 @@ def infinitepay_status_check(payload: InfinitePayStatusCheckRequest, db: Session
         order.installments = int(installments)
     if payment_status == 'paid' and not order.paid_at:
         order.paid_at = datetime.utcnow()
+    if payment_status == 'paid':
+        set_order_production_status(order, 'paid')
+        ensure_order_production_estimate(order)
+        sync_order_stage_from_business_status(db, order, note='auto_on_payment_paid_status_check')
     order.payment_metadata_json = build_payment_metadata(order.payment_metadata_json, event='status_check', payload=result)
     db.add(order)
     db.commit()
@@ -273,6 +279,10 @@ def public_infinitepay_return_status(
             order.transaction_nsu = str(status_result.get('transaction_nsu') or transaction_nsu or '').strip() or order.transaction_nsu
             if payment_status == 'paid' and not order.paid_at:
                 order.paid_at = datetime.utcnow()
+            if payment_status == 'paid':
+                set_order_production_status(order, 'paid')
+                ensure_order_production_estimate(order)
+                sync_order_stage_from_business_status(db, order, note='auto_on_payment_paid_return')
             order.payment_metadata_json = build_payment_metadata(
                 order.payment_metadata_json,
                 event='redirect_status_check',

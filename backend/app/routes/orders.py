@@ -75,6 +75,7 @@ def create_order_endpoint(
                 'quantity': quantity,
                 'unit_price': unit_price,
                 'line_total': line_total,
+                'production_days_snapshot': max(1, int(getattr(product, 'production_days', 1) or 1)),
                 'selected_color': item.selected_color,
                 'selected_secondary_color': item.selected_secondary_color,
                 'selected_sub_items': selected_sub_items,
@@ -134,6 +135,7 @@ def create_order_endpoint(
         payment_provider=payment_provider,
         sales_channel=sales_channel,
         paid_at=paid_at,
+        production_status='paid' if payment_status == 'paid' else None,
     )
     if coupon:
         register_coupon_usage(db, coupon, client_hash, order.id)

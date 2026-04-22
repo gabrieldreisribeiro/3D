@@ -12,7 +12,7 @@ from app.core.security import (
     require_customer,
     verify_password,
 )
-from app.models import CustomerAccount, CustomerPasswordResetToken, Order
+from app.models import CustomerAccount, CustomerPasswordResetToken, Order, OrderStageHistory
 from app.schemas import (
     CustomerAccountResponse,
     CustomerAuthResponse,
@@ -30,6 +30,7 @@ from app.schemas import (
 )
 from app.services.customer_identity_service import normalize_email, normalize_phone
 from app.services.email_service import send_account_created_email, send_password_reset_email
+from app.services.order_flow_service import build_customer_order_timeline, ensure_default_order_flow_stages, ensure_order_has_stage
 from app.services.order_service import serialize_order
 from app.services.system_log_service import log_custom_event_safely
 
@@ -245,14 +246,25 @@ def list_customer_orders(
     customer: CustomerAccount = Depends(require_customer),
     db: Session = Depends(get_db),
 ):
+    ensure_default_order_flow_stages(db)
     base_query = db.query(Order).filter(Order.customer_account_id == customer.id)
     total = int(base_query.count())
     rows = (
-        base_query.order_by(Order.created_at.desc(), Order.id.desc())
+        base_query.options(selectinload(Order.current_stage)).order_by(Order.created_at.desc(), Order.id.desc())
         .offset((page - 1) * page_size)
         .limit(page_size)
         .all()
     )
+    changed = False
+    for row in rows:
+        previous = row.current_stage_id
+        ensure_order_has_stage(db, row, note='auto_assign_on_customer_list')
+        if previous != row.current_stage_id:
+            changed = True
+    if changed:
+        db.commit()
+        for row in rows:
+            db.refresh(row)
     return CustomerOrderListResponse(
         items=[
             CustomerOrderListItem(
@@ -264,6 +276,14 @@ def list_customer_orders(
                 payment_method=row.payment_method,
                 payment_provider=row.payment_provider,
                 sales_channel=row.sales_channel,
+                current_stage_id=row.current_stage_id,
+                current_stage_name=row.current_stage.name if row.current_stage else None,
+                current_stage_color=row.current_stage.color if row.current_stage else None,
+                current_stage_updated_at=row.current_stage_updated_at,
+                production_status=row.production_status,
+                estimated_ready_at=row.estimated_ready_at,
+                production_started_at=row.production_started_at,
+                ready_at=row.ready_at,
                 created_at=row.created_at,
                 receipt_url=row.receipt_url,
             )
@@ -277,15 +297,21 @@ def list_customer_orders(
 
 @router.get('/orders/{order_id}', response_model=OrderResponse)
 def get_customer_order(order_id: int, customer: CustomerAccount = Depends(require_customer), db: Session = Depends(get_db)):
+    ensure_default_order_flow_stages(db)
     order = (
         db.query(Order)
-        .options(selectinload(Order.items))
+        .options(selectinload(Order.items), selectinload(Order.current_stage), selectinload(Order.stage_history).selectinload(OrderStageHistory.stage))
         .filter(Order.id == order_id, Order.customer_account_id == customer.id)
         .first()
     )
     if not order:
         raise HTTPException(status_code=404, detail='Pedido nao encontrado')
-    return serialize_order(order)
+    ensure_order_has_stage(db, order, note='auto_assign_on_customer_detail')
+    db.commit()
+    db.refresh(order)
+    serialized = serialize_order(order)
+    serialized['timeline'] = build_customer_order_timeline(db, order)
+    return serialized
 
 
 @router.put('/profile', response_model=CustomerAccountResponse)

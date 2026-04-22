@@ -1251,6 +1251,55 @@ export function fetchAdminOrders() {
   return adminRequest('/admin/orders');
 }
 
+export function moveAdminOrderStage(orderId, payload) {
+  return adminRequest(`/admin/orders/${orderId}/stage`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload || {}),
+  });
+}
+
+export function updateAdminOrderProductionStatus(orderId, productionStatus) {
+  return adminRequest(`/admin/orders/${orderId}/production-status`, {
+    method: 'PATCH',
+    body: JSON.stringify({ production_status: productionStatus }),
+  });
+}
+
+export function fetchAdminOrderFlowStages(params = {}) {
+  const query = new URLSearchParams();
+  if (params.only_active) query.set('only_active', String(Boolean(params.only_active)));
+  if (params.only_customer_visible) query.set('only_customer_visible', String(Boolean(params.only_customer_visible)));
+  const suffix = query.toString();
+  return adminRequest(`/admin/order-flow-stages${suffix ? `?${suffix}` : ''}`);
+}
+
+export function createAdminOrderFlowStage(payload) {
+  return adminRequest('/admin/order-flow-stages', {
+    method: 'POST',
+    body: JSON.stringify(payload || {}),
+  });
+}
+
+export function updateAdminOrderFlowStage(stageId, payload) {
+  return adminRequest(`/admin/order-flow-stages/${stageId}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload || {}),
+  });
+}
+
+export function reorderAdminOrderFlowStages(stageIds) {
+  return adminRequest('/admin/order-flow-stages/reorder', {
+    method: 'POST',
+    body: JSON.stringify({ stage_ids: stageIds || [] }),
+  });
+}
+
+export function deleteAdminOrderFlowStage(stageId) {
+  return adminRequest(`/admin/order-flow-stages/${stageId}`, {
+    method: 'DELETE',
+  });
+}
+
 export function fetchAdminReviews(params = {}) {
   const search = new URLSearchParams();
   if (params.product_id) search.set('product_id', String(params.product_id));

@@ -323,6 +323,7 @@ def admin_create_product(db: Session, payload):
         rating_count=0,
         category_id=payload.category_id,
         lead_time_hours=payload.lead_time_hours,
+        production_days=max(1, int(payload.production_days or 1)),
         allow_colors=payload.allow_colors,
         available_colors=prepare_colors_for_storage(payload.available_colors if payload.allow_colors else []),
         allow_secondary_color=payload.allow_secondary_color if payload.allow_colors else False,
@@ -377,6 +378,7 @@ def admin_update_product(db: Session, product: Product, payload):
     product.is_active = payload.is_active
     product.category_id = payload.category_id
     product.lead_time_hours = payload.lead_time_hours
+    product.production_days = max(1, int(payload.production_days or 1))
     product.allow_colors = payload.allow_colors
     product.available_colors = prepare_colors_for_storage(payload.available_colors if payload.allow_colors else [])
     product.allow_secondary_color = payload.allow_secondary_color if payload.allow_colors else False

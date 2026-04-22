@@ -33,6 +33,7 @@ import Admin3DModelsPage from './pages/Admin3DModelsPage';
 import AdminInfinitePayPage from './pages/AdminInfinitePayPage';
 import AdminEmailPage from './pages/AdminEmailPage';
 import AdminLogsPage from './pages/AdminLogsPage';
+import AdminOrderFlowStagesPage from './pages/AdminOrderFlowStagesPage';
 import PaymentReturnPage from './pages/PaymentReturnPage';
 import CustomerAccountPage from './pages/CustomerAccountPage';
 import CustomerForgotPasswordPage from './pages/CustomerForgotPasswordPage';
@@ -86,6 +87,7 @@ function AppContent() {
             <Route path="produtos" element={<AdminProductsPage />} />
             <Route path="categorias" element={<AdminCategoriesPage />} />
             <Route path="pedidos" element={<AdminOrdersPage />} />
+            <Route path="pedidos/fluxo" element={<AdminOrderFlowStagesPage />} />
             <Route path="avaliacoes" element={<AdminReviewsPage />} />
             <Route path="cupons" element={<AdminCouponsPage />} />
             <Route path="promocoes" element={<AdminPromotionsPage />} />

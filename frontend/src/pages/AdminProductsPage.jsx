@@ -53,6 +53,7 @@ const createEmptySubItem = () => ({
   dimensions_source: 'manual',
   manual_price: '',
   lead_time_hours: '0',
+  production_days: '1',
   allow_colors: false,
   available_colors: [],
   allow_secondary_color: false,
@@ -77,6 +78,7 @@ const initialForm = {
   pricing_mode: 'calculated',
   manual_price: '',
   lead_time_hours: '0',
+  production_days: '1',
   allow_colors: false,
   available_colors: [],
   allow_secondary_color: false,
@@ -278,6 +280,7 @@ function toPayload(form) {
     is_active: form.is_active,
     category_id: form.category_id === '' ? null : Number(form.category_id),
     lead_time_hours: toNumber(form.lead_time_hours),
+    production_days: Math.max(1, Math.round(toNumber(form.production_days || 1))),
     allow_colors: Boolean(form.allow_colors),
     available_colors: form.allow_colors ? parseColors(form.available_colors) : [],
     allow_secondary_color: Boolean(form.allow_colors) && Boolean(form.allow_secondary_color),
@@ -362,6 +365,7 @@ function fromProduct(product) {
     pricing_mode: pricingMode,
     manual_price: product.manual_price == null ? '' : String(product.manual_price),
     lead_time_hours: String(product.lead_time_hours ?? 0),
+    production_days: String(product.production_days ?? 1),
     allow_colors: Boolean(product.allow_colors),
     available_colors: Array.isArray(product.available_colors) ? product.available_colors : [],
     allow_secondary_color: Boolean(product.allow_secondary_color),
@@ -1687,6 +1691,14 @@ function AdminProductsPage() {
             step="1"
             value={form.lead_time_hours}
             onChange={(event) => setForm({ ...form, lead_time_hours: event.target.value })}
+          />
+          <Input
+            label="Prazo de producao (dias)"
+            type="number"
+            min="1"
+            step="1"
+            value={form.production_days}
+            onChange={(event) => setForm({ ...form, production_days: event.target.value })}
           />
           <label className="inline-flex items-center gap-2 rounded-[10px] border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
             <input

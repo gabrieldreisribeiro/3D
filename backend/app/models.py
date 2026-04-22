@@ -30,6 +30,7 @@ class Product(Base):
     rating_count = Column(Integer, default=0)
     category_id = Column(Integer, ForeignKey('categories.id'), nullable=True, index=True)
     lead_time_hours = Column(Float, default=0.0)
+    production_days = Column(Integer, nullable=False, default=1)
     allow_colors = Column(Boolean, default=False)
     available_colors = Column(Text, nullable=False, default='')
     allow_secondary_color = Column(Boolean, default=False)
@@ -99,6 +100,24 @@ class CouponUsage(Base):
     coupon = relationship('Coupon', back_populates='usages')
 
 
+class OrderFlowStage(Base):
+    __tablename__ = 'order_flow_stages'
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(120), nullable=False)
+    description = Column(String(260), nullable=True)
+    color = Column(String(30), nullable=True)
+    icon_name = Column(String(60), nullable=True)
+    sort_order = Column(Integer, nullable=False, default=1, index=True)
+    is_active = Column(Boolean, nullable=False, default=True, index=True)
+    is_visible_to_customer = Column(Boolean, nullable=False, default=True)
+    created_at = Column(DateTime, nullable=False, server_default=func.now())
+    updated_at = Column(DateTime, nullable=False, server_default=func.now(), onupdate=func.now())
+
+    orders = relationship('Order', back_populates='current_stage')
+    history_entries = relationship('OrderStageHistory', back_populates='stage')
+
+
 class Order(Base):
     __tablename__ = 'orders'
 
@@ -122,6 +141,12 @@ class Order(Base):
     paid_amount = Column(Float, nullable=True)
     installments = Column(Integer, nullable=True)
     paid_at = Column(DateTime, nullable=True)
+    current_stage_id = Column(Integer, ForeignKey('order_flow_stages.id', ondelete='SET NULL'), nullable=True, index=True)
+    current_stage_updated_at = Column(DateTime, nullable=True)
+    production_status = Column(String(20), nullable=True, index=True)
+    production_started_at = Column(DateTime, nullable=True)
+    estimated_ready_at = Column(DateTime, nullable=True, index=True)
+    ready_at = Column(DateTime, nullable=True)
     payment_metadata_json = Column(Text, nullable=False, default='{}')
     subtotal = Column(Float, nullable=False)
     discount = Column(Float, nullable=False)
@@ -129,6 +154,23 @@ class Order(Base):
     created_at = Column(DateTime, nullable=False, server_default=func.now())
     items = relationship('OrderItem', back_populates='order', cascade='all, delete')
     customer_account = relationship('CustomerAccount', back_populates='orders')
+    current_stage = relationship('OrderFlowStage', back_populates='orders')
+    stage_history = relationship('OrderStageHistory', back_populates='order', cascade='all, delete-orphan', order_by='OrderStageHistory.created_at')
+
+
+class OrderStageHistory(Base):
+    __tablename__ = 'order_stage_history'
+
+    id = Column(Integer, primary_key=True, index=True)
+    order_id = Column(Integer, ForeignKey('orders.id', ondelete='CASCADE'), nullable=False, index=True)
+    stage_id = Column(Integer, ForeignKey('order_flow_stages.id', ondelete='SET NULL'), nullable=True, index=True)
+    moved_by_admin_user_id = Column(Integer, ForeignKey('admin_users.id', ondelete='SET NULL'), nullable=True, index=True)
+    note = Column(String(400), nullable=True)
+    created_at = Column(DateTime, nullable=False, server_default=func.now(), index=True)
+
+    order = relationship('Order', back_populates='stage_history')
+    stage = relationship('OrderFlowStage', back_populates='history_entries')
+    moved_by_admin = relationship('AdminUser')
 
 
 class OrderItem(Base):
@@ -141,6 +183,7 @@ class OrderItem(Base):
     quantity = Column(Integer, nullable=False)
     unit_price = Column(Float, nullable=False)
     line_total = Column(Float, nullable=False, default=0.0)
+    production_days_snapshot = Column(Integer, nullable=False, default=1)
     selected_color = Column(String(20), nullable=True)
     selected_secondary_color = Column(String(20), nullable=True)
     selected_sub_items = Column(Text, nullable=False, default='')
