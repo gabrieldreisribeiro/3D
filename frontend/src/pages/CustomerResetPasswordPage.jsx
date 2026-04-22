@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom';
 import Button from '../components/ui/Button';
 import Card from '../components/ui/Card';
 import Input from '../components/ui/Input';
-import SectionHeader from '../components/ui/SectionHeader';
 import { customerResetPassword } from '../services/api';
 
 function CustomerResetPasswordPage() {
@@ -25,7 +24,7 @@ function CustomerResetPasswordPage() {
         new_password: newPassword,
         confirm_password: confirmPassword,
       });
-      setMessage('Senha redefinida com sucesso. Faça login novamente.');
+      setMessage('Senha redefinida com sucesso. Faca login novamente.');
     } catch (submitError) {
       setError(submitError.message || 'Falha ao redefinir senha');
     } finally {
@@ -34,19 +33,51 @@ function CustomerResetPasswordPage() {
   };
 
   return (
-    <section className="container py-8">
-      <SectionHeader title="Redefinir senha" subtitle="Use o token gerado para criar uma nova senha." />
-      <Card className="mx-auto max-w-lg space-y-4">
-        <form className="space-y-3" onSubmit={handleSubmit}>
-          <Input label="Token" value={token} onChange={(event) => setToken(event.target.value)} required />
-          <Input label="Nova senha" type="password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} required />
-          <Input label="Confirmar nova senha" type="password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} required />
-          <Button className="w-full" type="submit" loading={loading}>Salvar nova senha</Button>
-        </form>
-        {message ? <p className="text-sm text-emerald-600">{message}</p> : null}
-        {error ? <p className="text-sm text-rose-600">{error}</p> : null}
-        <p className="text-sm"><Link className="text-violet-700 underline" to="/minha-conta/login">Voltar para login</Link></p>
-      </Card>
+    <section className="customer-auth-shell">
+      <div className="customer-auth-wrap">
+        <Card className="customer-auth-card">
+          <p className="customer-auth-eyebrow">Area do cliente</p>
+          <h1 className="customer-auth-title">Redefinir senha</h1>
+          <p className="customer-auth-subtitle">Use o token recebido para definir uma nova senha com seguranca.</p>
+
+          <form className="customer-auth-form" onSubmit={handleSubmit}>
+            <Input
+              label="Token"
+              value={token}
+              onChange={(event) => setToken(event.target.value)}
+              placeholder="Cole aqui o token"
+              required
+            />
+            <Input
+              label="Nova senha"
+              type="password"
+              value={newPassword}
+              onChange={(event) => setNewPassword(event.target.value)}
+              placeholder="Nova senha"
+              required
+            />
+            <Input
+              label="Confirmar nova senha"
+              type="password"
+              value={confirmPassword}
+              onChange={(event) => setConfirmPassword(event.target.value)}
+              placeholder="Repita a nova senha"
+              required
+            />
+            <Button className="w-full" type="submit" loading={loading}>
+              Salvar nova senha
+            </Button>
+          </form>
+
+          {message ? <p className="customer-auth-success">{message}</p> : null}
+          {error ? <p className="customer-auth-error">{error}</p> : null}
+
+          <div className="customer-auth-links">
+            <span>Ja pode entrar?</span>
+            <Link to="/minha-conta/login">Voltar ao login</Link>
+          </div>
+        </Card>
+      </div>
     </section>
   );
 }

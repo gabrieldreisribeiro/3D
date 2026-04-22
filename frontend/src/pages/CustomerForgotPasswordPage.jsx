@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom';
 import Button from '../components/ui/Button';
 import Card from '../components/ui/Card';
 import Input from '../components/ui/Input';
-import SectionHeader from '../components/ui/SectionHeader';
 import { customerForgotPassword } from '../services/api';
 
 function CustomerForgotPasswordPage() {
@@ -24,25 +23,49 @@ function CustomerForgotPasswordPage() {
       setMessage(result?.message || 'Se o e-mail existir, o token foi gerado.');
       setToken(result?.reset_token || '');
     } catch (submitError) {
-      setError(submitError.message || 'Falha ao solicitar reset');
+      setError(submitError.message || 'Falha ao solicitar redefinicao');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <section className="container py-8">
-      <SectionHeader title="Recuperar senha" subtitle="Solicite um token para redefinir sua senha." />
-      <Card className="mx-auto max-w-lg space-y-4">
-        <form className="space-y-3" onSubmit={handleSubmit}>
-          <Input label="Email" value={email} onChange={(event) => setEmail(event.target.value)} required />
-          <Button className="w-full" type="submit" loading={loading}>Gerar token</Button>
-        </form>
-        {message ? <p className="text-sm text-emerald-600">{message}</p> : null}
-        {token ? <p className="rounded-lg border border-emerald-200 bg-emerald-50 p-2 text-xs text-emerald-700">Token: <strong>{token}</strong></p> : null}
-        {error ? <p className="text-sm text-rose-600">{error}</p> : null}
-        <p className="text-sm"><Link className="text-violet-700 underline" to="/minha-conta/redefinir-senha">Ja tem token? Redefinir senha</Link></p>
-      </Card>
+    <section className="customer-auth-shell">
+      <div className="customer-auth-wrap">
+        <Card className="customer-auth-card">
+          <p className="customer-auth-eyebrow">Area do cliente</p>
+          <h1 className="customer-auth-title">Recuperar senha</h1>
+          <p className="customer-auth-subtitle">Informe seu e-mail para gerar o token de redefinicao.</p>
+
+          <form className="customer-auth-form" onSubmit={handleSubmit}>
+            <Input
+              label="Email"
+              type="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              placeholder="voce@exemplo.com"
+              required
+            />
+            <Button className="w-full" type="submit" loading={loading}>
+              Gerar token
+            </Button>
+          </form>
+
+          {message ? <p className="customer-auth-success">{message}</p> : null}
+          {token ? (
+            <div className="customer-token-box">
+              <p>Token gerado:</p>
+              <strong>{token}</strong>
+            </div>
+          ) : null}
+          {error ? <p className="customer-auth-error">{error}</p> : null}
+
+          <div className="customer-auth-links">
+            <span>Ja tem token?</span>
+            <Link to="/minha-conta/redefinir-senha">Redefinir senha</Link>
+          </div>
+        </Card>
+      </div>
     </section>
   );
 }

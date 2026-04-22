@@ -3,7 +3,6 @@ import { Link, useNavigate } from 'react-router-dom';
 import Button from '../components/ui/Button';
 import Card from '../components/ui/Card';
 import Input from '../components/ui/Input';
-import SectionHeader from '../components/ui/SectionHeader';
 import { customerLogin, saveCustomerSession } from '../services/api';
 
 function CustomerLoginPage() {
@@ -33,20 +32,46 @@ function CustomerLoginPage() {
   };
 
   return (
-    <section className="container py-8">
-      <SectionHeader title="Entrar na conta" subtitle="Acesse suas compras e acompanhe seus pedidos." />
-      <Card className="mx-auto max-w-lg space-y-4">
-        <form className="space-y-3" onSubmit={handleSubmit}>
-          <Input label="Email ou telefone" value={identifier} onChange={(event) => setIdentifier(event.target.value)} required />
-          <Input label="Senha" type="password" value={password} onChange={(event) => setPassword(event.target.value)} required />
-          <Button className="w-full" type="submit" loading={loading}>Entrar</Button>
-        </form>
-        {error ? <p className="text-sm text-rose-600">{error}</p> : null}
-        <div className="flex flex-wrap gap-3 text-sm">
-          <Link className="text-violet-700 underline" to="/minha-conta/cadastro">Criar conta</Link>
-          <Link className="text-violet-700 underline" to="/minha-conta/esqueci-senha">Esqueci minha senha</Link>
-        </div>
-      </Card>
+    <section className="customer-auth-shell">
+      <div className="customer-auth-wrap">
+        <Card className="customer-auth-card">
+          <p className="customer-auth-eyebrow">Area do cliente</p>
+          <h1 className="customer-auth-title">Entrar na conta</h1>
+          <p className="customer-auth-subtitle">Acompanhe pedidos, pagamentos e dados da sua conta em um so lugar.</p>
+
+          <form className="customer-auth-form" onSubmit={handleSubmit}>
+            <Input
+              label="Email ou telefone"
+              value={identifier}
+              onChange={(event) => setIdentifier(event.target.value)}
+              placeholder="voce@exemplo.com ou (11) 99999-9999"
+              required
+            />
+            <Input
+              label="Senha"
+              type="password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              placeholder="Sua senha"
+              required
+            />
+            <Button className="w-full" type="submit" loading={loading}>
+              Entrar na conta
+            </Button>
+          </form>
+
+          {error ? <p className="customer-auth-error">{error}</p> : null}
+
+          <div className="customer-auth-links">
+            <span>Nao tem conta?</span>
+            <Link to="/minha-conta/cadastro">Criar conta</Link>
+          </div>
+          <div className="customer-auth-links">
+            <span>Esqueceu sua senha?</span>
+            <Link to="/minha-conta/esqueci-senha">Recuperar acesso</Link>
+          </div>
+        </Card>
+      </div>
     </section>
   );
 }

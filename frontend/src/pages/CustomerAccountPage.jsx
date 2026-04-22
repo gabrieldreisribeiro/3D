@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import Button from '../components/ui/Button';
 import Card from '../components/ui/Card';
+import EmptyState from '../components/ui/EmptyState';
 import Input from '../components/ui/Input';
-import SectionHeader from '../components/ui/SectionHeader';
+import StatusBadge from '../components/ui/StatusBadge';
 import {
   changeCustomerPassword,
   clearCustomerSession,
@@ -16,6 +17,26 @@ import {
   saveCustomerSession,
   updateCustomerProfile,
 } from '../services/api';
+
+const NAV_ITEMS = [
+  { key: 'overview', label: 'Minha conta' },
+  { key: 'orders', label: 'Minhas compras' },
+  { key: 'profile', label: 'Perfil' },
+  { key: 'password', label: 'Alterar senha' },
+];
+
+function formatMoney(value) {
+  return Number(value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
+function formatDateTime(value) {
+  if (!value) return '-';
+  try {
+    return new Date(value).toLocaleString('pt-BR');
+  } catch {
+    return '-';
+  }
+}
 
 function paymentStatusLabel(status) {
   const key = String(status || '').toLowerCase();
@@ -35,8 +56,17 @@ function paymentMethodLabel(method) {
   return key || '-';
 }
 
+function statusBadgeTone(status) {
+  const key = String(status || '').toLowerCase();
+  if (key === 'paid') return 'success';
+  if (key === 'pending' || key === 'pending_payment' || key === 'awaiting_confirmation') return 'warning';
+  if (key === 'failed' || key === 'canceled') return 'danger';
+  return 'info';
+}
+
 function CustomerAccountPage() {
   const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState('overview');
   const [customer, setCustomer] = useState(null);
   const [orders, setOrders] = useState([]);
   const [selectedOrder, setSelectedOrder] = useState(null);
@@ -47,6 +77,14 @@ function CustomerAccountPage() {
   const [passwordForm, setPasswordForm] = useState({ current_password: '', new_password: '', confirm_password: '' });
   const [savingProfile, setSavingProfile] = useState(false);
   const [savingPassword, setSavingPassword] = useState(false);
+
+  const stats = useMemo(() => {
+    const totalOrders = orders.length;
+    const paidOrders = orders.filter((order) => String(order.payment_status || '').toLowerCase() === 'paid').length;
+    const totalSpent = orders.reduce((sum, order) => sum + Number(order.total || 0), 0);
+    const lastOrder = orders[0] || null;
+    return { totalOrders, paidOrders, totalSpent, lastOrder };
+  }, [orders]);
 
   const load = () => {
     setLoading(true);
@@ -81,7 +119,7 @@ function CustomerAccountPage() {
     setError('');
     try {
       const result = await linkLegacyCustomerOrders();
-      setMessage(result?.message || 'Vinculo executado com sucesso.');
+      setMessage(result?.message || 'Pedidos antigos vinculados com sucesso.');
       load();
     } catch (requestError) {
       setError(requestError.message || 'Falha ao vincular pedidos antigos');
@@ -93,6 +131,7 @@ function CustomerAccountPage() {
     try {
       const data = await fetchCustomerOrderById(orderId);
       setSelectedOrder(data || null);
+      setActiveTab('order_detail');
     } catch (requestError) {
       setError(requestError.message || 'Falha ao abrir pedido');
     }
@@ -143,88 +182,248 @@ function CustomerAccountPage() {
   };
 
   return (
-    <section className="container py-8 space-y-6">
-      <SectionHeader title="Minha conta" subtitle="Acompanhe pedidos, atualize dados e gerencie sua senha." />
-      {loading ? <Card><p className="text-sm text-slate-500">Carregando...</p></Card> : null}
-      {message ? <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">{message}</div> : null}
-      {error ? <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">{error}</div> : null}
-
-      {!loading ? (
-        <>
-          <Card className="space-y-3">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <h3 className="text-base font-semibold text-slate-900">Resumo da conta</h3>
-              <div className="flex gap-2">
-                <Button variant="secondary" onClick={handleLinkLegacy}>Vincular pedidos antigos</Button>
-                <Button variant="secondary" onClick={handleLogout}>Sair</Button>
-              </div>
-            </div>
-            <p className="text-sm text-slate-700"><strong>Nome:</strong> {customer?.full_name || '-'}</p>
-            <p className="text-sm text-slate-700"><strong>Email:</strong> {customer?.email || '-'}</p>
-            <p className="text-sm text-slate-700"><strong>Telefone:</strong> {customer?.phone_number || '-'}</p>
-          </Card>
-
-          <Card className="space-y-3">
-            <h3 className="text-base font-semibold text-slate-900">Minhas compras</h3>
-            {!orders.length ? <p className="text-sm text-slate-500">Nenhum pedido vinculado.</p> : null}
-            <div className="grid gap-3">
-              {orders.map((order) => (
-                <div key={order.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="font-semibold text-slate-800">Pedido #{order.id}</p>
-                    <Button variant="secondary" className="h-8 px-3 text-xs" onClick={() => handleOpenOrder(order.id)}>Ver detalhes</Button>
-                  </div>
-                  <p className="text-slate-600">Data: {order.created_at ? new Date(order.created_at).toLocaleString('pt-BR') : '-'}</p>
-                  <p className="text-slate-600">Status: {paymentStatusLabel(order.payment_status)}</p>
-                  <p className="text-slate-600">Metodo: {paymentMethodLabel(order.payment_method)}</p>
-                  <p className="text-slate-800 font-semibold">Total: R$ {Number(order.total || 0).toFixed(2)}</p>
-                </div>
-              ))}
-            </div>
-          </Card>
-
-          {selectedOrder ? (
-            <Card className="space-y-3">
-              <h3 className="text-base font-semibold text-slate-900">Detalhe do pedido #{selectedOrder.id}</h3>
-              <p className="text-sm text-slate-700">Status pagamento: {paymentStatusLabel(selectedOrder.payment_status)}</p>
-              <p className="text-sm text-slate-700">Metodo: {paymentMethodLabel(selectedOrder.payment_method)}</p>
-              <p className="text-sm text-slate-700">Subtotal: R$ {Number(selectedOrder.subtotal || 0).toFixed(2)}</p>
-              <p className="text-sm text-slate-700">Desconto: R$ {Number(selectedOrder.discount || 0).toFixed(2)}</p>
-              <p className="text-sm font-semibold text-slate-900">Total: R$ {Number(selectedOrder.total || 0).toFixed(2)}</p>
-              {selectedOrder.receipt_url ? <a className="text-sm text-violet-700 underline" href={selectedOrder.receipt_url} target="_blank" rel="noreferrer">Abrir comprovante</a> : null}
-              <div className="space-y-2">
-                {selectedOrder.items?.map((item, index) => (
-                  <div key={`${item.product_slug}-${index}`} className="rounded-lg border border-slate-200 bg-slate-50 p-2 text-sm text-slate-700">
-                    {item.quantity}x {item.title} - R$ {Number(item.line_total || 0).toFixed(2)}
-                  </div>
-                ))}
-              </div>
-            </Card>
-          ) : null}
-
-          <div className="grid gap-4 lg:grid-cols-2">
-            <Card className="space-y-3">
-              <h3 className="text-base font-semibold text-slate-900">Perfil</h3>
-              <form className="space-y-3" onSubmit={handleSaveProfile}>
-                <Input label="Nome completo" value={profileForm.full_name} onChange={(event) => setProfileForm((current) => ({ ...current, full_name: event.target.value }))} required />
-                <Input label="Email" value={profileForm.email} onChange={(event) => setProfileForm((current) => ({ ...current, email: event.target.value }))} required />
-                <Input label="Telefone" value={profileForm.phone_number} onChange={(event) => setProfileForm((current) => ({ ...current, phone_number: event.target.value }))} required />
-                <Button type="submit" loading={savingProfile}>Salvar perfil</Button>
-              </form>
-            </Card>
-
-            <Card className="space-y-3">
-              <h3 className="text-base font-semibold text-slate-900">Alterar senha</h3>
-              <form className="space-y-3" onSubmit={handleChangePassword}>
-                <Input label="Senha atual" type="password" value={passwordForm.current_password} onChange={(event) => setPasswordForm((current) => ({ ...current, current_password: event.target.value }))} required />
-                <Input label="Nova senha" type="password" value={passwordForm.new_password} onChange={(event) => setPasswordForm((current) => ({ ...current, new_password: event.target.value }))} required />
-                <Input label="Confirmar nova senha" type="password" value={passwordForm.confirm_password} onChange={(event) => setPasswordForm((current) => ({ ...current, confirm_password: event.target.value }))} required />
-                <Button type="submit" loading={savingPassword}>Salvar nova senha</Button>
-              </form>
-            </Card>
+    <section className="container py-6 md:py-8">
+      <div className="customer-panel-shell">
+        <div className="customer-panel-head">
+          <div>
+            <p className="customer-auth-eyebrow">Minha conta</p>
+            <h1 className="customer-panel-title">Ola, {customer?.full_name ? customer.full_name.split(' ')[0] : 'cliente'}.</h1>
+            <p className="customer-panel-subtitle">Gerencie seus dados e acompanhe seus pedidos de forma simples.</p>
           </div>
-        </>
-      ) : null}
+          <div className="customer-panel-head-actions">
+            <Button variant="secondary" onClick={handleLinkLegacy}>Vincular pedidos antigos</Button>
+            <Button variant="secondary" onClick={handleLogout}>Sair</Button>
+          </div>
+        </div>
+
+        {message ? <div className="customer-banner customer-banner-success">{message}</div> : null}
+        {error ? <div className="customer-banner customer-banner-error">{error}</div> : null}
+
+        {loading ? (
+          <Card>
+            <p className="text-sm text-slate-500">Carregando dados da sua conta...</p>
+          </Card>
+        ) : (
+          <div className="customer-panel-grid">
+            <aside className="customer-panel-nav" aria-label="Navegacao da conta">
+              {NAV_ITEMS.map((item) => (
+                <button
+                  key={item.key}
+                  type="button"
+                  className={`customer-nav-item ${activeTab === item.key ? 'is-active' : ''}`}
+                  onClick={() => setActiveTab(item.key)}
+                >
+                  {item.label}
+                </button>
+              ))}
+              {selectedOrder ? (
+                <button
+                  type="button"
+                  className={`customer-nav-item ${activeTab === 'order_detail' ? 'is-active' : ''}`}
+                  onClick={() => setActiveTab('order_detail')}
+                >
+                  Detalhe do pedido
+                </button>
+              ) : null}
+            </aside>
+
+            <div className="customer-panel-content">
+              {activeTab === 'overview' ? (
+                <>
+                  <div className="customer-stats-grid">
+                    <Card className="customer-stat-card">
+                      <p>Total de pedidos</p>
+                      <strong>{stats.totalOrders}</strong>
+                    </Card>
+                    <Card className="customer-stat-card">
+                      <p>Pedidos pagos</p>
+                      <strong>{stats.paidOrders}</strong>
+                    </Card>
+                    <Card className="customer-stat-card">
+                      <p>Total em compras</p>
+                      <strong>{formatMoney(stats.totalSpent)}</strong>
+                    </Card>
+                  </div>
+
+                  <Card className="space-y-3">
+                    <h3 className="customer-card-title">Resumo da conta</h3>
+                    <div className="customer-account-list">
+                      <p><strong>Nome:</strong> {customer?.full_name || '-'}</p>
+                      <p><strong>Email:</strong> {customer?.email || '-'}</p>
+                      <p><strong>Telefone:</strong> {customer?.phone_number || '-'}</p>
+                      <p><strong>Ultimo pedido:</strong> {stats.lastOrder ? `#${stats.lastOrder.id}` : '-'}</p>
+                    </div>
+                  </Card>
+                </>
+              ) : null}
+
+              {activeTab === 'orders' ? (
+                <Card className="space-y-4">
+                  <div className="customer-content-head">
+                    <h3 className="customer-card-title">Minhas compras</h3>
+                    <p className="text-sm text-slate-500">Visualize status, pagamento e detalhe dos pedidos.</p>
+                  </div>
+
+                  {!orders.length ? (
+                    <EmptyState
+                      title="Voce ainda nao realizou nenhuma compra"
+                      description="Quando seu primeiro pedido for criado, ele aparecera aqui automaticamente."
+                      action={<Link className="inline-flex text-sm font-semibold text-violet-700 underline" to="/">Explorar produtos</Link>}
+                    />
+                  ) : (
+                    <div className="customer-orders-list">
+                      {orders.map((order) => (
+                        <article key={order.id} className="customer-order-card">
+                          <div className="customer-order-head">
+                            <div>
+                              <h4>Pedido #{order.id}</h4>
+                              <p>{formatDateTime(order.created_at)}</p>
+                            </div>
+                            <StatusBadge tone={statusBadgeTone(order.payment_status)}>
+                              {paymentStatusLabel(order.payment_status)}
+                            </StatusBadge>
+                          </div>
+                          <div className="customer-order-meta">
+                            <p><span>Pagamento</span><strong>{paymentMethodLabel(order.payment_method)}</strong></p>
+                            <p><span>Total</span><strong>{formatMoney(order.total)}</strong></p>
+                          </div>
+                          <Button variant="secondary" className="w-full sm:w-auto" onClick={() => handleOpenOrder(order.id)}>
+                            Ver detalhes
+                          </Button>
+                        </article>
+                      ))}
+                    </div>
+                  )}
+                </Card>
+              ) : null}
+
+              {activeTab === 'order_detail' ? (
+                <Card className="space-y-4">
+                  {!selectedOrder ? (
+                    <EmptyState title="Nenhum pedido selecionado" description="Selecione um pedido na aba Minhas compras para ver os detalhes." />
+                  ) : (
+                    <>
+                      <div className="customer-content-head">
+                        <div>
+                          <h3 className="customer-card-title">Pedido #{selectedOrder.id}</h3>
+                          <p className="text-sm text-slate-500">Criado em {formatDateTime(selectedOrder.created_at)}</p>
+                        </div>
+                        <StatusBadge tone={statusBadgeTone(selectedOrder.payment_status)}>
+                          {paymentStatusLabel(selectedOrder.payment_status)}
+                        </StatusBadge>
+                      </div>
+
+                      <div className="customer-detail-grid">
+                        <div className="customer-detail-block">
+                          <h4>Resumo</h4>
+                          <p><span>Subtotal</span><strong>{formatMoney(selectedOrder.subtotal)}</strong></p>
+                          <p><span>Desconto</span><strong>{formatMoney(selectedOrder.discount)}</strong></p>
+                          <p><span>Total</span><strong>{formatMoney(selectedOrder.total)}</strong></p>
+                        </div>
+                        <div className="customer-detail-block">
+                          <h4>Pagamento</h4>
+                          <p><span>Metodo</span><strong>{paymentMethodLabel(selectedOrder.payment_method)}</strong></p>
+                          <p><span>Status</span><strong>{paymentStatusLabel(selectedOrder.payment_status)}</strong></p>
+                          {selectedOrder.receipt_url ? (
+                            <a className="customer-link" href={selectedOrder.receipt_url} target="_blank" rel="noreferrer">
+                              Baixar comprovante
+                            </a>
+                          ) : (
+                            <span className="text-sm text-slate-400">Comprovante indisponivel</span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="space-y-3">
+                        <h4 className="customer-card-subtitle">Itens comprados</h4>
+                        {!selectedOrder.items?.length ? (
+                          <p className="text-sm text-slate-500">Nenhum item encontrado para este pedido.</p>
+                        ) : (
+                          <div className="customer-items-list">
+                            {selectedOrder.items.map((item, index) => (
+                              <div key={`${item.product_slug}-${index}`} className="customer-item-row">
+                                <div>
+                                  <p className="customer-item-title">{item.title}</p>
+                                  <p className="customer-item-muted">Quantidade: {item.quantity}</p>
+                                </div>
+                                <strong>{formatMoney(item.line_total)}</strong>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </Card>
+              ) : null}
+
+              {activeTab === 'profile' ? (
+                <Card className="space-y-4">
+                  <div className="customer-content-head">
+                    <h3 className="customer-card-title">Perfil</h3>
+                    <p className="text-sm text-slate-500">Mantenha seus dados atualizados para facilitar novos pedidos.</p>
+                  </div>
+                  <form className="grid gap-3" onSubmit={handleSaveProfile}>
+                    <Input
+                      label="Nome completo"
+                      value={profileForm.full_name}
+                      onChange={(event) => setProfileForm((current) => ({ ...current, full_name: event.target.value }))}
+                      required
+                    />
+                    <Input
+                      label="Email"
+                      type="email"
+                      value={profileForm.email}
+                      onChange={(event) => setProfileForm((current) => ({ ...current, email: event.target.value }))}
+                      required
+                    />
+                    <Input
+                      label="Telefone"
+                      value={profileForm.phone_number}
+                      onChange={(event) => setProfileForm((current) => ({ ...current, phone_number: event.target.value }))}
+                      required
+                    />
+                    <Button type="submit" className="w-full sm:w-auto" loading={savingProfile}>Salvar perfil</Button>
+                  </form>
+                </Card>
+              ) : null}
+
+              {activeTab === 'password' ? (
+                <Card className="space-y-4">
+                  <div className="customer-content-head">
+                    <h3 className="customer-card-title">Alterar senha</h3>
+                    <p className="text-sm text-slate-500">Use uma senha forte para proteger sua conta.</p>
+                  </div>
+                  <form className="grid gap-3" onSubmit={handleChangePassword}>
+                    <Input
+                      label="Senha atual"
+                      type="password"
+                      value={passwordForm.current_password}
+                      onChange={(event) => setPasswordForm((current) => ({ ...current, current_password: event.target.value }))}
+                      required
+                    />
+                    <Input
+                      label="Nova senha"
+                      type="password"
+                      value={passwordForm.new_password}
+                      onChange={(event) => setPasswordForm((current) => ({ ...current, new_password: event.target.value }))}
+                      required
+                    />
+                    <Input
+                      label="Confirmar nova senha"
+                      type="password"
+                      value={passwordForm.confirm_password}
+                      onChange={(event) => setPasswordForm((current) => ({ ...current, confirm_password: event.target.value }))}
+                      required
+                    />
+                    <Button type="submit" className="w-full sm:w-auto" loading={savingPassword}>Salvar nova senha</Button>
+                  </form>
+                </Card>
+              ) : null}
+            </div>
+          </div>
+        )}
+      </div>
     </section>
   );
 }
