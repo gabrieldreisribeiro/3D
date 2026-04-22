@@ -9,7 +9,7 @@ from fastapi.staticfiles import StaticFiles
 from app.core.config import UPLOADS_DIR, ensure_upload_dirs
 from app.db.session import SessionLocal
 from app.db.init_db import init_db
-from app.routes import admin, admin_ads, admin_analytics, admin_database, admin_leads_conversion, admin_logs, admin_uploads, coupons, customer, events, orders, payments, products, public, webhooks
+from app.routes import admin, admin_ads, admin_analytics, admin_database, admin_email, admin_leads_conversion, admin_logs, admin_uploads, coupons, customer, events, orders, payments, products, public, webhooks
 from app.services.image_storage_service import sync_existing_upload_images_to_db
 from app.services.system_log_service import build_exception_stack, log_http_event, now_ms
 
@@ -39,6 +39,7 @@ app.include_router(admin_ads.router)
 app.include_router(admin_analytics.router)
 app.include_router(admin_leads_conversion.router)
 app.include_router(admin_database.router)
+app.include_router(admin_email.router)
 app.include_router(admin_logs.router)
 app.include_router(admin_uploads.router)
 app.include_router(public.router)

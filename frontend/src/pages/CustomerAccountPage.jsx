@@ -13,7 +13,6 @@ import {
   fetchCustomerOrderById,
   fetchCustomerOrders,
   getCustomerToken,
-  linkLegacyCustomerOrders,
   saveCustomerSession,
   updateCustomerProfile,
 } from '../services/api';
@@ -114,18 +113,6 @@ function CustomerAccountPage() {
     load();
   }, []);
 
-  const handleLinkLegacy = async () => {
-    setMessage('');
-    setError('');
-    try {
-      const result = await linkLegacyCustomerOrders();
-      setMessage(result?.message || 'Pedidos antigos vinculados com sucesso.');
-      load();
-    } catch (requestError) {
-      setError(requestError.message || 'Falha ao vincular pedidos antigos');
-    }
-  };
-
   const handleOpenOrder = async (orderId) => {
     setError('');
     try {
@@ -191,7 +178,6 @@ function CustomerAccountPage() {
             <p className="customer-panel-subtitle">Gerencie seus dados e acompanhe seus pedidos de forma simples.</p>
           </div>
           <div className="customer-panel-head-actions">
-            <Button variant="secondary" onClick={handleLinkLegacy}>Vincular pedidos antigos</Button>
             <Button variant="secondary" onClick={handleLogout}>Sair</Button>
           </div>
         </div>

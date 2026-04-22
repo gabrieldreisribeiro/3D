@@ -114,6 +114,7 @@ function CartPage() {
   const [customerName, setCustomerName] = useState('');
   const [customerEmail, setCustomerEmail] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
+  const [identifierError, setIdentifierError] = useState('');
   const [loading, setLoading] = useState(false);
   const [pendingLoading, setPendingLoading] = useState(false);
   const [onlineLoading, setOnlineLoading] = useState(false);
@@ -158,6 +159,12 @@ function CartPage() {
     new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(value || 0));
 
   const getCartItemKey = (item) => item.cart_key || `${item.slug}::base`;
+
+  const hasCheckoutIdentifier = () => {
+    const email = String(customerEmail || '').trim().toLowerCase();
+    const phone = String(customerPhone || '').replace(/\D/g, '');
+    return Boolean(email || phone);
+  };
 
   useEffect(() => {
     const customer = getCustomerProfile();
@@ -364,6 +371,11 @@ function CartPage() {
   });
 
   const handleCheckoutWhatsapp = async () => {
+    if (!hasCheckoutIdentifier()) {
+      setIdentifierError('Informe pelo menos telefone ou e-mail para acompanhar seus pedidos.');
+      return;
+    }
+    setIdentifierError('');
     const paymentStatus = 'pending';
     if (!whatsappNumber) {
       alert('Configure o numero de WhatsApp no painel para concluir este fluxo.');
@@ -494,6 +506,11 @@ function CartPage() {
   };
 
   const handleCheckoutOnline = async () => {
+    if (!hasCheckoutIdentifier()) {
+      setIdentifierError('Informe pelo menos telefone ou e-mail para acompanhar seus pedidos.');
+      return;
+    }
+    setIdentifierError('');
     setOnlineLoading(true);
     setLoading(true);
     trackEvent({
@@ -514,6 +531,8 @@ function CartPage() {
       const checkout = await createInfinitePayCheckout({
         order_id: Number(order.id),
         customer_name: customerName || undefined,
+        customer_email: customerEmail || undefined,
+        customer_phone: customerPhone || undefined,
       });
       if (!checkout?.checkout_url) {
         throw new Error('Checkout nao retornou URL de pagamento.');
@@ -622,8 +641,10 @@ function CartPage() {
 
             <Input label="Cupom" value={code} onChange={(event) => setCode(event.target.value)} placeholder="DESCONTO10" />
             <Input label="Seu nome (opcional)" value={customerName} onChange={(event) => setCustomerName(event.target.value)} placeholder="Como gostaria de ser identificado no WhatsApp" />
-            <Input label="Seu e-mail (opcional)" value={customerEmail} onChange={(event) => setCustomerEmail(event.target.value)} placeholder="voce@exemplo.com" />
-            <Input label="Seu telefone (opcional)" value={customerPhone} onChange={(event) => setCustomerPhone(event.target.value)} placeholder="11999998888" />
+            <Input label="Seu e-mail" value={customerEmail} onChange={(event) => setCustomerEmail(event.target.value)} placeholder="voce@exemplo.com" />
+            <Input label="Seu telefone" value={customerPhone} onChange={(event) => setCustomerPhone(event.target.value)} placeholder="5511999998888" />
+            <p className="text-xs text-slate-500">Informe pelo menos telefone ou e-mail para acompanhar seus pedidos.</p>
+            {identifierError ? <p className="text-sm text-rose-600">{identifierError}</p> : null}
             <Button variant="secondary" onClick={() => applyCoupon(code)}>
               Aplicar cupom
             </Button>

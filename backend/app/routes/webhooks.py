@@ -11,6 +11,7 @@ from app.services.infinitepay_service import (
     infer_payment_method,
     infer_payment_status_from_payload,
 )
+from app.services.email_service import send_order_paid_email
 from app.services.system_log_service import log_custom_event_safely
 
 router = APIRouter(tags=['webhooks'])
@@ -91,6 +92,7 @@ async def infinitepay_webhook(request: Request, db: Session = Depends(get_db)):
 
     if transaction_nsu and order.transaction_nsu and str(order.transaction_nsu) == transaction_nsu:
         logger.info('InfinitePay webhook duplicated transaction order_id=%s transaction_nsu=%s', order.id, transaction_nsu)
+    previous_payment_status = str(order.payment_status or '').strip().lower()
     order.invoice_slug = invoice_slug or order.invoice_slug
     order.transaction_nsu = transaction_nsu or order.transaction_nsu
     order.receipt_url = receipt_url or order.receipt_url
@@ -116,6 +118,11 @@ async def infinitepay_webhook(request: Request, db: Session = Depends(get_db)):
     order.payment_metadata_json = build_payment_metadata(order.payment_metadata_json, event='webhook', payload=payload)
     db.add(order)
     db.commit()
+    if status == 'paid' and previous_payment_status != 'paid':
+        try:
+            send_order_paid_email(db, order)
+        except Exception:
+            pass
     log_custom_event_safely(
         level='info',
         category='webhook',

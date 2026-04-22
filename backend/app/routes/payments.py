@@ -23,6 +23,8 @@ from app.services.infinitepay_service import (
     infer_payment_method,
     infer_payment_status_from_payload,
 )
+from app.services.email_service import send_order_paid_email
+from app.services.customer_identity_service import normalize_email, normalize_phone
 
 router = APIRouter(tags=['payments'])
 logger = logging.getLogger('infinitepay')
@@ -53,8 +55,8 @@ def _ensure_order_nsu(order: Order) -> str:
 
 def _format_customer(payload: InfinitePayCheckoutRequest) -> dict | None:
     name = str(payload.customer_name or '').strip()
-    email = str(payload.customer_email or '').strip()
-    phone = str(payload.customer_phone or '').strip()
+    email = normalize_email(payload.customer_email)
+    phone = normalize_phone(payload.customer_phone)
     document = str(payload.customer_document or '').strip()
     if not any([name, email, phone, document]):
         return None
@@ -176,6 +178,7 @@ def infinitepay_status_check(payload: InfinitePayStatusCheckRequest, db: Session
     capture_method = str(result.get('capture_method') or '').strip().lower() or None
     payment_method = infer_payment_method(capture_method, order.payment_method)
     payment_status = infer_payment_status_from_payload(result)
+    previous_payment_status = str(order.payment_status or '').strip().lower()
     paid_amount = result.get('paid_amount')
     amount = result.get('amount')
     installments = result.get('installments')
@@ -199,6 +202,11 @@ def infinitepay_status_check(payload: InfinitePayStatusCheckRequest, db: Session
     order.payment_metadata_json = build_payment_metadata(order.payment_metadata_json, event='status_check', payload=result)
     db.add(order)
     db.commit()
+    if payment_status == 'paid' and previous_payment_status != 'paid':
+        try:
+            send_order_paid_email(db, order)
+        except Exception:
+            pass
 
     return InfinitePayStatusCheckResponse(
         ok=True,
@@ -241,6 +249,7 @@ def public_infinitepay_return_status(
     ready, _ = config_is_ready(config)
     if ready:
         try:
+            previous_payment_status = str(order.payment_status or '').strip().lower()
             status_result = check_payment_status(
                 config=config,
                 order_nsu=normalized_nsu,
@@ -272,6 +281,11 @@ def public_infinitepay_return_status(
             db.add(order)
             db.commit()
             db.refresh(order)
+            if payment_status == 'paid' and previous_payment_status != 'paid':
+                try:
+                    send_order_paid_email(db, order)
+                except Exception:
+                    pass
         except Exception:  # noqa: BLE001
             logger.exception('InfinitePay return status-check failed order_nsu=%s', normalized_nsu)
 

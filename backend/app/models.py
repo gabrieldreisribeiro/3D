@@ -209,6 +209,57 @@ class CustomerPasswordResetToken(Base):
     created_at = Column(DateTime, nullable=False, server_default=func.now())
 
 
+class EmailProviderConfig(Base):
+    __tablename__ = 'email_provider_config'
+
+    id = Column(Integer, primary_key=True, index=True, default=1)
+    provider_name = Column(String(80), nullable=False, default='smtp')
+    smtp_host = Column(String(255), nullable=True)
+    smtp_port = Column(Integer, nullable=False, default=587)
+    smtp_username = Column(String(255), nullable=True)
+    smtp_password = Column(String(500), nullable=True)
+    smtp_use_tls = Column(Boolean, nullable=False, default=True)
+    smtp_use_ssl = Column(Boolean, nullable=False, default=False)
+    from_name = Column(String(180), nullable=True)
+    from_email = Column(String(255), nullable=True)
+    reply_to_email = Column(String(255), nullable=True)
+    is_enabled = Column(Boolean, nullable=False, default=False)
+    created_at = Column(DateTime, nullable=False, server_default=func.now())
+    updated_at = Column(DateTime, nullable=False, server_default=func.now(), onupdate=func.now())
+
+
+class EmailTemplate(Base):
+    __tablename__ = 'email_templates'
+
+    id = Column(Integer, primary_key=True, index=True)
+    key = Column(String(80), unique=True, nullable=False, index=True)
+    name = Column(String(180), nullable=False)
+    subject_template = Column(String(500), nullable=False)
+    body_html_template = Column(Text, nullable=False)
+    body_text_template = Column(Text, nullable=True)
+    variables_json = Column(Text, nullable=False, default='[]')
+    is_active = Column(Boolean, nullable=False, default=True)
+    created_at = Column(DateTime, nullable=False, server_default=func.now())
+    updated_at = Column(DateTime, nullable=False, server_default=func.now(), onupdate=func.now())
+
+
+class EmailLog(Base):
+    __tablename__ = 'email_logs'
+
+    id = Column(Integer, primary_key=True, index=True)
+    template_key = Column(String(80), nullable=True, index=True)
+    recipient_email = Column(String(255), nullable=False, index=True)
+    subject_rendered = Column(String(500), nullable=False)
+    body_rendered_preview = Column(Text, nullable=True)
+    status = Column(String(20), nullable=False, default='pending', index=True)
+    error_message = Column(Text, nullable=True)
+    related_entity_type = Column(String(80), nullable=True, index=True)
+    related_entity_id = Column(String(80), nullable=True, index=True)
+    metadata_json = Column(Text, nullable=False, default='{}')
+    created_at = Column(DateTime, nullable=False, server_default=func.now(), index=True)
+    sent_at = Column(DateTime, nullable=True)
+
+
 class StoreSettings(Base):
     __tablename__ = 'store_settings'
 

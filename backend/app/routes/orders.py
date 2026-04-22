@@ -8,6 +8,8 @@ from types import SimpleNamespace
 from app.core.security import get_db, get_optional_customer
 from app.models import CustomerAccount
 from app.schemas import OrderCreate, OrderResponse
+from app.services.customer_identity_service import ensure_customer_identifier, normalize_email, normalize_phone
+from app.services.email_service import send_order_success_email
 from app.services.analytics_service import create_user_event
 from app.services.coupon_service import build_client_hash, register_coupon_usage, validate_coupon_for_client
 from app.services.order_service import create_order_with_payment, serialize_order
@@ -15,16 +17,6 @@ from app.services.product_service import get_product_by_slug, parse_sub_items_fr
 from app.services.promotion_service import get_effective_price_for_product
 
 router = APIRouter()
-
-
-def _normalize_email(value: str | None) -> str | None:
-    normalized = str(value or '').strip().lower()
-    return normalized or None
-
-
-def _normalize_phone(value: str | None) -> str | None:
-    normalized = ''.join([char for char in str(value or '') if char.isdigit()])
-    return normalized or None
 
 
 @router.post('/orders', response_model=OrderResponse)
@@ -120,8 +112,10 @@ def create_order_endpoint(
     sales_channel = 'whatsapp' if payment_method == 'whatsapp' else 'online_checkout'
     paid_at = datetime.utcnow() if payment_status == 'paid' else None
     customer_name_snapshot = str(payload.customer_name or '').strip() or (str(customer.full_name or '').strip() if customer else None)
-    customer_email_snapshot = _normalize_email(payload.customer_email) or (_normalize_email(customer.email) if customer else None)
-    customer_phone_snapshot = _normalize_phone(payload.customer_phone) or (_normalize_phone(customer.phone_number) if customer else None)
+    customer_email_snapshot = normalize_email(payload.customer_email) or (normalize_email(customer.email) if customer else None)
+    customer_phone_snapshot = normalize_phone(payload.customer_phone) or (normalize_phone(customer.phone_number) if customer else None)
+    if not ensure_customer_identifier(customer_email_snapshot, customer_phone_snapshot):
+        raise HTTPException(status_code=400, detail='Informe pelo menos telefone ou e-mail para acompanhar seus pedidos')
     shipping_address_snapshot = payload.shipping_address_snapshot if isinstance(payload.shipping_address_snapshot, dict) else {}
     order = create_order_with_payment(
         db,
@@ -170,4 +164,8 @@ def create_order_endpoint(
             )
         except Exception:
             pass
+    try:
+        send_order_success_email(db, order)
+    except Exception:
+        pass
     return serialize_order(order)

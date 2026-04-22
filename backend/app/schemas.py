@@ -780,6 +780,109 @@ class InfinitePayConnectionTestResponse(BaseModel):
     message: str
 
 
+class EmailProviderConfigBase(BaseModel):
+    provider_name: str = 'smtp'
+    smtp_host: Optional[str] = None
+    smtp_port: int = Field(default=587, ge=1, le=65535)
+    smtp_username: Optional[str] = None
+    smtp_password: Optional[str] = None
+    smtp_use_tls: bool = True
+    smtp_use_ssl: bool = False
+    from_name: Optional[str] = None
+    from_email: Optional[str] = None
+    reply_to_email: Optional[str] = None
+    is_enabled: bool = False
+
+
+class EmailProviderConfigUpdate(EmailProviderConfigBase):
+    pass
+
+
+class EmailProviderConfigResponse(BaseModel):
+    id: int = 1
+    provider_name: str = 'smtp'
+    smtp_host: Optional[str] = None
+    smtp_port: int = 587
+    smtp_username: Optional[str] = None
+    has_smtp_password: bool = False
+    smtp_use_tls: bool = True
+    smtp_use_ssl: bool = False
+    from_name: Optional[str] = None
+    from_email: Optional[str] = None
+    reply_to_email: Optional[str] = None
+    is_enabled: bool = False
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+
+class EmailSendTestRequest(BaseModel):
+    recipient_email: str = Field(..., min_length=5, max_length=255)
+
+
+class EmailSendTestResponse(BaseModel):
+    ok: bool
+    message: str
+
+
+class EmailTemplateBase(BaseModel):
+    key: str = Field(..., min_length=2, max_length=80)
+    name: str = Field(..., min_length=2, max_length=180)
+    subject_template: str = Field(..., min_length=2, max_length=500)
+    body_html_template: str = Field(..., min_length=2)
+    body_text_template: Optional[str] = None
+    variables: List[str] = Field(default_factory=list)
+    is_active: bool = True
+
+
+class EmailTemplateUpdateRequest(BaseModel):
+    name: str = Field(..., min_length=2, max_length=180)
+    subject_template: str = Field(..., min_length=2, max_length=500)
+    body_html_template: str = Field(..., min_length=2)
+    body_text_template: Optional[str] = None
+    variables: List[str] = Field(default_factory=list)
+    is_active: bool = True
+
+
+class EmailTemplateResponse(EmailTemplateBase):
+    id: int
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+
+class EmailTemplatePreviewRequest(BaseModel):
+    variables: dict = Field(default_factory=dict)
+
+
+class EmailTemplatePreviewResponse(BaseModel):
+    template_key: str
+    subject_rendered: str
+    body_html_rendered: str
+    body_text_rendered: str
+    missing_variables: List[str] = Field(default_factory=list)
+
+
+class EmailLogResponse(BaseModel):
+    id: int
+    template_key: Optional[str] = None
+    recipient_email: str
+    subject_rendered: str
+    body_rendered_preview: Optional[str] = None
+    status: str
+    error_message: Optional[str] = None
+    related_entity_type: Optional[str] = None
+    related_entity_id: Optional[str] = None
+    metadata_json: dict = Field(default_factory=dict)
+    created_at: Optional[datetime] = None
+    sent_at: Optional[datetime] = None
+
+
+class EmailLogListResponse(BaseModel):
+    items: List[EmailLogResponse]
+    total: int
+    page: int
+    page_size: int
+
+
 class InstagramSettingsBase(BaseModel):
     instagram_enabled: bool = False
     instagram_app_id: Optional[str] = None

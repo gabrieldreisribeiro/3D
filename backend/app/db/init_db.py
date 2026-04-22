@@ -8,6 +8,9 @@ from app.models import (
     Banner,
     Category,
     Coupon,
+    EmailLog,
+    EmailProviderConfig,
+    EmailTemplate,
     HighlightItem,
     PaymentProviderInfinitePayConfig,
     Product,
@@ -48,6 +51,92 @@ HIGHLIGHTS = [
         'description': 'Checkout protegido e suporte em todo o processo',
         'icon_name': 'shield',
         'sort_order': 3,
+        'is_active': True,
+    },
+]
+
+DEFAULT_EMAIL_TEMPLATES = [
+    {
+        'key': 'password_reset',
+        'name': 'Recuperacao de senha',
+        'subject_template': 'Redefinicao de senha - {{nome}}',
+        'body_html_template': (
+            '<p>Ola {{primeiro_nome}},</p>'
+            '<p>Recebemos uma solicitacao para redefinir sua senha.</p>'
+            '<p><a href="{{reset_link}}">Clique aqui para redefinir sua senha</a></p>'
+            '<p>Este link/token expira em {{token_expiration}}.</p>'
+        ),
+        'body_text_template': (
+            'Ola {{primeiro_nome}}, use o link {{reset_link}} para redefinir sua senha. '
+            'Expira em {{token_expiration}}.'
+        ),
+        'variables_json': '["nome","primeiro_nome","email","reset_link","token_expiration"]',
+        'is_active': True,
+    },
+    {
+        'key': 'order_success',
+        'name': 'Pedido criado com sucesso',
+        'subject_template': 'Pedido #{{order_id}} recebido com sucesso',
+        'body_html_template': (
+            '<p>Ola {{primeiro_nome}}, seu pedido <strong>#{{order_id}}</strong> foi recebido.</p>'
+            '<p>Total: {{order_total}} | Pagamento: {{payment_method}} ({{payment_status}})</p>'
+            '<p>Itens:</p><pre>{{items_summary}}</pre>'
+            '<p><a href="{{account_link}}">Acompanhar minhas compras</a></p>'
+        ),
+        'body_text_template': (
+            'Pedido #{{order_id}} recebido em {{order_date}}. '
+            'Total {{order_total}}. Pagamento: {{payment_method}} ({{payment_status}}). '
+            'Itens: {{items_summary}}. Conta: {{account_link}}.'
+        ),
+        'variables_json': (
+            '["nome","primeiro_nome","order_id","order_date","order_total","payment_method",'
+            '"payment_status","items_summary","account_link","receipt_url"]'
+        ),
+        'is_active': True,
+    },
+    {
+        'key': 'promotion_marketing',
+        'name': 'Promocao marketing',
+        'subject_template': '{{promotion_title}} - Oferta especial para voce',
+        'body_html_template': (
+            '<p>{{promotion_description}}</p>'
+            '<p>Cupom: <strong>{{coupon_code}}</strong></p>'
+            '<p><a href="{{promotion_link}}">Aproveitar promocao</a></p>'
+        ),
+        'body_text_template': (
+            '{{promotion_title}} - {{promotion_description}} '
+            'Cupom: {{coupon_code}} Link: {{promotion_link}}'
+        ),
+        'variables_json': '["nome","primeiro_nome","promotion_title","promotion_description","coupon_code","promotion_link"]',
+        'is_active': True,
+    },
+    {
+        'key': 'account_created',
+        'name': 'Conta criada',
+        'subject_template': 'Conta criada com sucesso',
+        'body_html_template': (
+            '<p>Ola {{primeiro_nome}}, sua conta foi criada com sucesso.</p>'
+            '<p><a href="{{account_link}}">Acessar minha conta</a></p>'
+        ),
+        'body_text_template': 'Conta criada com sucesso. Acesse: {{account_link}}',
+        'variables_json': '["nome","primeiro_nome","login_email","account_link"]',
+        'is_active': True,
+    },
+    {
+        'key': 'order_paid',
+        'name': 'Pagamento confirmado',
+        'subject_template': 'Pagamento confirmado - Pedido #{{order_id}}',
+        'body_html_template': (
+            '<p>Pagamento confirmado para o pedido <strong>#{{order_id}}</strong>.</p>'
+            '<p>Total pago: {{order_total}} | Metodo: {{payment_method}}</p>'
+            '<p><a href="{{receipt_url}}">Baixar comprovante</a></p>'
+        ),
+        'body_text_template': (
+            'Pagamento confirmado para o pedido #{{order_id}}. '
+            'Total pago {{order_total}}. Metodo {{payment_method}}. '
+            'Comprovante: {{receipt_url}}'
+        ),
+        'variables_json': '["order_id","order_total","payment_method","payment_status","receipt_url","account_link"]',
         'is_active': True,
     },
 ]
@@ -579,6 +668,165 @@ def _ensure_user_events_columns(session):
         session.commit()
 
 
+def _ensure_email_tables(session):
+    dialect = session.bind.dialect.name
+    if dialect == 'sqlite':
+        session.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS email_provider_config (
+                    id INTEGER PRIMARY KEY,
+                    provider_name VARCHAR(80) NOT NULL DEFAULT 'smtp',
+                    smtp_host VARCHAR(255),
+                    smtp_port INTEGER NOT NULL DEFAULT 587,
+                    smtp_username VARCHAR(255),
+                    smtp_password VARCHAR(500),
+                    smtp_use_tls BOOLEAN NOT NULL DEFAULT 1,
+                    smtp_use_ssl BOOLEAN NOT NULL DEFAULT 0,
+                    from_name VARCHAR(180),
+                    from_email VARCHAR(255),
+                    reply_to_email VARCHAR(255),
+                    is_enabled BOOLEAN NOT NULL DEFAULT 0,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                )
+                """
+            )
+        )
+        session.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS email_templates (
+                    id INTEGER PRIMARY KEY,
+                    key VARCHAR(80) NOT NULL UNIQUE,
+                    name VARCHAR(180) NOT NULL,
+                    subject_template VARCHAR(500) NOT NULL,
+                    body_html_template TEXT NOT NULL,
+                    body_text_template TEXT,
+                    variables_json TEXT DEFAULT '[]',
+                    is_active BOOLEAN NOT NULL DEFAULT 1,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                )
+                """
+            )
+        )
+        session.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS email_logs (
+                    id INTEGER PRIMARY KEY,
+                    template_key VARCHAR(80),
+                    recipient_email VARCHAR(255) NOT NULL,
+                    subject_rendered VARCHAR(500) NOT NULL,
+                    body_rendered_preview TEXT,
+                    status VARCHAR(20) NOT NULL DEFAULT 'pending',
+                    error_message TEXT,
+                    related_entity_type VARCHAR(80),
+                    related_entity_id VARCHAR(80),
+                    metadata_json TEXT DEFAULT '{}',
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    sent_at DATETIME
+                )
+                """
+            )
+        )
+        session.execute(text("CREATE INDEX IF NOT EXISTS ix_email_templates_key ON email_templates(key)"))
+        session.execute(text("CREATE INDEX IF NOT EXISTS ix_email_logs_template_key ON email_logs(template_key)"))
+        session.execute(text("CREATE INDEX IF NOT EXISTS ix_email_logs_recipient_email ON email_logs(recipient_email)"))
+        session.execute(text("CREATE INDEX IF NOT EXISTS ix_email_logs_status ON email_logs(status)"))
+        session.execute(text("CREATE INDEX IF NOT EXISTS ix_email_logs_created_at ON email_logs(created_at)"))
+        session.commit()
+    elif dialect.startswith('postgres'):
+        session.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS email_provider_config (
+                    id INTEGER PRIMARY KEY,
+                    provider_name VARCHAR(80) NOT NULL DEFAULT 'smtp',
+                    smtp_host VARCHAR(255),
+                    smtp_port INTEGER NOT NULL DEFAULT 587,
+                    smtp_username VARCHAR(255),
+                    smtp_password VARCHAR(500),
+                    smtp_use_tls BOOLEAN NOT NULL DEFAULT TRUE,
+                    smtp_use_ssl BOOLEAN NOT NULL DEFAULT FALSE,
+                    from_name VARCHAR(180),
+                    from_email VARCHAR(255),
+                    reply_to_email VARCHAR(255),
+                    is_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+                """
+            )
+        )
+        session.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS email_templates (
+                    id SERIAL PRIMARY KEY,
+                    key VARCHAR(80) NOT NULL UNIQUE,
+                    name VARCHAR(180) NOT NULL,
+                    subject_template VARCHAR(500) NOT NULL,
+                    body_html_template TEXT NOT NULL,
+                    body_text_template TEXT,
+                    variables_json TEXT DEFAULT '[]',
+                    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+                """
+            )
+        )
+        session.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS email_logs (
+                    id SERIAL PRIMARY KEY,
+                    template_key VARCHAR(80),
+                    recipient_email VARCHAR(255) NOT NULL,
+                    subject_rendered VARCHAR(500) NOT NULL,
+                    body_rendered_preview TEXT,
+                    status VARCHAR(20) NOT NULL DEFAULT 'pending',
+                    error_message TEXT,
+                    related_entity_type VARCHAR(80),
+                    related_entity_id VARCHAR(80),
+                    metadata_json TEXT DEFAULT '{}',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    sent_at TIMESTAMP
+                )
+                """
+            )
+        )
+        session.execute(text("CREATE INDEX IF NOT EXISTS ix_email_templates_key ON email_templates(key)"))
+        session.execute(text("CREATE INDEX IF NOT EXISTS ix_email_logs_template_key ON email_logs(template_key)"))
+        session.execute(text("CREATE INDEX IF NOT EXISTS ix_email_logs_recipient_email ON email_logs(recipient_email)"))
+        session.execute(text("CREATE INDEX IF NOT EXISTS ix_email_logs_status ON email_logs(status)"))
+        session.execute(text("CREATE INDEX IF NOT EXISTS ix_email_logs_created_at ON email_logs(created_at)"))
+        session.commit()
+
+    config = session.query(EmailProviderConfig).first()
+    if not config:
+        session.add(
+            EmailProviderConfig(
+                id=1,
+                provider_name='smtp',
+                smtp_port=587,
+                smtp_use_tls=True,
+                smtp_use_ssl=False,
+                is_enabled=False,
+            )
+        )
+        session.commit()
+
+    for template in DEFAULT_EMAIL_TEMPLATES:
+        exists = session.query(EmailTemplate).filter(EmailTemplate.key == template['key']).first()
+        if exists:
+            continue
+        session.add(EmailTemplate(**template))
+    session.commit()
+
+
 def _ensure_ads_provider_config_columns(session):
     if session.bind.dialect.name != 'sqlite':
         return
@@ -854,6 +1102,7 @@ def init_db() -> None:
         _ensure_product_pricing_columns(session)
         _ensure_store_settings_columns(session)
         _ensure_system_logs_table(session)
+        _ensure_email_tables(session)
         _ensure_user_events_columns(session)
         _ensure_ads_provider_config_columns(session)
         _ensure_admin_users_columns(session)

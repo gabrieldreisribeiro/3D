@@ -1,7 +1,7 @@
 import secrets
 from datetime import datetime, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import or_
 from sqlalchemy.orm import Session, selectinload
 
@@ -28,19 +28,20 @@ from app.schemas import (
     CustomerUpdateProfileRequest,
     OrderResponse,
 )
+from app.services.customer_identity_service import normalize_email, normalize_phone
+from app.services.email_service import send_account_created_email, send_password_reset_email
 from app.services.order_service import serialize_order
+from app.services.system_log_service import log_custom_event_safely
 
 router = APIRouter(prefix='/customer', tags=['customer'])
 
 
 def _normalize_email(value: str | None) -> str | None:
-    normalized = str(value or '').strip().lower()
-    return normalized or None
+    return normalize_email(value)
 
 
 def _normalize_phone(value: str | None) -> str | None:
-    normalized = ''.join([char for char in str(value or '') if char.isdigit()])
-    return normalized or None
+    return normalize_phone(value)
 
 
 def _serialize_customer(customer: CustomerAccount) -> CustomerAccountResponse:
@@ -56,7 +57,7 @@ def _serialize_customer(customer: CustomerAccount) -> CustomerAccountResponse:
     )
 
 
-def _link_legacy_orders(db: Session, customer: CustomerAccount) -> int:
+def _link_legacy_orders(db: Session, customer: CustomerAccount, origin: str = 'auto_link') -> int:
     phone = _normalize_phone(customer.phone_number)
     email = _normalize_email(customer.email)
     if not phone and not email:
@@ -70,12 +71,27 @@ def _link_legacy_orders(db: Session, customer: CustomerAccount) -> int:
     if not conditions:
         return 0
     rows = query.filter(or_(*conditions)).all()
+    linked_ids = [int(row.id) for row in rows]
     for row in rows:
         row.customer_account_id = customer.id
         if not row.customer_name:
             row.customer_name = customer.full_name
     if rows:
         db.commit()
+        log_custom_event_safely(
+            level='info',
+            category='business_event',
+            action_name='Auto-linked legacy orders',
+            source_system='internal',
+            entity_type='customer_account',
+            entity_id=customer.id,
+            metadata={
+                'origin': origin,
+                'customer_account_id': customer.id,
+                'linked_orders_count': len(linked_ids),
+                'linked_order_ids': linked_ids,
+            },
+        )
     return len(rows)
 
 
@@ -106,7 +122,15 @@ def register_customer(payload: CustomerRegisterRequest, db: Session = Depends(ge
     db.add(customer)
     db.commit()
     db.refresh(customer)
-    linked = _link_legacy_orders(db, customer) if payload.link_legacy_orders else 0
+    linked = _link_legacy_orders(db, customer, origin='auto_link_on_signup')
+    if email:
+        send_account_created_email(
+            db,
+            recipient_email=email,
+            full_name=customer.full_name,
+            account_link='/minha-conta',
+            customer_account_id=customer.id,
+        )
     token = create_customer_token(customer.id)
     return CustomerAuthResponse(token=token, customer=_serialize_customer(customer), linked_orders_count=linked)
 
@@ -127,7 +151,7 @@ def login_customer(payload: CustomerLoginRequest, db: Session = Depends(get_db))
     db.add(customer)
     db.commit()
     db.refresh(customer)
-    linked = _link_legacy_orders(db, customer) if payload.link_legacy_orders else 0
+    linked = _link_legacy_orders(db, customer, origin='auto_link_on_login') if payload.link_legacy_orders else 0
     token = create_customer_token(customer.id)
     return CustomerAuthResponse(token=token, customer=_serialize_customer(customer), linked_orders_count=linked)
 
@@ -143,7 +167,7 @@ def customer_me(customer: CustomerAccount = Depends(require_customer)):
 
 
 @router.post('/auth/forgot-password', response_model=CustomerForgotPasswordResponse)
-def forgot_password(payload: CustomerForgotPasswordRequest, db: Session = Depends(get_db)):
+def forgot_password(payload: CustomerForgotPasswordRequest, request: Request, db: Session = Depends(get_db)):
     email = _normalize_email(payload.email)
     customer = db.query(CustomerAccount).filter(CustomerAccount.email == email, CustomerAccount.is_active == True).first()
     if not customer:
@@ -161,10 +185,25 @@ def forgot_password(payload: CustomerForgotPasswordRequest, db: Session = Depend
     )
     db.add(token_row)
     db.commit()
+    reset_link = f"/minha-conta/redefinir-senha?token={token_value}"
+    try:
+        host = str(request.headers.get('origin') or '').strip()
+        if host:
+            reset_link = f"{host.rstrip('/')}/minha-conta/redefinir-senha?token={token_value}"
+    except Exception:
+        pass
+    send_password_reset_email(
+        db,
+        recipient_email=customer.email,
+        full_name=customer.full_name,
+        reset_link=reset_link,
+        token_expiration='2 horas',
+        customer_account_id=customer.id,
+    )
     return CustomerForgotPasswordResponse(
         ok=True,
-        message='Token de redefinicao gerado (modo atual sem envio por e-mail).',
-        reset_token=token_value,
+        message='Se o e-mail existir, enviamos instrucoes para redefinicao.',
+        reset_token=None,
     )
 
 
@@ -192,7 +231,7 @@ def reset_password(payload: CustomerResetPasswordRequest, db: Session = Depends(
 
 @router.post('/orders/link-legacy', response_model=CustomerLinkLegacyOrdersResponse)
 def link_legacy_orders(customer: CustomerAccount = Depends(require_customer), db: Session = Depends(get_db)):
-    linked = _link_legacy_orders(db, customer)
+    linked = _link_legacy_orders(db, customer, origin='manual_link')
     return CustomerLinkLegacyOrdersResponse(
         linked_orders_count=linked,
         message=f'{linked} pedido(s) antigo(s) vinculado(s) com sucesso.' if linked else 'Nenhum pedido antigo para vincular.',

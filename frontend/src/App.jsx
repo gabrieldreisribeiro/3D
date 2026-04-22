@@ -31,6 +31,7 @@ import AdminPublicationPage from './pages/AdminPublicationPage';
 import AdminUsersPage from './pages/AdminUsersPage';
 import Admin3DModelsPage from './pages/Admin3DModelsPage';
 import AdminInfinitePayPage from './pages/AdminInfinitePayPage';
+import AdminEmailPage from './pages/AdminEmailPage';
 import AdminLogsPage from './pages/AdminLogsPage';
 import PaymentReturnPage from './pages/PaymentReturnPage';
 import CustomerAccountPage from './pages/CustomerAccountPage';
@@ -94,6 +95,7 @@ function AppContent() {
             <Route path="instagram" element={<AdminInstagramPage />} />
             <Route path="meta-pixel" element={<AdminMetaPixelPage />} />
             <Route path="integracoes/infinitepay" element={<AdminInfinitePayPage />} />
+            <Route path="comunicacao/email" element={<AdminEmailPage />} />
             <Route path="logs" element={<AdminLogsPage />} />
             <Route path="publicacao" element={<AdminPublicationPage />} />
             <Route path="anuncios-ia" element={<AdminAdsPage />} />

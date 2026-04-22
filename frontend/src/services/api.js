@@ -948,6 +948,57 @@ export function testAdminInfinitePayConfig() {
   });
 }
 
+export function fetchAdminEmailConfig() {
+  return adminRequest('/admin/email/config');
+}
+
+export function updateAdminEmailConfig(payload) {
+  return adminRequest('/admin/email/config', {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  });
+}
+
+export function testAdminEmailSend(payload) {
+  return adminRequest('/admin/email/test-send', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export function fetchAdminEmailTemplates() {
+  return adminRequest('/admin/email/templates');
+}
+
+export function updateAdminEmailTemplate(templateKey, payload) {
+  return adminRequest(`/admin/email/templates/${encodeURIComponent(templateKey)}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  });
+}
+
+export function previewAdminEmailTemplate(templateKey, payload) {
+  return adminRequest(`/admin/email/templates/${encodeURIComponent(templateKey)}/preview`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export function fetchAdminEmailLogs(params = {}) {
+  const search = new URLSearchParams();
+  if (params.page) search.set('page', String(params.page));
+  if (params.page_size) search.set('page_size', String(params.page_size));
+  if (params.status) search.set('status', String(params.status));
+  if (params.template_key) search.set('template_key', String(params.template_key));
+  if (params.text) search.set('text', String(params.text));
+  const query = search.toString();
+  return adminRequest(`/admin/email/logs${query ? `?${query}` : ''}`);
+}
+
+export function fetchAdminEmailLogById(logId) {
+  return adminRequest(`/admin/email/logs/${logId}`);
+}
+
 export function fetchAdminLogSettings() {
   return adminRequest('/admin/logs/settings');
 }
