@@ -121,6 +121,11 @@ function toOptionalNumber(value) {
   return Number.isNaN(parsed) ? null : parsed;
 }
 
+function toProductionDaysFromHours(value) {
+  const hours = Math.max(0, toNumber(value));
+  return Math.max(1, Math.ceil(hours / 24));
+}
+
 function fileBaseName(value) {
   const name = String(value || '').split('/').pop() || '';
   return name.replace(/\.[^/.]+$/, '');
@@ -280,7 +285,7 @@ function toPayload(form) {
     is_active: form.is_active,
     category_id: form.category_id === '' ? null : Number(form.category_id),
     lead_time_hours: toNumber(form.lead_time_hours),
-    production_days: Math.max(1, Math.round(toNumber(form.production_days || 1))),
+    production_days: toProductionDaysFromHours(form.lead_time_hours),
     allow_colors: Boolean(form.allow_colors),
     available_colors: form.allow_colors ? parseColors(form.available_colors) : [],
     allow_secondary_color: Boolean(form.allow_colors) && Boolean(form.allow_secondary_color),
@@ -564,6 +569,7 @@ function AdminProductsPage() {
   const isLastWizardStep = productWizardStep === PRODUCT_WIZARD_STEPS.length - 1;
   const coverImageUrl = String(form.cover_image || '').trim();
   const extraImageLinks = useMemo(() => parseImageLinks(form.images), [form.images]);
+  const calculatedProductionDays = useMemo(() => toProductionDaysFromHours(form.lead_time_hours), [form.lead_time_hours]);
 
   const closeProductModal = () => {
     setIsModalOpen(false);
@@ -1875,14 +1881,11 @@ function AdminProductsPage() {
             value={form.lead_time_hours}
             onChange={(event) => setForm({ ...form, lead_time_hours: event.target.value })}
           />
-          <Input
-            label="Prazo de producao (dias)"
-            type="number"
-            min="1"
-            step="1"
-            value={form.production_days}
-            onChange={(event) => setForm({ ...form, production_days: event.target.value })}
-          />
+          <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Prazo para cliente (dias)</p>
+            <p className="mt-1 text-lg font-semibold text-slate-900">{calculatedProductionDays} dia(s)</p>
+            <p className="text-xs text-slate-500">Calculado automaticamente pelas horas de producao.</p>
+          </div>
           <label className="inline-flex items-center gap-2 rounded-[10px] border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
             <input
               type="checkbox"
