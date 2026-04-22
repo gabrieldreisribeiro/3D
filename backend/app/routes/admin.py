@@ -93,6 +93,7 @@ from app.services.highlight_service import (
     update_highlight_item,
 )
 from app.services.analytics_service import analytics_funnel, analytics_products, analytics_summary, parse_period
+from app.services.favicon_service import remove_favicon_file, save_favicon
 from app.services.logo_service import save_logo
 from app.services.product_upload_service import save_product_image
 from app.services.product_3d_model_service import (
@@ -177,6 +178,7 @@ from app.services.settings_service import (
     is_meta_pixel_config_valid,
     update_instagram_settings,
     update_meta_pixel_settings,
+    update_store_favicon,
     update_store_settings,
 )
 
@@ -487,6 +489,7 @@ def read_store_settings(_: AdminUser = Depends(require_admin), db: Session = Dep
     return StoreSettingsResponse(
         whatsapp_number=settings.whatsapp_number,
         pix_key=settings.pix_key,
+        favicon_url=settings.favicon_url,
     )
 
 
@@ -500,7 +503,33 @@ def save_store_settings(
     return StoreSettingsResponse(
         whatsapp_number=settings.whatsapp_number,
         pix_key=settings.pix_key,
+        favicon_url=settings.favicon_url,
     )
+
+
+@router.post('/settings/favicon', response_model=LogoResponse)
+def upload_favicon(
+    file: UploadFile = File(...),
+    _: AdminUser = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    settings = get_or_create_settings(db)
+    old_favicon = settings.favicon_url
+    url = save_favicon(file)
+    update_store_favicon(db, url)
+    if old_favicon and old_favicon != url:
+        remove_favicon_file(old_favicon)
+    return LogoResponse(url=url)
+
+
+@router.delete('/settings/favicon', status_code=204)
+def delete_favicon(
+    _: AdminUser = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    settings = get_or_create_settings(db)
+    remove_favicon_file(settings.favicon_url)
+    update_store_favicon(db, None)
 
 
 @router.get('/integrations/instagram', response_model=InstagramSettingsResponse)

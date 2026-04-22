@@ -180,6 +180,7 @@ class StoreSettings(Base):
     id = Column(Integer, primary_key=True, index=True, default=1)
     whatsapp_number = Column(String(30), nullable=True)
     pix_key = Column(String(160), nullable=True)
+    favicon_url = Column(String(500), nullable=True)
     instagram_enabled = Column(Boolean, default=False)
     instagram_app_id = Column(String(120), nullable=True)
     instagram_app_secret = Column(String(220), nullable=True)

@@ -3,7 +3,15 @@ import { useOutletContext } from 'react-router-dom';
 import Button from '../components/ui/Button';
 import DataCard from '../components/ui/DataCard';
 import SectionHeader from '../components/ui/SectionHeader';
-import { fetchAdminSettings, resolveAssetUrl, updateAdminSettings, uploadAdminLogo } from '../services/api';
+import {
+  fetchAdminSettings,
+  removeAdminFavicon,
+  resolveAssetUrl,
+  updateAdminSettings,
+  uploadAdminFavicon,
+  uploadAdminLogo,
+} from '../services/api';
+import { applySiteFavicon } from '../services/faviconService';
 import {
   getLogoSizeConfig,
   getLogoSizeKey,
@@ -24,6 +32,12 @@ function AdminSettingsPage() {
   const [settingsLoading, setSettingsLoading] = useState(false);
   const [settingsMessage, setSettingsMessage] = useState('');
   const [settingsError, setSettingsError] = useState('');
+  const [faviconFile, setFaviconFile] = useState(null);
+  const [faviconPreview, setFaviconPreview] = useState(null);
+  const [faviconUrl, setFaviconUrl] = useState(null);
+  const [faviconLoading, setFaviconLoading] = useState(false);
+  const [faviconMessage, setFaviconMessage] = useState('');
+  const [faviconError, setFaviconError] = useState('');
 
   const [localLogoSizeKey, setLocalLogoSizeKey] = useState(getLogoSizeKey());
   const logoSizeKey = context?.logoSizeKey || localLogoSizeKey;
@@ -49,9 +63,20 @@ function AdminSettingsPage() {
           whatsapp_number: data?.whatsapp_number || '',
           pix_key: data?.pix_key || '',
         });
+        setFaviconUrl(resolveAssetUrl(data?.favicon_url));
       })
       .catch((requestError) => setSettingsError(requestError.message || 'Falha ao carregar configuracoes.'));
   }, []);
+
+  useEffect(() => {
+    if (!faviconFile) {
+      setFaviconPreview(null);
+      return;
+    }
+    const objectUrl = URL.createObjectURL(faviconFile);
+    setFaviconPreview(objectUrl);
+    return () => URL.revokeObjectURL(objectUrl);
+  }, [faviconFile]);
 
   const previewUrl = localPreview || logoUrl;
   const logoSize = getLogoSizeConfig(logoSizeKey);
@@ -104,6 +129,46 @@ function AdminSettingsPage() {
       setSettingsError(submitError.message || 'Falha ao atualizar configuracoes.');
     } finally {
       setSettingsLoading(false);
+    }
+  };
+
+  const handleFaviconUpload = async (event) => {
+    event.preventDefault();
+    if (!faviconFile) {
+      setFaviconError('Selecione um favicon antes de salvar.');
+      return;
+    }
+    setFaviconLoading(true);
+    setFaviconError('');
+    setFaviconMessage('');
+    try {
+      const result = await uploadAdminFavicon(faviconFile);
+      const nextUrl = resolveAssetUrl(result?.url);
+      setFaviconUrl(nextUrl);
+      setFaviconFile(null);
+      applySiteFavicon(nextUrl);
+      setFaviconMessage('Favicon atualizado com sucesso.');
+    } catch (uploadError) {
+      setFaviconError(uploadError.message || 'Falha ao atualizar favicon.');
+    } finally {
+      setFaviconLoading(false);
+    }
+  };
+
+  const handleFaviconRemove = async () => {
+    setFaviconLoading(true);
+    setFaviconError('');
+    setFaviconMessage('');
+    try {
+      await removeAdminFavicon();
+      setFaviconUrl(null);
+      setFaviconFile(null);
+      applySiteFavicon(null);
+      setFaviconMessage('Favicon removido com sucesso.');
+    } catch (removeError) {
+      setFaviconError(removeError.message || 'Falha ao remover favicon.');
+    } finally {
+      setFaviconLoading(false);
     }
   };
 
@@ -160,6 +225,47 @@ function AdminSettingsPage() {
 
           {message ? <p className="text-sm text-emerald-600">{message}</p> : null}
           {error ? <p className="text-sm text-rose-600">{error}</p> : null}
+        </form>
+      </DataCard>
+
+      <DataCard title="Tema do site">
+        <form className="grid max-w-lg gap-4" onSubmit={handleFaviconUpload}>
+          <label className="space-y-1">
+            <span className="text-xs font-medium uppercase tracking-wide text-slate-500">Favicon do site</span>
+            <input
+              className="h-11 rounded-[10px] border border-slate-200 bg-white px-3 text-sm text-slate-700"
+              type="file"
+              accept=".png,.ico,.svg,image/png,image/x-icon,image/vnd.microsoft.icon,image/svg+xml"
+              onChange={(event) => setFaviconFile(event.target.files?.[0] || null)}
+            />
+            <p className="text-xs text-slate-500">Formatos aceitos: PNG, ICO e SVG. Recomendado: 32x32 ou 64x64.</p>
+          </label>
+
+          <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 bg-white">
+              {faviconPreview || faviconUrl ? (
+                <img src={faviconPreview || faviconUrl} alt="Preview favicon" className="h-8 w-8 object-contain" />
+              ) : (
+                <span className="text-[10px] text-slate-400">N/A</span>
+              )}
+            </div>
+            <div>
+              <p className="text-xs font-medium text-slate-700">Preview atual</p>
+              <p className="text-[11px] text-slate-500">{faviconPreview ? 'Novo arquivo selecionado' : (faviconUrl ? 'Favicon ativo' : 'Sem favicon configurado')}</p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <Button className="w-full sm:w-auto" loading={faviconLoading} type="submit">
+              Salvar favicon
+            </Button>
+            <Button className="w-full sm:w-auto" variant="secondary" loading={faviconLoading} type="button" onClick={handleFaviconRemove}>
+              Remover favicon
+            </Button>
+          </div>
+
+          {faviconMessage ? <p className="text-sm text-emerald-600">{faviconMessage}</p> : null}
+          {faviconError ? <p className="text-sm text-rose-600">{faviconError}</p> : null}
         </form>
       </DataCard>
 

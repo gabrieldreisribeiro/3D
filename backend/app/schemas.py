@@ -235,7 +235,7 @@ class AdminProductResponse(BaseModel):
     images: List[str]
     sub_items: List[ProductSubItem]
     is_active: bool
-    category_id: Optional[int]
+    category_id: Optional[int] = None
     lead_time_hours: float
     allow_colors: bool
     available_colors: List[str]
@@ -651,7 +651,7 @@ class StoreSettingsUpdate(StoreSettingsBase):
 
 
 class StoreSettingsResponse(StoreSettingsBase):
-    pass
+    favicon_url: Optional[str] = None
 
 
 class InfinitePayConfigBase(BaseModel):

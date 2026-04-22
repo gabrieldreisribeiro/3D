@@ -620,6 +620,31 @@ export function fetchAdminReportSales(params = {}) {
   return adminRequest(`/admin/reports/sales${query ? `?${query}` : ''}`);
 }
 
+export async function uploadAdminFavicon(file) {
+  const token = localStorage.getItem(ADMIN_TOKEN_KEY);
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const response = await fetch(buildApiUrl('/admin/settings/favicon'), {
+    method: 'POST',
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: formData,
+  });
+
+  const data = await response.json();
+  if (!response.ok) {
+    if (response.status === 401) localStorage.removeItem(ADMIN_TOKEN_KEY);
+    throw new Error(getApiErrorMessage(data, 'Erro no upload do favicon'));
+  }
+  return data;
+}
+
+export function removeAdminFavicon() {
+  return adminRequest('/admin/settings/favicon', {
+    method: 'DELETE',
+  });
+}
+
 export function fetchAdminReportTopProducts(params = {}) {
   const search = new URLSearchParams();
   if (params.date_from) search.set('date_from', params.date_from);

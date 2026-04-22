@@ -321,6 +321,7 @@ def _ensure_product_pricing_columns(session):
 
 def _ensure_store_settings_columns(session):
     required_columns = {
+        'favicon_url': "VARCHAR(500)",
         'instagram_enabled': "BOOLEAN DEFAULT 0",
         'instagram_app_id': "VARCHAR(120)",
         'instagram_app_secret': "VARCHAR(220)",

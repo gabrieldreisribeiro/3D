@@ -81,6 +81,15 @@ def update_instagram_settings(
     return settings
 
 
+def update_store_favicon(db: Session, favicon_url: str | None) -> StoreSettings:
+    settings = get_or_create_settings(db)
+    settings.favicon_url = _normalize_text(favicon_url)
+    db.add(settings)
+    db.commit()
+    db.refresh(settings)
+    return settings
+
+
 def update_meta_pixel_settings(
     db: Session,
     enabled: bool,

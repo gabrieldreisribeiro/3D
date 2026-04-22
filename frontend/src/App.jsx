@@ -32,7 +32,8 @@ import AdminUsersPage from './pages/AdminUsersPage';
 import Admin3DModelsPage from './pages/Admin3DModelsPage';
 import AdminInfinitePayPage from './pages/AdminInfinitePayPage';
 import PaymentReturnPage from './pages/PaymentReturnPage';
-import { getAdminToken, trackEvent } from './services/api';
+import { fetchPublicSettings, getAdminToken, trackEvent } from './services/api';
+import { applySiteFavicon } from './services/faviconService';
 
 function PreviewGuard({ children }) {
   const hasToken = Boolean(getAdminToken());
@@ -55,6 +56,12 @@ function AppContent() {
       },
     }).catch(() => {});
   }, [isAdminRoute, isPreviewRoute, location.pathname, location.search]);
+
+  useEffect(() => {
+    fetchPublicSettings()
+      .then((settings) => applySiteFavicon(settings?.favicon_url || null))
+      .catch(() => applySiteFavicon(null));
+  }, []);
 
   if (isAdminRoute) {
     return (

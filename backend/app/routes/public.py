@@ -35,6 +35,7 @@ def read_public_settings(db: Session = Depends(get_db)):
     return StoreSettingsResponse(
         whatsapp_number=settings.whatsapp_number,
         pix_key=settings.pix_key,
+        favicon_url=settings.favicon_url,
     )
 
 
