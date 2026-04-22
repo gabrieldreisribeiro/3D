@@ -1509,7 +1509,7 @@ def delete_admin_order_flow_stage(
     if not row:
         raise HTTPException(status_code=404, detail='Etapa nao encontrada')
     if not can_delete_order_flow_stage(db, stage_id):
-        raise HTTPException(status_code=400, detail='Nao e possivel excluir etapa com pedidos vinculados')
+        raise HTTPException(status_code=400, detail='Nao e possivel excluir etapa com pedidos vinculados ou historico registrado')
     delete_order_flow_stage(db, row)
 
 

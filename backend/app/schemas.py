@@ -450,6 +450,9 @@ class OrderStageHistoryResponse(BaseModel):
     stage_id: Optional[int] = None
     stage_name: Optional[str] = None
     stage_color: Optional[str] = None
+    stage_icon_name: Optional[str] = None
+    stage_sort_order: Optional[int] = None
+    stage_visible_to_customer: Optional[bool] = None
     moved_by_admin_user_id: Optional[int] = None
     note: Optional[str] = None
     created_at: Optional[datetime] = None

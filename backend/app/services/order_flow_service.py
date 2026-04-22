@@ -108,8 +108,11 @@ def reorder_order_flow_stages(db: Session, stage_ids: list[int]) -> list[OrderFl
 
 
 def can_delete_order_flow_stage(db: Session, stage_id: int) -> bool:
-    total = db.query(Order).filter(Order.current_stage_id == stage_id).count()
-    return int(total or 0) == 0
+    linked_orders_total = db.query(Order).filter(Order.current_stage_id == stage_id).count()
+    if int(linked_orders_total or 0) > 0:
+        return False
+    history_total = db.query(OrderStageHistory).filter(OrderStageHistory.stage_id == stage_id).count()
+    return int(history_total or 0) == 0
 
 
 def delete_order_flow_stage(db: Session, stage: OrderFlowStage) -> None:
@@ -151,14 +154,22 @@ def _create_stage_history_entry(
     db: Session,
     *,
     order_id: int,
-    stage_id: int | None,
+    stage: OrderFlowStage | None = None,
+    stage_id: int | None = None,
     moved_by_admin_user_id: int | None = None,
     note: str | None = None,
 ) -> None:
+    resolved_stage_id = int(stage.id) if stage and stage.id else stage_id
     db.add(
         OrderStageHistory(
             order_id=order_id,
-            stage_id=stage_id,
+            stage_id=resolved_stage_id,
+            stage_name_snapshot=(str(stage.name or '').strip() or None) if stage else None,
+            stage_description_snapshot=(str(stage.description or '').strip() or None) if stage else None,
+            stage_color_snapshot=(str(stage.color or '').strip() or None) if stage else None,
+            stage_icon_name_snapshot=(str(stage.icon_name or '').strip() or None) if stage else None,
+            stage_sort_order_snapshot=int(stage.sort_order) if stage and stage.sort_order is not None else None,
+            stage_visible_to_customer_snapshot=bool(stage.is_visible_to_customer) if stage else None,
             moved_by_admin_user_id=moved_by_admin_user_id,
             note=str(note or '').strip() or None,
         )
@@ -175,7 +186,7 @@ def ensure_order_has_stage(db: Session, order: Order, *, note: str | None = None
     order.current_stage_id = initial_stage.id
     order.current_stage_updated_at = datetime.utcnow()
     db.add(order)
-    _create_stage_history_entry(db, order_id=order.id, stage_id=initial_stage.id, note=note or 'initial_stage')
+    _create_stage_history_entry(db, order_id=order.id, stage=initial_stage, note=note or 'initial_stage')
 
 
 def _sort_order(stage: OrderFlowStage | None) -> int:
@@ -204,7 +215,7 @@ def move_order_to_stage(
     _create_stage_history_entry(
         db,
         order_id=order.id,
-        stage_id=stage.id,
+        stage=stage,
         moved_by_admin_user_id=moved_by_admin_user_id,
         note=note,
     )
@@ -249,8 +260,15 @@ def serialize_order_stage_history(entry: OrderStageHistory) -> dict:
         'id': entry.id,
         'order_id': entry.order_id,
         'stage_id': entry.stage_id,
-        'stage_name': entry.stage.name if entry.stage else None,
-        'stage_color': entry.stage.color if entry.stage else None,
+        'stage_name': entry.stage.name if entry.stage else entry.stage_name_snapshot,
+        'stage_color': entry.stage.color if entry.stage else entry.stage_color_snapshot,
+        'stage_icon_name': entry.stage.icon_name if entry.stage else entry.stage_icon_name_snapshot,
+        'stage_sort_order': entry.stage.sort_order if entry.stage else entry.stage_sort_order_snapshot,
+        'stage_visible_to_customer': (
+            bool(entry.stage.is_visible_to_customer)
+            if entry.stage
+            else (bool(entry.stage_visible_to_customer_snapshot) if entry.stage_visible_to_customer_snapshot is not None else None)
+        ),
         'moved_by_admin_user_id': entry.moved_by_admin_user_id,
         'note': entry.note,
         'created_at': entry.created_at,
@@ -258,9 +276,7 @@ def serialize_order_stage_history(entry: OrderStageHistory) -> dict:
 
 
 def build_customer_order_timeline(db: Session, order: Order) -> list[dict]:
-    stages = list_order_flow_stages(db, active_only=True, customer_visible_only=True)
-    if not stages:
-        return []
+    configured_stages = list_order_flow_stages(db, active_only=False, customer_visible_only=True)
 
     history_rows = (
         db.query(OrderStageHistory)
@@ -269,30 +285,79 @@ def build_customer_order_timeline(db: Session, order: Order) -> list[dict]:
         .all()
     )
     completed_by_stage_id: dict[int, datetime] = {}
+    historical_only_stages: list[dict] = []
+    configured_ids = {int(stage.id) for stage in configured_stages}
     for entry in history_rows:
         if entry.stage_id and entry.stage_id not in completed_by_stage_id:
             completed_by_stage_id[entry.stage_id] = entry.created_at
+        is_visible_snapshot = (
+            bool(entry.stage.is_visible_to_customer)
+            if entry.stage
+            else bool(entry.stage_visible_to_customer_snapshot)
+        )
+        if (
+            entry.stage_id
+            and int(entry.stage_id) not in configured_ids
+            and is_visible_snapshot
+            and (entry.stage or entry.stage_name_snapshot)
+        ):
+            historical_only_stages.append(
+                {
+                    'id': int(entry.stage_id),
+                    'name': entry.stage.name if entry.stage else entry.stage_name_snapshot,
+                    'description': entry.stage.description if entry.stage else entry.stage_description_snapshot,
+                    'color': entry.stage.color if entry.stage else entry.stage_color_snapshot,
+                    'icon_name': entry.stage.icon_name if entry.stage else entry.stage_icon_name_snapshot,
+                    'sort_order': (
+                        int(entry.stage.sort_order)
+                        if entry.stage and entry.stage.sort_order is not None
+                        else int(entry.stage_sort_order_snapshot or 9999)
+                    ),
+                }
+            )
 
-    current_index = -1
-    for index, stage in enumerate(stages):
-        if int(stage.id) == int(order.current_stage_id or 0):
-            current_index = index
-            break
+    dedup_historical: dict[int, dict] = {}
+    for stage in historical_only_stages:
+        dedup_historical[int(stage['id'])] = stage
 
-    timeline = []
-    for index, stage in enumerate(stages):
-        completed_at = completed_by_stage_id.get(stage.id)
-        is_current = int(order.current_stage_id or 0) == int(stage.id)
-        if completed_at is None and current_index >= 0 and index < current_index:
-            completed_at = order.current_stage_updated_at or order.created_at
-        timeline.append(
+    all_stages = [
+        *[
             {
-                'stage_id': stage.id,
+                'id': int(stage.id),
                 'name': stage.name,
                 'description': stage.description,
                 'color': stage.color,
                 'icon_name': stage.icon_name,
-                'sort_order': stage.sort_order,
+                'sort_order': int(stage.sort_order or 0),
+            }
+            for stage in configured_stages
+        ],
+        *dedup_historical.values(),
+    ]
+    all_stages = sorted(all_stages, key=lambda stage: (int(stage.get('sort_order') or 0), int(stage.get('id') or 0)))
+    if not all_stages:
+        return []
+
+    current_index = -1
+    for index, stage in enumerate(all_stages):
+        if int(stage['id']) == int(order.current_stage_id or 0):
+            current_index = index
+            break
+
+    timeline = []
+    for index, stage in enumerate(all_stages):
+        completed_at = completed_by_stage_id.get(stage['id'])
+        is_current = int(order.current_stage_id or 0) == int(stage['id'])
+        if completed_at is None and current_index >= 0 and index < current_index:
+            completed_at = order.current_stage_updated_at or order.created_at
+        timeline.append(
+            {
+                'stage_id': stage['id'],
+                'name': stage.get('name'),
+                'description': stage.get('description'),
+                'color': stage.get('color'),
+                'icon_name': stage.get('icon_name'),
+                'sort_order': stage.get('sort_order'),
                 'is_current': is_current,
                 'is_completed': bool(completed_at) or (current_index >= 0 and index < current_index),
                 'completed_at': completed_at,

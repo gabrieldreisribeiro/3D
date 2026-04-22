@@ -341,6 +341,63 @@ def _ensure_order_flow_tables(session):
     session.execute(text("CREATE INDEX IF NOT EXISTS ix_order_stage_history_order_id ON order_stage_history(order_id)"))
     session.execute(text("CREATE INDEX IF NOT EXISTS ix_order_stage_history_stage_id ON order_stage_history(stage_id)"))
     session.execute(text("CREATE INDEX IF NOT EXISTS ix_order_stage_history_created_at ON order_stage_history(created_at)"))
+    stage_required_columns = {
+        'description': 'VARCHAR(260)',
+        'color': 'VARCHAR(30)',
+        'icon_name': 'VARCHAR(60)',
+        'sort_order': 'INTEGER DEFAULT 1',
+        'is_active': 'BOOLEAN DEFAULT TRUE',
+        'is_visible_to_customer': 'BOOLEAN DEFAULT TRUE',
+        'created_at': 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP',
+        'updated_at': 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP',
+    }
+    history_required_columns = {
+        'stage_name_snapshot': 'VARCHAR(120)',
+        'stage_description_snapshot': 'VARCHAR(260)',
+        'stage_color_snapshot': 'VARCHAR(30)',
+        'stage_icon_name_snapshot': 'VARCHAR(60)',
+        'stage_sort_order_snapshot': 'INTEGER',
+        'stage_visible_to_customer_snapshot': 'BOOLEAN',
+    }
+    if dialect == 'sqlite':
+        stage_columns = session.execute(text("PRAGMA table_info('order_flow_stages')")).fetchall()
+        stage_names = {column[1] for column in stage_columns}
+        for column_name, column_ddl in stage_required_columns.items():
+            if column_name not in stage_names:
+                sqlite_ddl = (
+                    column_ddl
+                    .replace('TIMESTAMP', 'DATETIME')
+                    .replace('BOOLEAN DEFAULT TRUE', 'BOOLEAN DEFAULT 1')
+                    .replace('BOOLEAN DEFAULT FALSE', 'BOOLEAN DEFAULT 0')
+                )
+                session.execute(text(f"ALTER TABLE order_flow_stages ADD COLUMN {column_name} {sqlite_ddl}"))
+
+        history_columns = session.execute(text("PRAGMA table_info('order_stage_history')")).fetchall()
+        history_names = {column[1] for column in history_columns}
+        for column_name, column_ddl in history_required_columns.items():
+            if column_name not in history_names:
+                sqlite_ddl = (
+                    column_ddl
+                    .replace('TIMESTAMP', 'DATETIME')
+                    .replace('BOOLEAN DEFAULT TRUE', 'BOOLEAN DEFAULT 1')
+                    .replace('BOOLEAN DEFAULT FALSE', 'BOOLEAN DEFAULT 0')
+                )
+                session.execute(text(f"ALTER TABLE order_stage_history ADD COLUMN {column_name} {sqlite_ddl}"))
+    elif dialect.startswith('postgres'):
+        for column_name, column_ddl in stage_required_columns.items():
+            session.execute(
+                text(
+                    f"ALTER TABLE order_flow_stages ADD COLUMN IF NOT EXISTS {column_name} "
+                    f"{_normalize_postgres_column_ddl(column_ddl)}"
+                )
+            )
+        for column_name, column_ddl in history_required_columns.items():
+            session.execute(
+                text(
+                    f"ALTER TABLE order_stage_history ADD COLUMN IF NOT EXISTS {column_name} "
+                    f"{_normalize_postgres_column_ddl(column_ddl)}"
+                )
+            )
     session.commit()
 
     if session.query(OrderFlowStage).count() == 0:
@@ -359,6 +416,30 @@ def _ensure_order_flow_tables(session):
     stages = session.query(OrderFlowStage).order_by(OrderFlowStage.sort_order.asc(), OrderFlowStage.id.asc()).all()
     if not stages:
         return
+
+    history_rows = (
+        session.query(OrderStageHistory)
+        .filter(OrderStageHistory.stage_id.isnot(None))
+        .all()
+    )
+    history_changed = False
+    for row in history_rows:
+        if row.stage_name_snapshot:
+            continue
+        stage = next((item for item in stages if int(item.id) == int(row.stage_id or 0)), None)
+        if not stage:
+            continue
+        row.stage_name_snapshot = stage.name
+        row.stage_description_snapshot = stage.description
+        row.stage_color_snapshot = stage.color
+        row.stage_icon_name_snapshot = stage.icon_name
+        row.stage_sort_order_snapshot = stage.sort_order
+        row.stage_visible_to_customer_snapshot = bool(stage.is_visible_to_customer)
+        session.add(row)
+        history_changed = True
+    if history_changed:
+        session.commit()
+
     first_stage = stages[0]
     paid_stage = next((stage for stage in stages if 'pago' in str(stage.name or '').strip().lower() or 'paid' in str(stage.name or '').strip().lower()), first_stage)
     production_stage = next((stage for stage in stages if 'produc' in str(stage.name or '').strip().lower()), paid_stage)
@@ -384,6 +465,12 @@ def _ensure_order_flow_tables(session):
                 OrderStageHistory(
                     order_id=row.id,
                     stage_id=target.id,
+                    stage_name_snapshot=target.name,
+                    stage_description_snapshot=target.description,
+                    stage_color_snapshot=target.color,
+                    stage_icon_name_snapshot=target.icon_name,
+                    stage_sort_order_snapshot=target.sort_order,
+                    stage_visible_to_customer_snapshot=bool(target.is_visible_to_customer),
                     moved_by_admin_user_id=None,
                     note='auto_bootstrap_stage_assignment',
                 )

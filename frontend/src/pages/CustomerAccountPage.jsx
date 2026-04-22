@@ -348,18 +348,25 @@ function CustomerAccountPage() {
                       <div className="space-y-2">
                         <h4 className="customer-card-subtitle">Andamento</h4>
                         {(selectedOrder.timeline || []).length ? (
-                          <div className="space-y-2">
+                          <div className="customer-timeline">
                             {(selectedOrder.timeline || []).map((step) => (
-                              <div key={step.stage_id} className="flex items-start justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
-                                <div>
-                                  <p className="text-sm font-semibold text-slate-900">{step.name}</p>
-                                  {step.description ? <p className="text-xs text-slate-500">{step.description}</p> : null}
+                              <div key={step.stage_id} className="customer-timeline-item">
+                                <div className="customer-timeline-track" aria-hidden="true">
+                                  <span
+                                    className={`customer-timeline-dot ${step.is_current ? 'is-current' : step.is_completed ? 'is-completed' : 'is-pending'}`}
+                                    style={{ backgroundColor: step.color || undefined }}
+                                  />
+                                  <span className={`customer-timeline-line ${step.is_completed ? 'is-completed' : ''}`} />
                                 </div>
-                                <div className="text-right">
-                                  <StatusBadge tone={step.is_current ? 'info' : step.is_completed ? 'success' : 'neutral'}>
-                                    {step.is_current ? 'Atual' : step.is_completed ? 'Concluida' : 'Pendente'}
-                                  </StatusBadge>
-                                  <p className="mt-1 text-xs text-slate-500">{step.completed_at ? formatDateTime(step.completed_at) : '-'}</p>
+                                <div className="customer-timeline-content">
+                                  <div className="customer-timeline-head">
+                                    <p className="customer-timeline-title">{step.name}</p>
+                                    <StatusBadge tone={step.is_current ? 'info' : step.is_completed ? 'success' : 'neutral'}>
+                                      {step.is_current ? 'Atual' : step.is_completed ? 'Concluida' : 'Pendente'}
+                                    </StatusBadge>
+                                  </div>
+                                  {step.description ? <p className="customer-timeline-description">{step.description}</p> : null}
+                                  <p className="customer-timeline-date">{step.completed_at ? formatDateTime(step.completed_at) : '-'}</p>
                                 </div>
                               </div>
                             ))}
