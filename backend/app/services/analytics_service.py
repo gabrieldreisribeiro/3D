@@ -67,6 +67,11 @@ def create_user_event(
 def parse_metadata(raw: str | None) -> dict:
     if not raw:
         return {}
+    try:
+        data = json.loads(raw)
+        return data if isinstance(data, dict) else {}
+    except Exception:  # noqa: BLE001
+        return {}
 
 
 def _has_order_column(db: Session, column_name: str) -> bool:
@@ -86,11 +91,6 @@ def _table_columns(db: Session, table_name: str) -> set[str]:
         return {str(column.get('name') or '').strip().lower() for column in columns}
     except Exception:  # noqa: BLE001
         return set()
-    try:
-        data = json.loads(raw)
-        return data if isinstance(data, dict) else {}
-    except Exception:  # noqa: BLE001
-        return {}
 
 
 def analytics_summary(db: Session, date_from: datetime | None = None, date_to: datetime | None = None) -> dict:
