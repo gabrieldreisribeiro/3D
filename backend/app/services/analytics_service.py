@@ -194,6 +194,7 @@ def analytics_summary(db: Session, date_from: datetime | None = None, date_to: d
                 normalized_methods[key]['orders'] = int(count or 0)
                 normalized_methods[key]['total'] = float(total_value or 0.0)
         except Exception as exc:  # noqa: BLE001
+            db.rollback()
             logger.exception('analytics_summary payment split fallback due to error: %s', exc)
 
     grand_total = sum(item['total'] for item in normalized_methods.values())
@@ -372,6 +373,7 @@ def report_sales(
                 totals_by_method[key] = float(total or 0.0)
                 count_by_method[key] = int(count or 0)
         except Exception as exc:  # noqa: BLE001
+            db.rollback()
             logger.exception('report_sales payment split fallback due to error: %s', exc)
 
     return {
