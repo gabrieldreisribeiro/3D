@@ -1,11 +1,13 @@
 import json
 from datetime import datetime, timedelta
+import logging
 
-from sqlalchemy import func
+from sqlalchemy import func, inspect
 from sqlalchemy.orm import Session
 
 from app.models import Order, OrderItem, Product, UserEvent
 
+logger = logging.getLogger('analytics')
 
 CANONICAL_EVENT = {
     'view_product': 'product_view',
@@ -65,6 +67,25 @@ def create_user_event(
 def parse_metadata(raw: str | None) -> dict:
     if not raw:
         return {}
+
+
+def _has_order_column(db: Session, column_name: str) -> bool:
+    try:
+        inspector = inspect(db.bind)
+        columns = inspector.get_columns('orders')
+        names = {str(column.get('name') or '').strip().lower() for column in columns}
+        return str(column_name or '').strip().lower() in names
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def _table_columns(db: Session, table_name: str) -> set[str]:
+    try:
+        inspector = inspect(db.bind)
+        columns = inspector.get_columns(table_name)
+        return {str(column.get('name') or '').strip().lower() for column in columns}
+    except Exception:  # noqa: BLE001
+        return set()
     try:
         data = json.loads(raw)
         return data if isinstance(data, dict) else {}
@@ -103,8 +124,8 @@ def analytics_summary(db: Session, date_from: datetime | None = None, date_to: d
 
     # Localidade por sessao (ultimo evento conhecido da sessao).
     location_by_session: dict[str, tuple[str, str, str]] = {}
-    columns = {column.name for column in UserEvent.__table__.columns}
-    has_geo_columns = {'country', 'state', 'city'}.issubset(columns)
+    event_columns = _table_columns(db, 'user_events')
+    has_geo_columns = {'country', 'state', 'city'}.issubset(event_columns)
     session_query = db.query(UserEvent.session_id, UserEvent.created_at).filter(UserEvent.session_id.isnot(None))
     if has_geo_columns:
         session_query = db.query(
@@ -147,30 +168,33 @@ def analytics_summary(db: Session, date_from: datetime | None = None, date_to: d
             for label, value in sorted(data.items(), key=lambda item: item[1], reverse=True)[:limit]
         ]
 
-    payment_rows = db.query(
-        func.coalesce(Order.payment_method, 'whatsapp').label('payment_method'),
-        func.count(Order.id).label('orders_count'),
-        func.coalesce(func.sum(Order.total), 0.0).label('total_value'),
-    )
-    if date_from:
-        payment_rows = payment_rows.filter(Order.created_at >= date_from)
-    if date_to:
-        payment_rows = payment_rows.filter(Order.created_at <= date_to)
-    payment_rows = payment_rows.group_by(func.coalesce(Order.payment_method, 'whatsapp')).all()
-
     normalized_methods = {
         'whatsapp': {'label': 'WhatsApp', 'orders': 0, 'total': 0.0},
         'pix': {'label': 'Pix', 'orders': 0, 'total': 0.0},
         'credit_card': {'label': 'Cartao', 'orders': 0, 'total': 0.0},
     }
-    for method, count, total_value in payment_rows:
-        key = str(method or 'whatsapp').strip().lower()
-        if key in {'card', 'credit'}:
-            key = 'credit_card'
-        if key not in normalized_methods:
-            continue
-        normalized_methods[key]['orders'] = int(count or 0)
-        normalized_methods[key]['total'] = float(total_value or 0.0)
+    if _has_order_column(db, 'payment_method'):
+        try:
+            payment_rows = db.query(
+                func.coalesce(Order.payment_method, 'whatsapp').label('payment_method'),
+                func.count(Order.id).label('orders_count'),
+                func.coalesce(func.sum(Order.total), 0.0).label('total_value'),
+            )
+            if date_from:
+                payment_rows = payment_rows.filter(Order.created_at >= date_from)
+            if date_to:
+                payment_rows = payment_rows.filter(Order.created_at <= date_to)
+            payment_rows = payment_rows.group_by(func.coalesce(Order.payment_method, 'whatsapp')).all()
+            for method, count, total_value in payment_rows:
+                key = str(method or 'whatsapp').strip().lower()
+                if key in {'card', 'credit'}:
+                    key = 'credit_card'
+                if key not in normalized_methods:
+                    continue
+                normalized_methods[key]['orders'] = int(count or 0)
+                normalized_methods[key]['total'] = float(total_value or 0.0)
+        except Exception as exc:  # noqa: BLE001
+            logger.exception('analytics_summary payment split fallback due to error: %s', exc)
 
     grand_total = sum(item['total'] for item in normalized_methods.values())
     payment_method_counts = [
@@ -314,36 +338,41 @@ def report_sales(
         query = query.filter(Order.created_at >= date_from)
     if date_to:
         query = query.filter(Order.created_at <= date_to)
-    if normalized_method:
+    can_filter_by_payment_method = _has_order_column(db, 'payment_method')
+    if normalized_method and can_filter_by_payment_method:
         query = query.filter(func.coalesce(Order.payment_method, 'whatsapp') == normalized_method)
     row = query.first()
     order_count = int(row[0] or 0)
     total_value = float(row[1] or 0.0)
     avg_ticket = total_value / order_count if order_count else 0.0
 
-    payment_query = db.query(
-        func.coalesce(Order.payment_method, 'whatsapp').label('payment_method'),
-        func.count(Order.id).label('orders_count'),
-        func.coalesce(func.sum(Order.total), 0.0).label('total_value'),
-    )
-    if date_from:
-        payment_query = payment_query.filter(Order.created_at >= date_from)
-    if date_to:
-        payment_query = payment_query.filter(Order.created_at <= date_to)
-    if normalized_method:
-        payment_query = payment_query.filter(func.coalesce(Order.payment_method, 'whatsapp') == normalized_method)
-    payment_rows = payment_query.group_by(func.coalesce(Order.payment_method, 'whatsapp')).all()
     labels = {'whatsapp': 'WhatsApp', 'pix': 'Pix', 'credit_card': 'Cartao'}
     totals_by_method: dict[str, float] = {'whatsapp': 0.0, 'pix': 0.0, 'credit_card': 0.0}
     count_by_method: dict[str, int] = {'whatsapp': 0, 'pix': 0, 'credit_card': 0}
-    for method, count, total in payment_rows:
-        key = str(method or 'whatsapp').strip().lower()
-        if key in {'card', 'credit'}:
-            key = 'credit_card'
-        if key not in totals_by_method:
-            continue
-        totals_by_method[key] = float(total or 0.0)
-        count_by_method[key] = int(count or 0)
+    if can_filter_by_payment_method:
+        try:
+            payment_query = db.query(
+                func.coalesce(Order.payment_method, 'whatsapp').label('payment_method'),
+                func.count(Order.id).label('orders_count'),
+                func.coalesce(func.sum(Order.total), 0.0).label('total_value'),
+            )
+            if date_from:
+                payment_query = payment_query.filter(Order.created_at >= date_from)
+            if date_to:
+                payment_query = payment_query.filter(Order.created_at <= date_to)
+            if normalized_method:
+                payment_query = payment_query.filter(func.coalesce(Order.payment_method, 'whatsapp') == normalized_method)
+            payment_rows = payment_query.group_by(func.coalesce(Order.payment_method, 'whatsapp')).all()
+            for method, count, total in payment_rows:
+                key = str(method or 'whatsapp').strip().lower()
+                if key in {'card', 'credit'}:
+                    key = 'credit_card'
+                if key not in totals_by_method:
+                    continue
+                totals_by_method[key] = float(total or 0.0)
+                count_by_method[key] = int(count or 0)
+        except Exception as exc:  # noqa: BLE001
+            logger.exception('report_sales payment split fallback due to error: %s', exc)
 
     return {
         'total_value': total_value,
@@ -383,7 +412,7 @@ def report_top_products(
         query = query.filter(Order.created_at >= date_from)
     if date_to:
         query = query.filter(Order.created_at <= date_to)
-    if normalized_method:
+    if normalized_method and _has_order_column(db, 'payment_method'):
         query = query.filter(func.coalesce(Order.payment_method, 'whatsapp') == normalized_method)
     rows = (
         query.group_by(Product.id, OrderItem.title)

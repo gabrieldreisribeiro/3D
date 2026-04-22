@@ -36,6 +36,88 @@ function ColorPreview({ primary, secondary, size = 16 }) {
   );
 }
 
+function CheckoutOptionCard({
+  accent = 'violet',
+  icon,
+  title,
+  description,
+  benefits = [],
+  helper = '',
+  ctaLabel,
+  selected = false,
+  onSelect,
+  onAction,
+  loading = false,
+  disabled = false,
+}) {
+  const tone = accent === 'green'
+    ? {
+      card: selected
+        ? 'border-emerald-300 bg-emerald-50/70 shadow-[0_12px_32px_-24px_rgba(16,185,129,0.8)]'
+        : 'border-slate-200 bg-white hover:border-emerald-200 hover:shadow-[0_12px_32px_-24px_rgba(16,185,129,0.6)]',
+      icon: 'bg-emerald-100 text-emerald-700',
+      bullet: 'bg-emerald-500',
+      badge: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+      button: 'border-emerald-200 text-emerald-700 hover:border-emerald-300 hover:bg-emerald-50',
+    }
+    : {
+      card: selected
+        ? 'border-violet-300 bg-violet-50/70 shadow-[0_12px_32px_-24px_rgba(124,58,237,0.8)]'
+        : 'border-slate-200 bg-white hover:border-violet-200 hover:shadow-[0_12px_32px_-24px_rgba(124,58,237,0.6)]',
+      icon: 'bg-violet-100 text-violet-700',
+      bullet: 'bg-violet-500',
+      badge: 'border-violet-200 bg-violet-50 text-violet-700',
+      button: '',
+    };
+
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={onSelect}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          onSelect();
+        }
+      }}
+      className={`rounded-2xl border p-4 transition-all duration-200 ${tone.card}`.trim()}
+    >
+      <div className="mb-3 flex items-start justify-between gap-3">
+        <div className={`inline-flex h-10 w-10 items-center justify-center rounded-xl ${tone.icon}`.trim()}>
+          {icon}
+        </div>
+        <span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${tone.badge}`.trim()}>
+          {selected ? 'Selecionado' : 'Opcao'}
+        </span>
+      </div>
+      <h4 className="text-sm font-semibold text-slate-900">{title}</h4>
+      <p className="mt-1 text-xs leading-relaxed text-slate-600">{description}</p>
+      <ul className="mt-3 space-y-2 text-xs text-slate-700">
+        {benefits.map((benefit) => (
+          <li key={benefit} className="flex items-start gap-2">
+            <span className={`mt-1.5 inline-block h-1.5 w-1.5 rounded-full ${tone.bullet}`.trim()} />
+            <span>{benefit}</span>
+          </li>
+        ))}
+      </ul>
+      {helper ? <p className="mt-3 text-[11px] text-slate-500">{helper}</p> : null}
+      <Button
+        variant={accent === 'green' ? 'secondary' : 'primary'}
+        className={`mt-4 w-full ${tone.button}`.trim()}
+        loading={loading}
+        disabled={disabled}
+        onClick={(event) => {
+          event.stopPropagation();
+          onAction();
+        }}
+      >
+        {ctaLabel}
+      </Button>
+    </div>
+  );
+}
+
 function CartPage() {
   const {
     items,
@@ -56,6 +138,7 @@ function CartPage() {
   const [onlineLoading, setOnlineLoading] = useState(false);
   const [pdfLoading, setPdfLoading] = useState(false);
   const [showPixBox, setShowPixBox] = useState(false);
+  const [selectedCheckoutOption, setSelectedCheckoutOption] = useState('online');
   const [storeSettings, setStoreSettings] = useState({ whatsapp_number: '', pix_key: '' });
   const navigate = useNavigate();
 
@@ -599,39 +682,97 @@ function CartPage() {
               Baixar orcamento em PDF
             </Button>
 
-            <Button variant="secondary" onClick={() => setShowPixBox((current) => !current)}>
-              {showPixBox ? 'Fechar ajuda Pix manual' : 'Ver opcao Pix manual (backup)'}
-            </Button>
-
-            {showPixBox ? (
-              <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
-                <p className="text-xs text-slate-600">Fluxo de backup: use apenas se quiser finalizar manualmente via WhatsApp.</p>
-                {pixQrCodeUrl ? (
-                  <img src={pixQrCodeUrl} alt="QR Code Pix" className="mx-auto h-56 w-56 rounded-xl border border-slate-200 bg-white p-2" />
-                ) : (
-                  <p className="text-xs text-rose-600">Chave Pix nao configurada no painel.</p>
-                )}
-                {pixPayload ? (
-                  <div className="space-y-2">
-                    <p className="text-[11px] text-slate-500">Pix copia e cola:</p>
-                    <textarea readOnly className="h-24 w-full rounded-[10px] border border-slate-200 bg-white p-2 text-[11px] text-slate-700" value={pixPayload} />
-                  </div>
-                ) : null}
+            <div className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+              <div>
+                <h4 className="text-sm font-semibold text-slate-900">Como voce quer finalizar seu pedido?</h4>
+                <p className="mt-1 text-xs text-slate-600">
+                  Voce pode escolher a opcao mais conveniente para concluir seu pedido.
+                </p>
               </div>
-            ) : null}
 
-            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
-              <p><strong>Finalizar pelo WhatsApp:</strong> envia o pedido para atendimento manual.</p>
-              <p><strong>Pagar online:</strong> abre checkout InfinitePay (Pix ou cartao) com confirmacao automatica.</p>
-            </div>
+              <div className="flex flex-wrap gap-2 text-[11px] text-slate-600">
+                <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1">Pagamento seguro</span>
+                <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1">Atendimento direto</span>
+                <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1">Processo rapido</span>
+              </div>
 
-            <div className="grid gap-2">
-              <Button variant="ghost" loading={pendingLoading} disabled={loading} onClick={handleCheckoutWhatsapp}>
-                Finalizar pelo WhatsApp
-              </Button>
-              <Button loading={onlineLoading} disabled={loading} onClick={handleCheckoutOnline}>
-                Pagar online
-              </Button>
+              <div className="grid gap-3 md:grid-cols-2">
+                <CheckoutOptionCard
+                  accent="green"
+                  selected={selectedCheckoutOption === 'whatsapp'}
+                  onSelect={() => setSelectedCheckoutOption('whatsapp')}
+                  icon={(
+                    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8">
+                      <path d="M20 12a8 8 0 0 1-11.8 7L4 20l1-4.2A8 8 0 1 1 20 12Z" />
+                      <path d="M9 9.5c.2 1.3 1.6 3 2.7 3.8 1 .8 2.2 1.2 3.3 1.2" />
+                    </svg>
+                  )}
+                  title="Finalizar pelo WhatsApp"
+                  description="Ideal para quem quer tirar duvidas, combinar detalhes, confirmar personalizacao e falar direto comigo."
+                  benefits={[
+                    'Atendimento direto e suporte humano',
+                    'Combinacao de detalhes da personalizacao',
+                    'Perfeito para pedidos sob medida',
+                  ]}
+                  helper="Perfeito para pedidos personalizados e atendimento direto."
+                  ctaLabel="Enviar pedido no WhatsApp"
+                  loading={pendingLoading}
+                  disabled={loading}
+                  onAction={handleCheckoutWhatsapp}
+                />
+
+                <CheckoutOptionCard
+                  accent="violet"
+                  selected={selectedCheckoutOption === 'online'}
+                  onSelect={() => setSelectedCheckoutOption('online')}
+                  icon={(
+                    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8">
+                      <rect x="3" y="5" width="18" height="14" rx="2.5" />
+                      <path d="M3 10h18" />
+                      <path d="M7 15h4" />
+                    </svg>
+                  )}
+                  title="Pagar online"
+                  description="Finalize com Pix ou cartao com pagamento rapido em um checkout seguro."
+                  benefits={[
+                    'Rapidez para concluir em poucos passos',
+                    'Praticidade com Pix e cartao',
+                    'Aprovacao imediata quando aplicavel',
+                  ]}
+                  helper="Conclua sua compra com Pix ou cartao em poucos passos."
+                  ctaLabel="Ir para pagamento"
+                  loading={onlineLoading}
+                  disabled={loading}
+                  onAction={handleCheckoutOnline}
+                />
+              </div>
+
+              <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">
+                <button
+                  type="button"
+                  className="text-xs font-medium text-slate-700 underline decoration-slate-300 underline-offset-2 hover:text-slate-900"
+                  onClick={() => setShowPixBox((current) => !current)}
+                >
+                  {showPixBox ? 'Ocultar opcao Pix manual (backup)' : 'Precisa de backup? Ver opcao Pix manual'}
+                </button>
+              </div>
+
+              {showPixBox ? (
+                <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-3">
+                  <p className="text-xs text-slate-600">Fluxo de backup: use apenas se quiser finalizar manualmente via WhatsApp.</p>
+                  {pixQrCodeUrl ? (
+                    <img src={pixQrCodeUrl} alt="QR Code Pix" className="mx-auto h-56 w-56 rounded-xl border border-slate-200 bg-white p-2" />
+                  ) : (
+                    <p className="text-xs text-rose-600">Chave Pix nao configurada no painel.</p>
+                  )}
+                  {pixPayload ? (
+                    <div className="space-y-2">
+                      <p className="text-[11px] text-slate-500">Pix copia e cola:</p>
+                      <textarea readOnly className="h-24 w-full rounded-[10px] border border-slate-200 bg-white p-2 text-[11px] text-slate-700" value={pixPayload} />
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
             </div>
           </Card>
         </div>
