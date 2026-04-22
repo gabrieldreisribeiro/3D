@@ -218,15 +218,6 @@ function CustomerAccountPage() {
                   {item.label}
                 </button>
               ))}
-              {selectedOrder ? (
-                <button
-                  type="button"
-                  className={`customer-nav-item ${activeTab === 'order_detail' ? 'is-active' : ''}`}
-                  onClick={() => setActiveTab('order_detail')}
-                >
-                  Detalhe do pedido
-                </button>
-              ) : null}
             </aside>
 
             <div className="customer-panel-content">
