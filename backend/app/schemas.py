@@ -393,6 +393,10 @@ class OrderCreate(BaseModel):
     coupon: Optional[str] = None
     payment_status: Literal['pending', 'pending_payment', 'paid', 'failed', 'canceled', 'awaiting_confirmation'] = 'pending'
     payment_method: Optional[str] = None
+    customer_name: Optional[str] = None
+    customer_email: Optional[str] = None
+    customer_phone: Optional[str] = None
+    shipping_address_snapshot: dict = Field(default_factory=dict)
 
 
 class OrderItemResponse(BaseModel):
@@ -430,6 +434,11 @@ class OrderResponse(BaseModel):
     installments: Optional[int] = None
     paid_at: Optional[datetime] = None
     payment_metadata_json: Optional[str] = None
+    customer_account_id: Optional[int] = None
+    customer_name: Optional[str] = None
+    customer_email_snapshot: Optional[str] = None
+    customer_phone_snapshot: Optional[str] = None
+    shipping_address_snapshot: Optional[str] = None
     items: List[OrderItemResponse]
 
 class AdminLoginRequest(BaseModel):
@@ -589,8 +598,98 @@ class AdminOrderResponse(BaseModel):
     installments: Optional[int] = None
     paid_at: Optional[datetime] = None
     payment_metadata_json: Optional[str] = None
+    customer_account_id: Optional[int] = None
+    customer_name: Optional[str] = None
+    customer_email_snapshot: Optional[str] = None
+    customer_phone_snapshot: Optional[str] = None
+    shipping_address_snapshot: Optional[str] = None
     created_at: Optional[datetime]
     items: List[AdminOrderItemResponse]
+
+
+class CustomerAccountResponse(BaseModel):
+    id: int
+    full_name: str
+    email: str
+    phone_number: str
+    is_active: bool
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+    last_login_at: Optional[datetime] = None
+
+
+class CustomerRegisterRequest(BaseModel):
+    full_name: str = Field(..., min_length=2, max_length=180)
+    email: str = Field(..., min_length=5, max_length=180)
+    phone_number: str = Field(..., min_length=8, max_length=40)
+    password: str = Field(..., min_length=6, max_length=72)
+    confirm_password: str = Field(..., min_length=6, max_length=72)
+    link_legacy_orders: bool = True
+
+
+class CustomerLoginRequest(BaseModel):
+    identifier: str = Field(..., min_length=3, max_length=180)
+    password: str = Field(..., min_length=6, max_length=72)
+    link_legacy_orders: bool = True
+
+
+class CustomerAuthResponse(BaseModel):
+    token: str
+    customer: CustomerAccountResponse
+    linked_orders_count: int = 0
+
+
+class CustomerForgotPasswordRequest(BaseModel):
+    email: str = Field(..., min_length=5, max_length=180)
+
+
+class CustomerForgotPasswordResponse(BaseModel):
+    ok: bool = True
+    message: str
+    reset_token: Optional[str] = None
+
+
+class CustomerResetPasswordRequest(BaseModel):
+    token: str = Field(..., min_length=12, max_length=260)
+    new_password: str = Field(..., min_length=6, max_length=72)
+    confirm_password: str = Field(..., min_length=6, max_length=72)
+
+
+class CustomerUpdateProfileRequest(BaseModel):
+    full_name: str = Field(..., min_length=2, max_length=180)
+    email: str = Field(..., min_length=5, max_length=180)
+    phone_number: str = Field(..., min_length=8, max_length=40)
+
+
+class CustomerChangePasswordRequest(BaseModel):
+    current_password: str = Field(..., min_length=6, max_length=72)
+    new_password: str = Field(..., min_length=6, max_length=72)
+    confirm_password: str = Field(..., min_length=6, max_length=72)
+
+
+class CustomerOrderListItem(BaseModel):
+    id: int
+    total: float
+    subtotal: float
+    discount: float
+    payment_status: str
+    payment_method: Optional[str] = None
+    payment_provider: Optional[str] = None
+    sales_channel: Optional[str] = None
+    created_at: Optional[datetime] = None
+    receipt_url: Optional[str] = None
+
+
+class CustomerOrderListResponse(BaseModel):
+    items: List[CustomerOrderListItem]
+    total: int
+    page: int
+    page_size: int
+
+
+class CustomerLinkLegacyOrdersResponse(BaseModel):
+    linked_orders_count: int = 0
+    message: str
 
 
 class DashboardSeriesPoint(BaseModel):

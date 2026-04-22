@@ -33,12 +33,23 @@ import Admin3DModelsPage from './pages/Admin3DModelsPage';
 import AdminInfinitePayPage from './pages/AdminInfinitePayPage';
 import AdminLogsPage from './pages/AdminLogsPage';
 import PaymentReturnPage from './pages/PaymentReturnPage';
-import { fetchPublicSettings, getAdminToken, trackEvent } from './services/api';
+import CustomerAccountPage from './pages/CustomerAccountPage';
+import CustomerForgotPasswordPage from './pages/CustomerForgotPasswordPage';
+import CustomerLoginPage from './pages/CustomerLoginPage';
+import CustomerRegisterPage from './pages/CustomerRegisterPage';
+import CustomerResetPasswordPage from './pages/CustomerResetPasswordPage';
+import { fetchPublicSettings, getAdminToken, getCustomerToken, trackEvent } from './services/api';
 import { applySiteFavicon } from './services/faviconService';
 
 function PreviewGuard({ children }) {
   const hasToken = Boolean(getAdminToken());
   if (!hasToken) return <Navigate to="/painel-interno/login" replace />;
+  return children;
+}
+
+function CustomerGuard({ children }) {
+  const hasToken = Boolean(getCustomerToken());
+  if (!hasToken) return <Navigate to="/minha-conta/login" replace />;
   return children;
 }
 
@@ -106,6 +117,11 @@ function AppContent() {
         <Route path="/product/:slug" element={<ProductPage />} />
         <Route path="/cart" element={<CartPage />} />
         <Route path="/pagamento/retorno" element={<PaymentReturnPage />} />
+        <Route path="/minha-conta/login" element={<CustomerLoginPage />} />
+        <Route path="/minha-conta/cadastro" element={<CustomerRegisterPage />} />
+        <Route path="/minha-conta/esqueci-senha" element={<CustomerForgotPasswordPage />} />
+        <Route path="/minha-conta/redefinir-senha" element={<CustomerResetPasswordPage />} />
+        <Route path="/minha-conta" element={<CustomerGuard><CustomerAccountPage /></CustomerGuard>} />
         <Route path="/preview" element={<PreviewGuard><HomePage /></PreviewGuard>} />
         <Route path="/preview/product/:slug" element={<PreviewGuard><ProductPage /></PreviewGuard>} />
         <Route path="/preview/cart" element={<PreviewGuard><CartPage /></PreviewGuard>} />

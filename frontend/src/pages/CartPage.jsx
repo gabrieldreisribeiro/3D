@@ -10,6 +10,7 @@ import { WHATSAPP_NUMBER } from '../config/endpoints';
 import {
   createInfinitePayCheckout,
   createOrder,
+  getCustomerProfile,
   fetchPublicLogo,
   fetchPublicSettings,
   resolveAssetUrl,
@@ -111,6 +112,8 @@ function CartPage() {
   } = useCart();
   const [code, setCode] = useState('');
   const [customerName, setCustomerName] = useState('');
+  const [customerEmail, setCustomerEmail] = useState('');
+  const [customerPhone, setCustomerPhone] = useState('');
   const [loading, setLoading] = useState(false);
   const [pendingLoading, setPendingLoading] = useState(false);
   const [onlineLoading, setOnlineLoading] = useState(false);
@@ -155,6 +158,15 @@ function CartPage() {
     new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(value || 0));
 
   const getCartItemKey = (item) => item.cart_key || `${item.slug}::base`;
+
+  useEffect(() => {
+    const customer = getCustomerProfile();
+    if (customer) {
+      setCustomerName(String(customer.full_name || ''));
+      setCustomerEmail(String(customer.email || ''));
+      setCustomerPhone(String(customer.phone_number || ''));
+    }
+  }, []);
 
   useEffect(() => {
     fetchPublicSettings()
@@ -346,6 +358,9 @@ function CartPage() {
     coupon: coupon?.code || null,
     payment_status: paymentStatus,
     payment_method: paymentMethod,
+    customer_name: customerName || null,
+    customer_email: customerEmail || null,
+    customer_phone: customerPhone || null,
   });
 
   const handleCheckoutWhatsapp = async () => {
@@ -607,6 +622,8 @@ function CartPage() {
 
             <Input label="Cupom" value={code} onChange={(event) => setCode(event.target.value)} placeholder="DESCONTO10" />
             <Input label="Seu nome (opcional)" value={customerName} onChange={(event) => setCustomerName(event.target.value)} placeholder="Como gostaria de ser identificado no WhatsApp" />
+            <Input label="Seu e-mail (opcional)" value={customerEmail} onChange={(event) => setCustomerEmail(event.target.value)} placeholder="voce@exemplo.com" />
+            <Input label="Seu telefone (opcional)" value={customerPhone} onChange={(event) => setCustomerPhone(event.target.value)} placeholder="11999998888" />
             <Button variant="secondary" onClick={() => applyCoupon(code)}>
               Aplicar cupom
             </Button>

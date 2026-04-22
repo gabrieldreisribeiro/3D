@@ -52,6 +52,8 @@ SEED_DEFAULT_ADMIN = _env_bool('SEED_DEFAULT_ADMIN', default=False)
 
 ADMIN_TOKEN_SECRET = '3d-marketplace-admin-secret'
 ADMIN_TOKEN_EXPIRE_HOURS = 12
+CUSTOMER_TOKEN_SECRET = '3d-marketplace-customer-secret'
+CUSTOMER_TOKEN_EXPIRE_HOURS = 24 * 30
 
 UPLOADS_DIR = BASE_DIR / 'uploads'
 LOGO_UPLOADS_DIR = UPLOADS_DIR / 'logo'

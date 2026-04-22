@@ -81,8 +81,12 @@ def _ensure_orders_created_at_column(session):
 
 def _ensure_orders_payment_columns(session):
     required_columns = {
+        'customer_account_id': "INTEGER",
         'payment_provider': "VARCHAR(40)",
         'sales_channel': "VARCHAR(30) DEFAULT 'whatsapp'",
+        'customer_email_snapshot': "VARCHAR(180)",
+        'customer_phone_snapshot': "VARCHAR(40)",
+        'shipping_address_snapshot': "TEXT",
         'order_nsu': "VARCHAR(120)",
         'invoice_slug': "VARCHAR(160)",
         'transaction_nsu': "VARCHAR(160)",
@@ -141,6 +145,9 @@ def _ensure_orders_payment_columns(session):
     session.execute(text("CREATE INDEX IF NOT EXISTS ix_orders_order_nsu ON orders(order_nsu)"))
     session.execute(text("CREATE INDEX IF NOT EXISTS ix_orders_invoice_slug ON orders(invoice_slug)"))
     session.execute(text("CREATE INDEX IF NOT EXISTS ix_orders_transaction_nsu ON orders(transaction_nsu)"))
+    session.execute(text("CREATE INDEX IF NOT EXISTS ix_orders_customer_account_id ON orders(customer_account_id)"))
+    session.execute(text("CREATE INDEX IF NOT EXISTS ix_orders_customer_email_snapshot ON orders(customer_email_snapshot)"))
+    session.execute(text("CREATE INDEX IF NOT EXISTS ix_orders_customer_phone_snapshot ON orders(customer_phone_snapshot)"))
     session.commit()
 
 
@@ -166,6 +173,91 @@ def _ensure_infinitepay_config_table(session):
                 """
             )
         )
+        session.commit()
+
+
+def _ensure_customer_accounts_tables(session):
+    dialect = session.bind.dialect.name
+    if dialect == 'sqlite':
+        session.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS customer_accounts (
+                    id INTEGER PRIMARY KEY,
+                    full_name VARCHAR(180) NOT NULL,
+                    email VARCHAR(180) NOT NULL UNIQUE,
+                    phone_number VARCHAR(40) NOT NULL,
+                    password_hash VARCHAR(300) NOT NULL,
+                    is_active BOOLEAN DEFAULT 1,
+                    email_verified BOOLEAN DEFAULT 0,
+                    phone_verified BOOLEAN DEFAULT 0,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    last_login_at DATETIME
+                )
+                """
+            )
+        )
+        session.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS customer_password_reset_tokens (
+                    id INTEGER PRIMARY KEY,
+                    customer_account_id INTEGER NOT NULL,
+                    token VARCHAR(220) NOT NULL UNIQUE,
+                    is_used BOOLEAN DEFAULT 0,
+                    expires_at DATETIME NOT NULL,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY(customer_account_id) REFERENCES customer_accounts(id) ON DELETE CASCADE
+                )
+                """
+            )
+        )
+        session.execute(text("CREATE INDEX IF NOT EXISTS ix_customer_accounts_email ON customer_accounts(email)"))
+        session.execute(text("CREATE INDEX IF NOT EXISTS ix_customer_accounts_phone_number ON customer_accounts(phone_number)"))
+        session.execute(text("CREATE INDEX IF NOT EXISTS ix_customer_password_reset_tokens_token ON customer_password_reset_tokens(token)"))
+        session.execute(text("CREATE INDEX IF NOT EXISTS ix_customer_password_reset_tokens_account_id ON customer_password_reset_tokens(customer_account_id)"))
+        session.commit()
+        return
+
+    if dialect.startswith('postgres'):
+        session.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS customer_accounts (
+                    id SERIAL PRIMARY KEY,
+                    full_name VARCHAR(180) NOT NULL,
+                    email VARCHAR(180) NOT NULL UNIQUE,
+                    phone_number VARCHAR(40) NOT NULL,
+                    password_hash VARCHAR(300) NOT NULL,
+                    is_active BOOLEAN DEFAULT TRUE,
+                    email_verified BOOLEAN DEFAULT FALSE,
+                    phone_verified BOOLEAN DEFAULT FALSE,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    last_login_at TIMESTAMP
+                )
+                """
+            )
+        )
+        session.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS customer_password_reset_tokens (
+                    id SERIAL PRIMARY KEY,
+                    customer_account_id INTEGER NOT NULL REFERENCES customer_accounts(id) ON DELETE CASCADE,
+                    token VARCHAR(220) NOT NULL UNIQUE,
+                    is_used BOOLEAN DEFAULT FALSE,
+                    expires_at TIMESTAMP NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+                """
+            )
+        )
+        session.execute(text("CREATE INDEX IF NOT EXISTS ix_customer_accounts_email ON customer_accounts(email)"))
+        session.execute(text("CREATE INDEX IF NOT EXISTS ix_customer_accounts_phone_number ON customer_accounts(phone_number)"))
+        session.execute(text("CREATE INDEX IF NOT EXISTS ix_customer_password_reset_tokens_token ON customer_password_reset_tokens(token)"))
+        session.execute(text("CREATE INDEX IF NOT EXISTS ix_customer_password_reset_tokens_account_id ON customer_password_reset_tokens(customer_account_id)"))
         session.commit()
     elif dialect.startswith('postgres'):
         session.execute(
@@ -756,6 +848,7 @@ def init_db() -> None:
     try:
         _ensure_orders_created_at_column(session)
         _ensure_orders_payment_columns(session)
+        _ensure_customer_accounts_tables(session)
         _ensure_order_items_columns(session)
         _ensure_coupon_columns(session)
         _ensure_product_pricing_columns(session)

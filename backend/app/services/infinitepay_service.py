@@ -223,17 +223,66 @@ def _post_json(url: str, payload: dict[str, Any]) -> dict[str, Any]:
 
 
 def _build_items_payload(order: Order) -> list[dict[str, Any]]:
-    items: list[dict[str, Any]] = []
+    unit_items: list[dict[str, Any]] = []
     for item in order.items or []:
         description = str(item.title or '').strip() or f'Item do pedido {order.id}'
-        items.append(
-            {
-                'quantity': max(1, int(item.quantity or 1)),
-                'price': _to_cents(item.unit_price),
-                'description': description[:180],
-            }
-        )
-    return items
+        quantity = max(1, int(item.quantity or 1))
+        base_price_cents = max(0, _to_cents(item.unit_price))
+        for _index in range(quantity):
+            unit_items.append(
+                {
+                    'description': description[:180],
+                    'base_price_cents': base_price_cents,
+                    'final_price_cents': base_price_cents,
+                }
+            )
+
+    if not unit_items:
+        return []
+
+    subtotal_cents = int(sum(int(item['base_price_cents']) for item in unit_items))
+    target_total_cents = max(0, _to_cents(order.total))
+
+    if subtotal_cents > 0 and target_total_cents != subtotal_cents:
+        proportional_rows = []
+        assigned_sum = 0
+        for index, item in enumerate(unit_items):
+            raw_value = (int(item['base_price_cents']) * target_total_cents) / subtotal_cents
+            floor_value = int(raw_value)
+            proportional_rows.append((index, floor_value, raw_value - floor_value))
+            assigned_sum += floor_value
+
+        missing = target_total_cents - assigned_sum
+        if missing > 0:
+            proportional_rows.sort(key=lambda row: row[2], reverse=True)
+            for cursor in range(missing):
+                idx = proportional_rows[cursor % len(proportional_rows)][0]
+                unit_items[idx]['final_price_cents'] += 1
+        elif missing < 0:
+            removable_indexes = [row[0] for row in sorted(proportional_rows, key=lambda row: row[2])]
+            remaining = abs(missing)
+            pointer = 0
+            while remaining > 0 and removable_indexes:
+                idx = removable_indexes[pointer % len(removable_indexes)]
+                if unit_items[idx]['final_price_cents'] > 0:
+                    unit_items[idx]['final_price_cents'] -= 1
+                    remaining -= 1
+                pointer += 1
+
+    grouped: dict[tuple[str, int], int] = {}
+    for item in unit_items:
+        key = (str(item['description']), int(item['final_price_cents']))
+        grouped[key] = int(grouped.get(key, 0)) + 1
+
+    return [
+        {
+            'quantity': quantity,
+            'price': int(price_cents),
+            'description': description,
+        }
+        for (description, price_cents), quantity in grouped.items()
+        if quantity > 0
+    ]
 
 
 def _validate_checkout_items(items: list[dict[str, Any]]) -> None:

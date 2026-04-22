@@ -4,6 +4,8 @@ import { trackMetaPixelFromInternalEvent } from './metaPixelService';
 const API_BASE = API_BASE_URL;
 const ADMIN_TOKEN_KEY = 'admin_token';
 const ADMIN_PROFILE_KEY = 'admin_profile';
+const CUSTOMER_TOKEN_KEY = 'customer_token';
+const CUSTOMER_PROFILE_KEY = 'customer_profile';
 const CLIENT_FP_KEY = 'client_fingerprint';
 const SESSION_ID_KEY = 'session_id';
 
@@ -117,14 +119,18 @@ export function getSessionId() {
 async function request(path, options = {}) {
   const fingerprint = getClientFingerprint();
   const sessionId = getSessionId();
-  const token = localStorage.getItem(ADMIN_TOKEN_KEY);
+  const adminToken = localStorage.getItem(ADMIN_TOKEN_KEY);
+  const customerToken = localStorage.getItem(CUSTOMER_TOKEN_KEY);
   const isPreviewRequest = isPreviewMode();
+  const authHeader = isPreviewRequest
+    ? (adminToken ? { Authorization: `Bearer ${adminToken}` } : {})
+    : (customerToken ? { Authorization: `Bearer ${customerToken}` } : {});
   const response = await fetch(buildApiUrl(path), {
     headers: {
       'Content-Type': 'application/json',
       ...(fingerprint ? { 'X-Client-Fingerprint': fingerprint } : {}),
       ...(sessionId ? { 'X-Session-Id': sessionId } : {}),
-      ...(isPreviewRequest && token ? { Authorization: `Bearer ${token}` } : {}),
+      ...authHeader,
     },
     ...options,
   });
@@ -327,6 +333,72 @@ export function fetchPublicInfinitePayReturnStatus(params = {}) {
   return request(`/public/payments/infinitepay/return${query ? `?${query}` : ''}`);
 }
 
+export function customerRegister(payload) {
+  return request('/customer/auth/register', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export function customerLogin(payload) {
+  return request('/customer/auth/login', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export function customerForgotPassword(payload) {
+  return request('/customer/auth/forgot-password', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export function customerResetPassword(payload) {
+  return request('/customer/auth/reset-password', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export function fetchCustomerMe() {
+  return customerRequest('/customer/auth/me');
+}
+
+export function customerLogout() {
+  return customerRequest('/customer/auth/logout', { method: 'POST' });
+}
+
+export function linkLegacyCustomerOrders() {
+  return customerRequest('/customer/orders/link-legacy', { method: 'POST' });
+}
+
+export function fetchCustomerOrders(params = {}) {
+  const search = new URLSearchParams();
+  if (params.page) search.set('page', String(params.page));
+  if (params.page_size) search.set('page_size', String(params.page_size));
+  const query = search.toString();
+  return customerRequest(`/customer/orders${query ? `?${query}` : ''}`);
+}
+
+export function fetchCustomerOrderById(orderId) {
+  return customerRequest(`/customer/orders/${orderId}`);
+}
+
+export function updateCustomerProfile(payload) {
+  return customerRequest('/customer/profile', {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  });
+}
+
+export function changeCustomerPassword(payload) {
+  return customerRequest('/customer/change-password', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
 export function saveAdminToken(token) {
   localStorage.setItem(ADMIN_TOKEN_KEY, token);
 }
@@ -355,6 +427,32 @@ export function getAdminProfile() {
 export function clearAdminToken() {
   localStorage.removeItem(ADMIN_TOKEN_KEY);
   localStorage.removeItem(ADMIN_PROFILE_KEY);
+}
+
+export function saveCustomerSession(session) {
+  if (!session?.token) return;
+  localStorage.setItem(CUSTOMER_TOKEN_KEY, session.token);
+  if (session.customer) {
+    localStorage.setItem(CUSTOMER_PROFILE_KEY, JSON.stringify(session.customer));
+  }
+}
+
+export function getCustomerToken() {
+  return localStorage.getItem(CUSTOMER_TOKEN_KEY);
+}
+
+export function getCustomerProfile() {
+  try {
+    const raw = localStorage.getItem(CUSTOMER_PROFILE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+export function clearCustomerSession() {
+  localStorage.removeItem(CUSTOMER_TOKEN_KEY);
+  localStorage.removeItem(CUSTOMER_PROFILE_KEY);
 }
 
 export function saveAdminProfile(profile) {
@@ -635,6 +733,34 @@ export async function uploadAdminFavicon(file) {
   if (!response.ok) {
     if (response.status === 401) localStorage.removeItem(ADMIN_TOKEN_KEY);
     throw new Error(getApiErrorMessage(data, 'Erro no upload do favicon'));
+  }
+  return data;
+}
+
+async function customerRequest(path, options = {}) {
+  const token = localStorage.getItem(CUSTOMER_TOKEN_KEY);
+  const fingerprint = getClientFingerprint();
+  const sessionId = getSessionId();
+  const headers = {
+    'Content-Type': 'application/json',
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...(fingerprint ? { 'X-Client-Fingerprint': fingerprint } : {}),
+    ...(sessionId ? { 'X-Session-Id': sessionId } : {}),
+    ...(options.headers || {}),
+  };
+
+  const response = await fetch(buildApiUrl(path), {
+    ...options,
+    headers,
+  });
+
+  const data = response.status === 204 ? null : await response.json();
+  if (!response.ok) {
+    if (response.status === 401) {
+      localStorage.removeItem(CUSTOMER_TOKEN_KEY);
+      localStorage.removeItem(CUSTOMER_PROFILE_KEY);
+    }
+    throw new Error(getApiErrorMessage(data, 'Erro na requisicao'));
   }
   return data;
 }

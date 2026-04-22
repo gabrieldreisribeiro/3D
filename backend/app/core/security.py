@@ -9,9 +9,14 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
-from app.core.config import ADMIN_TOKEN_EXPIRE_HOURS, ADMIN_TOKEN_SECRET
+from app.core.config import (
+    ADMIN_TOKEN_EXPIRE_HOURS,
+    ADMIN_TOKEN_SECRET,
+    CUSTOMER_TOKEN_EXPIRE_HOURS,
+    CUSTOMER_TOKEN_SECRET,
+)
 from app.db.session import SessionLocal
-from app.models import AdminUser
+from app.models import AdminUser, CustomerAccount
 
 
 auth_scheme = HTTPBearer(auto_error=False)
@@ -58,6 +63,11 @@ def _sign(payload: str) -> str:
     return base64.urlsafe_b64encode(signature).decode().rstrip('=')
 
 
+def _sign_customer(payload: str) -> str:
+    signature = hmac.new(CUSTOMER_TOKEN_SECRET.encode('utf-8'), payload.encode('utf-8'), hashlib.sha256).digest()
+    return base64.urlsafe_b64encode(signature).decode().rstrip('=')
+
+
 def create_admin_token(admin_id: int) -> str:
     expires_at = datetime.now(timezone.utc) + timedelta(hours=ADMIN_TOKEN_EXPIRE_HOURS)
     payload = f'{admin_id}:{int(expires_at.timestamp())}'
@@ -80,6 +90,30 @@ def parse_admin_token(token: str) -> int:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Sessao expirada')
 
     return int(admin_id_raw)
+
+
+def create_customer_token(customer_account_id: int) -> str:
+    expires_at = datetime.now(timezone.utc) + timedelta(hours=CUSTOMER_TOKEN_EXPIRE_HOURS)
+    payload = f'{customer_account_id}:{int(expires_at.timestamp())}'
+    token_raw = f'{payload}:{_sign_customer(payload)}'
+    return base64.urlsafe_b64encode(token_raw.encode('utf-8')).decode()
+
+
+def parse_customer_token(token: str) -> int:
+    try:
+        decoded = base64.urlsafe_b64decode(token.encode('utf-8')).decode('utf-8')
+        account_id_raw, expires_raw, signature = decoded.split(':', 2)
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Token invalido') from exc
+
+    payload = f'{account_id_raw}:{expires_raw}'
+    if not hmac.compare_digest(signature, _sign_customer(payload)):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Token invalido')
+
+    if int(expires_raw) < int(datetime.now(timezone.utc).timestamp()):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Sessao expirada')
+
+    return int(account_id_raw)
 
 
 def get_db():
@@ -129,4 +163,37 @@ def get_optional_admin(
         AdminUser.id == admin_id,
         AdminUser.is_active == True,
         AdminUser.is_blocked == False,
+    ).first()
+
+
+def require_customer(
+    credentials: HTTPAuthorizationCredentials = Depends(auth_scheme),
+    db: Session = Depends(get_db),
+) -> CustomerAccount:
+    if not credentials or credentials.scheme.lower() != 'bearer':
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Nao autenticado')
+
+    account_id = parse_customer_token(credentials.credentials)
+    customer = db.query(CustomerAccount).filter(
+        CustomerAccount.id == account_id,
+        CustomerAccount.is_active == True,
+    ).first()
+    if not customer:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Acesso negado')
+    return customer
+
+
+def get_optional_customer(
+    credentials: HTTPAuthorizationCredentials = Depends(auth_scheme),
+    db: Session = Depends(get_db),
+) -> CustomerAccount | None:
+    if not credentials or credentials.scheme.lower() != 'bearer':
+        return None
+    try:
+        account_id = parse_customer_token(credentials.credentials)
+    except HTTPException:
+        return None
+    return db.query(CustomerAccount).filter(
+        CustomerAccount.id == account_id,
+        CustomerAccount.is_active == True,
     ).first()

@@ -103,7 +103,11 @@ class Order(Base):
     __tablename__ = 'orders'
 
     id = Column(Integer, primary_key=True, index=True)
+    customer_account_id = Column(Integer, ForeignKey('customer_accounts.id', ondelete='SET NULL'), nullable=True, index=True)
     customer_name = Column(String(120), nullable=True)
+    customer_email_snapshot = Column(String(180), nullable=True, index=True)
+    customer_phone_snapshot = Column(String(40), nullable=True, index=True)
+    shipping_address_snapshot = Column(Text, nullable=True)
     coupon_code = Column(String(60), nullable=True)
     payment_status = Column(String(20), nullable=False, default='pending')
     payment_provider = Column(String(40), nullable=True)
@@ -124,6 +128,7 @@ class Order(Base):
     total = Column(Float, nullable=False)
     created_at = Column(DateTime, nullable=False, server_default=func.now())
     items = relationship('OrderItem', back_populates='order', cascade='all, delete')
+    customer_account = relationship('CustomerAccount', back_populates='orders')
 
 
 class OrderItem(Base):
@@ -173,6 +178,35 @@ class AdminUser(Base):
     query_logs = relationship('DatabaseQueryLog', back_populates='admin')
     ads_generation_history = relationship('AdsGenerationHistory', back_populates='admin')
     system_logs = relationship('SystemLog', back_populates='admin')
+
+
+class CustomerAccount(Base):
+    __tablename__ = 'customer_accounts'
+
+    id = Column(Integer, primary_key=True, index=True)
+    full_name = Column(String(180), nullable=False)
+    email = Column(String(180), nullable=False, unique=True, index=True)
+    phone_number = Column(String(40), nullable=False, index=True)
+    password_hash = Column(String(300), nullable=False)
+    is_active = Column(Boolean, default=True)
+    email_verified = Column(Boolean, default=False)
+    phone_verified = Column(Boolean, default=False)
+    created_at = Column(DateTime, nullable=False, server_default=func.now())
+    updated_at = Column(DateTime, nullable=False, server_default=func.now(), onupdate=func.now())
+    last_login_at = Column(DateTime, nullable=True)
+
+    orders = relationship('Order', back_populates='customer_account')
+
+
+class CustomerPasswordResetToken(Base):
+    __tablename__ = 'customer_password_reset_tokens'
+
+    id = Column(Integer, primary_key=True, index=True)
+    customer_account_id = Column(Integer, ForeignKey('customer_accounts.id', ondelete='CASCADE'), nullable=False, index=True)
+    token = Column(String(220), nullable=False, unique=True, index=True)
+    is_used = Column(Boolean, default=False, index=True)
+    expires_at = Column(DateTime, nullable=False, index=True)
+    created_at = Column(DateTime, nullable=False, server_default=func.now())
 
 
 class StoreSettings(Base):

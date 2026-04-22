@@ -1,10 +1,12 @@
 from datetime import datetime
+import json
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 from types import SimpleNamespace
 
-from app.db.session import SessionLocal
+from app.core.security import get_db, get_optional_customer
+from app.models import CustomerAccount
 from app.schemas import OrderCreate, OrderResponse
 from app.services.analytics_service import create_user_event
 from app.services.coupon_service import build_client_hash, register_coupon_usage, validate_coupon_for_client
@@ -15,16 +17,23 @@ from app.services.promotion_service import get_effective_price_for_product
 router = APIRouter()
 
 
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+def _normalize_email(value: str | None) -> str | None:
+    normalized = str(value or '').strip().lower()
+    return normalized or None
+
+
+def _normalize_phone(value: str | None) -> str | None:
+    normalized = ''.join([char for char in str(value or '') if char.isdigit()])
+    return normalized or None
 
 
 @router.post('/orders', response_model=OrderResponse)
-def create_order_endpoint(payload: OrderCreate, request: Request, db: Session = Depends(get_db)):
+def create_order_endpoint(
+    payload: OrderCreate,
+    request: Request,
+    db: Session = Depends(get_db),
+    customer: CustomerAccount | None = Depends(get_optional_customer),
+):
     if not payload.items:
         raise HTTPException(status_code=400, detail='Carrinho vazio')
 
@@ -110,6 +119,10 @@ def create_order_endpoint(payload: OrderCreate, request: Request, db: Session = 
     payment_provider = 'whatsapp' if payment_method == 'whatsapp' else 'infinitepay'
     sales_channel = 'whatsapp' if payment_method == 'whatsapp' else 'online_checkout'
     paid_at = datetime.utcnow() if payment_status == 'paid' else None
+    customer_name_snapshot = str(payload.customer_name or '').strip() or (str(customer.full_name or '').strip() if customer else None)
+    customer_email_snapshot = _normalize_email(payload.customer_email) or (_normalize_email(customer.email) if customer else None)
+    customer_phone_snapshot = _normalize_phone(payload.customer_phone) or (_normalize_phone(customer.phone_number) if customer else None)
+    shipping_address_snapshot = payload.shipping_address_snapshot if isinstance(payload.shipping_address_snapshot, dict) else {}
     order = create_order_with_payment(
         db,
         order_items,
@@ -119,6 +132,11 @@ def create_order_endpoint(payload: OrderCreate, request: Request, db: Session = 
         total,
         payment_status,
         payment_method,
+        customer_account_id=customer.id if customer else None,
+        customer_name=customer_name_snapshot,
+        customer_email_snapshot=customer_email_snapshot,
+        customer_phone_snapshot=customer_phone_snapshot,
+        shipping_address_snapshot=json.dumps(shipping_address_snapshot, ensure_ascii=False) if shipping_address_snapshot else None,
         payment_provider=payment_provider,
         sales_channel=sales_channel,
         paid_at=paid_at,

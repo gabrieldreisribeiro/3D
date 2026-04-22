@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, NavLink, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
-import { fetchPublicLogo, resolveAssetUrl, trackEvent } from '../services/api';
+import { fetchPublicLogo, getCustomerToken, resolveAssetUrl, trackEvent } from '../services/api';
 import { useCart } from '../services/cart';
 import { getLogoSizeConfig, getLogoSizeKey } from '../services/logoSettings';
 
@@ -24,6 +24,7 @@ function Header() {
   const previewPrefix = isPreview ? '/preview' : '';
 
   const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
+  const hasCustomerSession = Boolean(getCustomerToken());
 
   useEffect(() => {
     fetchPublicLogo()
@@ -123,6 +124,16 @@ function Header() {
             <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[#6D28D9] px-1 text-[10px] font-semibold text-white">
               {itemCount}
             </span>
+          </NavLink>
+          <NavLink
+            to={hasCustomerSession ? `${previewPrefix}/minha-conta` : `${previewPrefix}/minha-conta/login`}
+            className={({ isActive }) =>
+              `hidden rounded-[10px] px-3 py-2 text-xs font-semibold transition sm:inline-flex ${
+                isActive ? 'bg-violet-50 text-[#6D28D9]' : 'text-[#667085] hover:bg-[#F5F7FA] hover:text-[#111827]'
+              }`
+            }
+          >
+            {hasCustomerSession ? 'Minha conta' : 'Entrar'}
           </NavLink>
         </div>
       </div>

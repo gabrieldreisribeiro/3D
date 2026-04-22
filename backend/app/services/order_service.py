@@ -32,6 +32,11 @@ def _create_order(
     payment_status,
     payment_method,
     *,
+    customer_account_id=None,
+    customer_name=None,
+    customer_email_snapshot=None,
+    customer_phone_snapshot=None,
+    shipping_address_snapshot=None,
     payment_provider=None,
     sales_channel='whatsapp',
     order_nsu=None,
@@ -46,6 +51,11 @@ def _create_order(
     payment_metadata_json='{}',
 ):
     order = Order(
+        customer_account_id=customer_account_id,
+        customer_name=customer_name,
+        customer_email_snapshot=customer_email_snapshot,
+        customer_phone_snapshot=customer_phone_snapshot,
+        shipping_address_snapshot=shipping_address_snapshot,
         subtotal=subtotal,
         discount=discount,
         total=total,
@@ -183,6 +193,11 @@ def serialize_order(order: Order) -> dict:
         'installments': int(order.installments) if order.installments is not None else None,
         'paid_at': order.paid_at,
         'payment_metadata_json': order.payment_metadata_json,
+        'customer_account_id': order.customer_account_id,
+        'customer_name': order.customer_name,
+        'customer_email_snapshot': order.customer_email_snapshot,
+        'customer_phone_snapshot': order.customer_phone_snapshot,
+        'shipping_address_snapshot': order.shipping_address_snapshot,
         'items': [serialize_order_item(item) for item in (order.items or [])],
     }
 
