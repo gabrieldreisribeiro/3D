@@ -235,12 +235,12 @@ function AdminOrdersPage() {
       <DataCard title="Quadro operacional">
         {loading ? <p className="text-sm text-slate-500">Carregando quadro...</p> : null}
         {!loading ? (
-          <div className="overflow-x-auto">
+          <div className="max-h-[78vh] overflow-x-auto overflow-y-hidden">
             <div className="flex min-w-max gap-4 pb-2">
               {stageColumns.map(({ stage, orders: stageOrders }) => (
                 <section
                   key={stage.id}
-                  className="w-[300px] rounded-2xl border border-slate-200 bg-slate-50 p-3"
+                  className="flex h-[72vh] w-[300px] flex-col rounded-2xl border border-slate-200 bg-slate-50 p-3"
                   onDragOver={(event) => {
                     event.preventDefault();
                     event.dataTransfer.dropEffect = 'move';
@@ -259,7 +259,7 @@ function AdminOrdersPage() {
                     <span className="rounded-md bg-slate-200 px-2 py-0.5 text-xs font-semibold text-slate-700">{stageOrders.length}</span>
                   </header>
 
-                  <div className="space-y-2">
+                  <div className="flex-1 space-y-2 overflow-y-auto pr-1">
                     {stageOrders.map((order) => (
                       <article
                         key={order.id}
