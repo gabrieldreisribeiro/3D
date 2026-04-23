@@ -306,6 +306,83 @@ def get_product_3d_model(db: Session, model_id: int) -> Product3DModel | None:
     return db.query(Product3DModel).filter(Product3DModel.id == int(model_id)).first()
 
 
+def is_primary_3d_model(db: Session, model: Product3DModel | None) -> bool:
+    if not model or not model.product_id:
+        return False
+    first = (
+        db.query(Product3DModel)
+        .filter(
+            Product3DModel.product_id == int(model.product_id),
+            Product3DModel.sub_item_id == model.sub_item_id,
+        )
+        .order_by(Product3DModel.sort_order.asc(), Product3DModel.id.asc())
+        .first()
+    )
+    return bool(first and int(first.id) == int(model.id))
+
+
+def _serialize_public_model(row: Product3DModel) -> dict:
+    return {
+        'id': int(row.id),
+        'name': row.name,
+        'preview_file_url': row.preview_file_url,
+        'width_mm': row.width_mm,
+        'height_mm': row.height_mm,
+        'depth_mm': row.depth_mm,
+        'sub_item_id': row.sub_item_id,
+    }
+
+
+def get_public_primary_model_maps(
+    db: Session,
+    product_ids: list[int],
+) -> tuple[dict[int, dict], dict[tuple[int, str], dict]]:
+    ids = [int(item) for item in product_ids if int(item) > 0]
+    if not ids:
+        return {}, {}
+    rows = (
+        db.query(Product3DModel)
+        .filter(
+            Product3DModel.product_id.in_(ids),
+            Product3DModel.is_active == True,
+            Product3DModel.show_to_customer == True,
+            Product3DModel.sort_order == 1,
+        )
+        .order_by(Product3DModel.product_id.asc(), Product3DModel.sub_item_id.asc(), Product3DModel.id.asc())
+        .all()
+    )
+    by_product: dict[int, dict] = {}
+    by_sub_item: dict[tuple[int, str], dict] = {}
+    for row in rows:
+        if row.sub_item_id:
+            key = (int(row.product_id), str(row.sub_item_id).strip())
+            if key in by_sub_item:
+                continue
+            by_sub_item[key] = _serialize_public_model(row)
+            continue
+        pid = int(row.product_id)
+        if pid in by_product:
+            continue
+        by_product[pid] = _serialize_public_model(row)
+    return by_product, by_sub_item
+
+
+def apply_public_3d_models(products: list, db: Session) -> None:
+    if not products:
+        return
+    ids = [int(item.id) for item in products if getattr(item, 'id', None)]
+    by_product, by_sub_item = get_public_primary_model_maps(db, ids)
+    for product in products:
+        pid = int(product.id)
+        product.public_3d_model = by_product.get(pid)
+        parsed_sub_items = parse_sub_items_from_storage(getattr(product, 'sub_items', []))
+        for sub_item in parsed_sub_items:
+            sub_item_id = str(sub_item.get('id') or '').strip()
+            key = (pid, sub_item_id)
+            sub_item['public_3d_model'] = by_sub_item.get(key)
+        product.sub_items = parsed_sub_items
+
+
 def list_all_3d_models(
     db: Session,
     *,

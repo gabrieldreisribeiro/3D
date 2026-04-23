@@ -270,8 +270,10 @@ def _serialize_product_3d_model(model) -> Product3DModelResponse:
         depth_mm=model.depth_mm,
         dimensions_source=model.dimensions_source,
         allow_download=bool(model.allow_download),
+        show_to_customer=bool(model.show_to_customer),
         sort_order=int(model.sort_order or 1),
         is_active=bool(model.is_active),
+        is_primary=bool(int(model.sort_order or 0) == 1),
         sub_item_title=sub_item_title,
         created_at=model.created_at,
         updated_at=model.updated_at,
@@ -305,8 +307,10 @@ def _serialize_admin_3d_model(model: Product3DModel) -> Admin3DModelResponse:
         depth_mm=model.depth_mm,
         dimensions_source=model.dimensions_source,
         allow_download=bool(model.allow_download),
+        show_to_customer=bool(model.show_to_customer),
         sort_order=int(model.sort_order or 1),
         is_active=bool(model.is_active),
+        is_primary=bool(int(model.sort_order or 0) == 1),
         created_at=model.created_at,
         updated_at=model.updated_at,
         sub_item_title=sub_item_title,
@@ -331,6 +335,34 @@ def _ensure_valid_model_target(product, sub_item_id: str | None) -> None:
     exists = any(str(item.get('id') or '').strip() == sub_item_id for item in sub_items)
     if not exists:
         raise HTTPException(status_code=400, detail='Subitem vinculado nao existe no produto informado.')
+
+
+def _validate_public_visibility_for_model(
+    db: Session,
+    *,
+    product_id: int | None,
+    sub_item_id: str | None,
+    sort_order: int,
+    show_to_customer: bool,
+    current_model_id: int | None = None,
+) -> None:
+    if not bool(show_to_customer):
+        return
+    if int(sort_order or 0) != 1:
+        raise HTTPException(status_code=400, detail='Apenas o modelo principal (ordem 1) pode ser exibido ao cliente.')
+    if not product_id:
+        raise HTTPException(status_code=400, detail='Vincule o modelo a um produto para exibir ao cliente.')
+    query = db.query(Product3DModel).filter(
+        Product3DModel.product_id == int(product_id),
+        Product3DModel.sub_item_id == sub_item_id,
+        Product3DModel.show_to_customer == True,
+        Product3DModel.sort_order == 1,
+    )
+    if current_model_id:
+        query = query.filter(Product3DModel.id != int(current_model_id))
+    existing = query.first()
+    if existing:
+        raise HTTPException(status_code=400, detail='Ja existe um modelo principal publico para este produto/subitem.')
 
 
 def _count_super_admins(db: Session) -> int:
@@ -804,6 +836,15 @@ def create_admin_3d_model(
         raise HTTPException(status_code=404, detail='Produto nao encontrado')
     sub_item_id = _normalize_sub_item_id(payload.sub_item_id)
     _ensure_valid_model_target(product, sub_item_id)
+    safe_sort_order = int(payload.sort_order or 1)
+    _validate_public_visibility_for_model(
+        db,
+        product_id=product_id,
+        sub_item_id=sub_item_id,
+        sort_order=safe_sort_order,
+        show_to_customer=bool(payload.show_to_customer),
+        current_model_id=None,
+    )
     model = Product3DModel(
         product_id=product_id,
         sub_item_id=sub_item_id,
@@ -816,7 +857,8 @@ def create_admin_3d_model(
         depth_mm=payload.depth_mm,
         dimensions_source=payload.dimensions_source,
         allow_download=bool(payload.allow_download),
-        sort_order=int(payload.sort_order or 1),
+        show_to_customer=bool(payload.show_to_customer),
+        sort_order=safe_sort_order,
         is_active=bool(payload.is_active),
     )
     db.add(model)
@@ -841,6 +883,15 @@ def update_admin_3d_model(
         raise HTTPException(status_code=404, detail='Produto nao encontrado')
     sub_item_id = _normalize_sub_item_id(payload.sub_item_id)
     _ensure_valid_model_target(product, sub_item_id)
+    safe_sort_order = int(payload.sort_order or 1)
+    _validate_public_visibility_for_model(
+        db,
+        product_id=product_id,
+        sub_item_id=sub_item_id,
+        sort_order=safe_sort_order,
+        show_to_customer=bool(payload.show_to_customer),
+        current_model_id=model.id,
+    )
 
     model.product_id = product_id
     model.sub_item_id = sub_item_id
@@ -853,7 +904,8 @@ def update_admin_3d_model(
     model.depth_mm = payload.depth_mm
     model.dimensions_source = payload.dimensions_source
     model.allow_download = bool(payload.allow_download)
-    model.sort_order = int(payload.sort_order or 1)
+    model.show_to_customer = bool(payload.show_to_customer)
+    model.sort_order = safe_sort_order
     model.is_active = bool(payload.is_active)
     db.add(model)
     db.commit()
@@ -963,6 +1015,15 @@ def create_admin_product_3d_model(
         raise HTTPException(status_code=404, detail='Produto nao encontrado')
     sub_item_id = _normalize_sub_item_id(payload.sub_item_id)
     _ensure_valid_model_target(product, sub_item_id)
+    safe_sort_order = int(payload.sort_order or 1)
+    _validate_public_visibility_for_model(
+        db,
+        product_id=product_id,
+        sub_item_id=sub_item_id,
+        sort_order=safe_sort_order,
+        show_to_customer=bool(payload.show_to_customer),
+        current_model_id=None,
+    )
     model = Product3DModel(
         product_id=product_id,
         sub_item_id=sub_item_id,
@@ -975,7 +1036,8 @@ def create_admin_product_3d_model(
         depth_mm=payload.depth_mm,
         dimensions_source=payload.dimensions_source,
         allow_download=bool(payload.allow_download),
-        sort_order=int(payload.sort_order or 1),
+        show_to_customer=bool(payload.show_to_customer),
+        sort_order=safe_sort_order,
         is_active=bool(payload.is_active),
     )
     db.add(model)
@@ -1000,6 +1062,15 @@ def update_admin_product_3d_model(
         raise HTTPException(status_code=404, detail='Produto nao encontrado')
     sub_item_id = _normalize_sub_item_id(payload.sub_item_id)
     _ensure_valid_model_target(product, sub_item_id)
+    safe_sort_order = int(payload.sort_order or 1)
+    _validate_public_visibility_for_model(
+        db,
+        product_id=product_id,
+        sub_item_id=sub_item_id,
+        sort_order=safe_sort_order,
+        show_to_customer=bool(payload.show_to_customer),
+        current_model_id=model.id,
+    )
     model.name = payload.name.strip()
     model.sub_item_id = sub_item_id
     model.description = (payload.description or '').strip() or None
@@ -1010,7 +1081,8 @@ def update_admin_product_3d_model(
     model.depth_mm = payload.depth_mm
     model.dimensions_source = payload.dimensions_source
     model.allow_download = bool(payload.allow_download)
-    model.sort_order = int(payload.sort_order or 1)
+    model.show_to_customer = bool(payload.show_to_customer)
+    model.sort_order = safe_sort_order
     model.is_active = bool(payload.is_active)
     db.add(model)
     db.commit()

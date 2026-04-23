@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import ProductGallery from '../components/ProductGallery';
 import ProductCard from '../components/ProductCard';
@@ -130,6 +130,161 @@ function resolveImageUrl(url) {
 
 function resolveImageSources(url, variant = 'medium', sizes = '(max-width: 768px) 50vw, 320px') {
   return getOptimizedImageSources(resolveImageUrl(url), { variant, sizes });
+}
+
+function fileExtensionFromUrl(url) {
+  const value = String(url || '').toLowerCase().split('?')[0].split('#')[0];
+  const index = value.lastIndexOf('.');
+  if (index < 0) return '';
+  return value.slice(index);
+}
+
+function is3DPreviewFile(url) {
+  const ext = fileExtensionFromUrl(url);
+  return ext === '.stl' || ext === '.glb' || ext === '.gltf';
+}
+
+function Public3DViewer({ url }) {
+  const mountRef = useRef(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    setFailed(false);
+    if (!url || !mountRef.current || !is3DPreviewFile(url)) return undefined;
+
+    let disposed = false;
+    let frameId = null;
+    let cleanup = null;
+
+    const setup = async () => {
+      try {
+        const THREE = await import('three');
+        const [{ OrbitControls }, { GLTFLoader }, { STLLoader }] = await Promise.all([
+          import('three/examples/jsm/controls/OrbitControls.js'),
+          import('three/examples/jsm/loaders/GLTFLoader.js'),
+          import('three/examples/jsm/loaders/STLLoader.js'),
+        ]);
+        if (disposed || !mountRef.current) return;
+
+        const container = mountRef.current;
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color('#f8fafc');
+
+        const camera = new THREE.PerspectiveCamera(40, container.clientWidth / Math.max(container.clientHeight, 1), 0.1, 2000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+        renderer.setSize(container.clientWidth, container.clientHeight);
+        container.innerHTML = '';
+        container.appendChild(renderer.domElement);
+
+        const ambient = new THREE.AmbientLight('#ffffff', 0.9);
+        const key = new THREE.DirectionalLight('#ffffff', 1);
+        key.position.set(2, 4, 6);
+        const fill = new THREE.DirectionalLight('#ffffff', 0.45);
+        fill.position.set(-4, -2, 3);
+        scene.add(ambient, key, fill);
+
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enablePan = false;
+        controls.enableZoom = true;
+        controls.enableRotate = true;
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.08;
+        controls.autoRotate = true;
+        controls.autoRotateSpeed = 1.2;
+
+        const applyObject = (object) => {
+          const group = new THREE.Group();
+          group.add(object);
+          scene.add(group);
+
+          const box = new THREE.Box3().setFromObject(group);
+          const size = box.getSize(new THREE.Vector3());
+          const center = box.getCenter(new THREE.Vector3());
+          group.position.sub(center);
+
+          const maxDim = Math.max(size.x || 1, size.y || 1, size.z || 1);
+          const distance = maxDim * 1.9;
+          camera.position.set(distance, distance * 0.7, distance);
+          camera.lookAt(0, 0, 0);
+          controls.target.set(0, 0, 0);
+          controls.update();
+
+          const renderFrame = () => {
+            if (disposed) return;
+            controls.update();
+            renderer.render(scene, camera);
+            frameId = window.requestAnimationFrame(renderFrame);
+          };
+          renderFrame();
+        };
+
+        const ext = fileExtensionFromUrl(url);
+        if (ext === '.stl') {
+          const loader = new STLLoader();
+          loader.load(
+            url,
+            (geometry) => {
+              if (disposed) return;
+              geometry.computeVertexNormals();
+              const material = new THREE.MeshStandardMaterial({ color: '#94a3b8', roughness: 0.35, metalness: 0.1 });
+              applyObject(new THREE.Mesh(geometry, material));
+            },
+            undefined,
+            () => setFailed(true)
+          );
+        } else {
+          const loader = new GLTFLoader();
+          loader.load(
+            url,
+            (gltf) => {
+              if (disposed) return;
+              applyObject(gltf.scene);
+            },
+            undefined,
+            () => setFailed(true)
+          );
+        }
+
+        const handleResize = () => {
+          if (!container) return;
+          const w = container.clientWidth;
+          const h = Math.max(container.clientHeight, 1);
+          renderer.setSize(w, h);
+          camera.aspect = w / h;
+          camera.updateProjectionMatrix();
+        };
+        const observer = new ResizeObserver(handleResize);
+        observer.observe(container);
+        cleanup = () => {
+          observer.disconnect();
+          controls.dispose();
+          renderer.dispose();
+          renderer.forceContextLoss();
+          if (renderer.domElement && renderer.domElement.parentNode === container) {
+            container.removeChild(renderer.domElement);
+          }
+        };
+      } catch {
+        setFailed(true);
+      }
+    };
+
+    setup();
+
+    return () => {
+      disposed = true;
+      if (frameId) window.cancelAnimationFrame(frameId);
+      if (cleanup) cleanup();
+    };
+  }, [url]);
+
+  return (
+    <div className="relative h-[360px] overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 md:h-[440px]">
+      <div ref={mountRef} className="h-full w-full" />
+      {failed ? <div className="absolute inset-0 flex items-center justify-center text-sm font-semibold text-slate-500">Nao foi possivel renderizar</div> : null}
+    </div>
+  );
 }
 
 function formatReviewDate(value) {
@@ -277,6 +432,7 @@ function ProductPage() {
     original_price: null,
     promotional_price: null,
     promotion_badge: null,
+    public_3d_model: null,
     width_mm: null,
     height_mm: null,
     depth_mm: null,
@@ -314,6 +470,14 @@ function ProductPage() {
   const productLeadTimeDays = estimateDaysFromHours(productLeadTimeHours);
   const customizedLeadTimeDays = estimateDaysFromHours(productLeadTimeHours + selectedSubItemsLeadTimeHours);
   const shouldScrollSubItems = (productData.sub_items || []).length > 3;
+  const selectedSubItemEntries = (productData.sub_items || [])
+    .map((item, index) => ({ item, key: getSubItemKey(item, index) }))
+    .filter(({ key }) => Boolean(selectedSubItems[key]));
+  const selectedSubItemPublicModel = selectedSubItemEntries.length === 1 ? selectedSubItemEntries[0]?.item?.public_3d_model : null;
+  const activePublic3dModel = selectedSubItemPublicModel || productData.public_3d_model || null;
+  const activePublic3dUrl = resolveImageUrl(activePublic3dModel?.preview_file_url || '');
+  const shouldShowPublic3d = Boolean(activePublic3dUrl && is3DPreviewFile(activePublic3dUrl));
+  const activePublic3dLabel = selectedSubItemEntries.length === 1 ? selectedSubItemEntries[0]?.item?.title || '' : '';
   const productSecondaryOptions = getSecondaryOptions(
     productData.available_colors || [],
     productData.secondary_color_pairs || [],
@@ -1043,6 +1207,20 @@ function ProductPage() {
           </article>
         ))}
       </section>
+
+      {shouldShowPublic3d ? (
+        <section className="rounded-[16px] border border-[#E6EAF0] bg-white p-4 shadow-sm sm:p-5 lg:p-6">
+          <div className="mb-3">
+            <h2 className="text-[20px] font-semibold tracking-tight text-[#111827]">Visualizacao 3D</h2>
+            <p className="mt-1 text-sm text-[#667085]">
+              {activePublic3dLabel
+                ? `Mostrando o modelo principal do subitem: ${activePublic3dLabel}`
+                : 'Modelo principal do produto.'}
+            </p>
+          </div>
+          <Public3DViewer url={activePublic3dUrl} />
+        </section>
+      ) : null}
 
       <section className="rounded-[16px] border border-[#E6EAF0] bg-white p-4 shadow-sm sm:p-5 lg:p-6">
         <div className="flex flex-wrap items-center gap-2 border-b border-[#E6EAF0] pb-3">

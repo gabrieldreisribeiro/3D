@@ -40,6 +40,16 @@ class SecondaryColorPair(BaseModel):
     secondary: str = Field(..., min_length=4, max_length=7)
 
 
+class PublicProduct3DModelResponse(BaseModel):
+    id: int
+    name: str
+    preview_file_url: str
+    width_mm: Optional[float] = None
+    height_mm: Optional[float] = None
+    depth_mm: Optional[float] = None
+    sub_item_id: Optional[str] = None
+
+
 class ProductSubItem(BaseModel):
     id: Optional[str] = Field(default=None, max_length=80)
     title: str = Field(..., min_length=1, max_length=140)
@@ -70,6 +80,7 @@ class ProductSubItem(BaseModel):
     calculated_price: float = 0
     estimated_profit: float = 0
     final_price: float = 0
+    public_3d_model: Optional[PublicProduct3DModelResponse] = None
 
 
 class ProductBase(BaseModel):
@@ -108,6 +119,7 @@ class ProductBase(BaseModel):
     original_price: Optional[float] = None
     promotional_price: Optional[float] = None
     promotion_badge: Optional[str] = None
+    public_3d_model: Optional[PublicProduct3DModelResponse] = None
 
 class ProductResponse(ProductBase):
     pass
@@ -600,6 +612,7 @@ class Product3DModelBase(BaseModel):
     depth_mm: Optional[float] = Field(default=None, ge=0)
     dimensions_source: Literal['manual', 'auto'] = 'auto'
     allow_download: bool = False
+    show_to_customer: bool = False
     sort_order: int = Field(default=1, ge=1, le=999)
     is_active: bool = True
 
@@ -618,6 +631,7 @@ class Product3DModelResponse(Product3DModelBase):
     id: int
     product_id: Optional[int] = None
     sub_item_title: Optional[str] = None
+    is_primary: bool = False
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 

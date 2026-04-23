@@ -38,6 +38,7 @@ const emptyForm = {
   depth_mm: '',
   dimensions_source: 'auto',
   allow_download: false,
+  show_to_customer: false,
   is_active: true,
 };
 
@@ -127,6 +128,7 @@ function createBatchQueueItem(file, defaultProductId = '') {
     depth_mm: '',
     dimensions_source: 'auto',
     allow_download: false,
+    show_to_customer: false,
     is_active: true,
     status: 'pending',
     error_message: '',
@@ -678,6 +680,7 @@ function Admin3DModelsPage() {
           depth_mm: toOptionalNumber(item.depth_mm),
           dimensions_source: item.dimensions_source === 'manual' ? 'manual' : 'auto',
           allow_download: Boolean(item.allow_download),
+          show_to_customer: false,
           is_active: Boolean(item.is_active),
         });
         ok += 1;
@@ -735,6 +738,7 @@ function Admin3DModelsPage() {
       depth_mm: item.depth_mm == null ? '' : String(item.depth_mm),
       dimensions_source: item.dimensions_source || 'auto',
       allow_download: Boolean(item.allow_download),
+      show_to_customer: Boolean(item.show_to_customer),
       is_active: Boolean(item.is_active),
     });
     setModalOpen(true);
@@ -770,6 +774,7 @@ function Admin3DModelsPage() {
         depth_mm: toOptionalNumber(form.depth_mm),
         dimensions_source: form.dimensions_source === 'manual' ? 'manual' : 'auto',
         allow_download: Boolean(form.allow_download),
+        show_to_customer: Number(form.sort_order || 0) === 1 ? Boolean(form.show_to_customer) : false,
         is_active: Boolean(form.is_active),
       };
       if (!payload.preview_file_url) throw new Error('Arquivo preview e obrigatorio.');
@@ -1297,7 +1302,7 @@ function Admin3DModelsPage() {
 
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
                 {group.items.map((item) => {
-                  const isPrincipal = !item.sub_item_id && Number(item.sort_order || 9999) === 1;
+                  const isPrincipal = Number(item.sort_order || 9999) === 1;
                   const isSelected = selectedRowIdSet.has(String(item.id));
                   return (
                     <div
@@ -1336,10 +1341,11 @@ function Admin3DModelsPage() {
                       </div>
 
                       <div className="mt-3 flex flex-wrap gap-1.5">
-                        {isPrincipal ? <StatusBadge tone="info">Principal</StatusBadge> : null}
+                        {isPrincipal ? <StatusBadge tone="info">Principal</StatusBadge> : <StatusBadge tone="neutral">Secundario</StatusBadge>}
                         <StatusBadge tone={item.sub_item_id ? 'info' : (item.product_id == null ? 'danger' : 'neutral')}>
                           {item.sub_item_id ? 'Subitem' : (item.product_id == null ? 'Nao atribuido' : 'Produto')}
                         </StatusBadge>
+                        {Boolean(item.show_to_customer) ? <StatusBadge tone="success">Publico</StatusBadge> : <StatusBadge tone="neutral">Interno</StatusBadge>}
                         {item.allow_download ? <StatusBadge tone="success">Download ativo</StatusBadge> : null}
                         {!item.is_active ? <StatusBadge tone="danger">Inativo</StatusBadge> : null}
                       </div>
@@ -1481,9 +1487,21 @@ function Admin3DModelsPage() {
             Permitir download
           </label>
           <label className="inline-flex items-center gap-2 rounded-[10px] border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+            <input
+              type="checkbox"
+              checked={Boolean(form.show_to_customer)}
+              disabled={Number(form.sort_order || 0) !== 1}
+              onChange={(event) => setForm({ ...form, show_to_customer: event.target.checked })}
+            />
+            Mostrar para o cliente
+          </label>
+          <label className="inline-flex items-center gap-2 rounded-[10px] border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
             <input type="checkbox" checked={form.is_active} onChange={(event) => setForm({ ...form, is_active: event.target.checked })} />
             Modelo ativo
           </label>
+          {Number(form.sort_order || 0) !== 1 ? (
+            <p className="md:col-span-2 text-xs text-amber-700">Apenas o modelo principal (ordem 1) pode ser exibido ao cliente.</p>
+          ) : null}
           <Input label="Descricao" className="md:col-span-2" value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} />
         </form>
       </Modal>
@@ -1522,6 +1540,7 @@ function Admin3DModelsPage() {
             <p><strong>Original:</strong> {detailModel.original_file_name || '-'}</p>
             <p><strong>Preview:</strong> {detailModel.preview_file_name || '-'}</p>
             <p><strong>Download:</strong> {detailModel.allow_download ? 'Permitido' : 'Bloqueado'}</p>
+            <p><strong>Cliente:</strong> {detailModel.show_to_customer ? 'Visivel (publico)' : 'Interno'}</p>
             <p><strong>Status:</strong> {detailModel.is_active ? 'Ativo' : 'Inativo'}</p>
             <p><strong>Criado em:</strong> {detailModel.created_at ? new Date(detailModel.created_at).toLocaleString('pt-BR') : '-'}</p>
             <p><strong>Atualizado em:</strong> {detailModel.updated_at ? new Date(detailModel.updated_at).toLocaleString('pt-BR') : '-'}</p>

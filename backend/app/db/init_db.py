@@ -1138,6 +1138,7 @@ def _ensure_product_3d_models_columns(session):
         'depth_mm': "REAL",
         'dimensions_source': "VARCHAR(20) DEFAULT 'auto'",
         'allow_download': "BOOLEAN DEFAULT 0",
+        'show_to_customer': "BOOLEAN DEFAULT 0",
         'sort_order': "INTEGER DEFAULT 1",
         'is_active': "BOOLEAN DEFAULT 1",
         'created_at': "DATETIME DEFAULT CURRENT_TIMESTAMP",
@@ -1173,8 +1174,10 @@ def _ensure_product_3d_models_columns(session):
 
     session.execute(text("UPDATE product_3d_models SET dimensions_source = COALESCE(NULLIF(dimensions_source, ''), 'auto')"))
     session.execute(text("UPDATE product_3d_models SET allow_download = COALESCE(allow_download, FALSE)"))
+    session.execute(text("UPDATE product_3d_models SET show_to_customer = COALESCE(show_to_customer, FALSE)"))
     session.execute(text("UPDATE product_3d_models SET is_active = COALESCE(is_active, TRUE)"))
     session.execute(text("UPDATE product_3d_models SET sort_order = COALESCE(sort_order, 1)"))
+    session.execute(text("CREATE INDEX IF NOT EXISTS ix_product_3d_models_show_to_customer ON product_3d_models(show_to_customer)"))
     session.commit()
 
 
@@ -1211,6 +1214,7 @@ def _ensure_product_3d_models_product_nullable(session):
                     depth_mm REAL,
                     dimensions_source VARCHAR(20) NOT NULL DEFAULT 'auto',
                     allow_download BOOLEAN DEFAULT 0,
+                    show_to_customer BOOLEAN DEFAULT 0,
                     sort_order INTEGER NOT NULL DEFAULT 1,
                     is_active BOOLEAN DEFAULT 1,
                     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -1225,11 +1229,11 @@ def _ensure_product_3d_models_product_nullable(session):
                 """
                 INSERT INTO product_3d_models__tmp (
                     id, product_id, sub_item_id, name, description, original_file_url, preview_file_url,
-                    width_mm, height_mm, depth_mm, dimensions_source, allow_download, sort_order, is_active, created_at, updated_at
+                    width_mm, height_mm, depth_mm, dimensions_source, allow_download, show_to_customer, sort_order, is_active, created_at, updated_at
                 )
                 SELECT
                     id, product_id, sub_item_id, name, description, original_file_url, preview_file_url,
-                    width_mm, height_mm, depth_mm, dimensions_source, allow_download, sort_order, is_active, created_at, updated_at
+                    width_mm, height_mm, depth_mm, dimensions_source, allow_download, show_to_customer, sort_order, is_active, created_at, updated_at
                 FROM product_3d_models
                 """
             )
@@ -1239,6 +1243,7 @@ def _ensure_product_3d_models_product_nullable(session):
         session.execute(text("CREATE INDEX IF NOT EXISTS ix_product_3d_models_product_id ON product_3d_models(product_id)"))
         session.execute(text("CREATE INDEX IF NOT EXISTS ix_product_3d_models_sub_item_id ON product_3d_models(sub_item_id)"))
         session.execute(text("CREATE INDEX IF NOT EXISTS ix_product_3d_models_sort_order ON product_3d_models(sort_order)"))
+        session.execute(text("CREATE INDEX IF NOT EXISTS ix_product_3d_models_show_to_customer ON product_3d_models(show_to_customer)"))
         session.execute(text("CREATE INDEX IF NOT EXISTS ix_product_3d_models_is_active ON product_3d_models(is_active)"))
         session.execute(text("PRAGMA foreign_keys=ON"))
         session.commit()

@@ -18,7 +18,7 @@ from app.services.product_service import (
     parse_secondary_pairs_from_storage,
     parse_sub_items_from_storage,
 )
-from app.services.product_3d_model_service import apply_effective_product_dimensions
+from app.services.product_3d_model_service import apply_effective_product_dimensions, apply_public_3d_models
 from app.services.promotion_service import apply_promotion_pricing_to_products
 from app.services.review_service import (
     create_review,
@@ -73,6 +73,7 @@ def read_products(category: str | None = Query(default=None), db: Session = Depe
         product.sub_items = parse_sub_items_from_storage(product.sub_items)
         product.available_colors = parse_colors_from_storage(product.available_colors)
         product.secondary_color_pairs = parse_secondary_pairs_from_storage(product.secondary_color_pairs, product.available_colors)
+    apply_public_3d_models(products, db)
     return products
 
 
@@ -87,6 +88,7 @@ def read_product(slug: str, db: Session = Depends(get_db)):
     product.sub_items = parse_sub_items_from_storage(product.sub_items)
     product.available_colors = parse_colors_from_storage(product.available_colors)
     product.secondary_color_pairs = parse_secondary_pairs_from_storage(product.secondary_color_pairs, product.available_colors)
+    apply_public_3d_models([product], db)
     return product
 
 

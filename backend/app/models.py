@@ -470,6 +470,7 @@ class Product3DModel(Base):
     depth_mm = Column(Float, nullable=True)
     dimensions_source = Column(String(20), nullable=False, default='auto')
     allow_download = Column(Boolean, default=False)
+    show_to_customer = Column(Boolean, nullable=False, default=False, index=True)
     sort_order = Column(Integer, nullable=False, default=1, index=True)
     is_active = Column(Boolean, default=True, index=True)
     created_at = Column(DateTime, nullable=False, server_default=func.now())

@@ -106,6 +106,7 @@ const createEmpty3dModelForm = () => ({
   depth_mm: '',
   dimensions_source: 'auto',
   allow_download: false,
+  show_to_customer: false,
   sort_order: 1,
   is_active: true,
 });
@@ -178,6 +179,7 @@ function createBatch3dQueueItem(file, defaultProductId = '') {
     depth_mm: '',
     dimensions_source: 'auto',
     allow_download: false,
+    show_to_customer: false,
     sort_order: '',
     is_active: true,
     status: 'pending',
@@ -889,7 +891,7 @@ function AdminProductsPage() {
         const sortOrder = providedSort > 0 ? providedSort : currentMax + 1;
         sortByKey.set(sortKey, Math.max(currentMax, sortOrder));
 
-        await createAdminProduct3DModel(productId, {
+      await createAdminProduct3DModel(productId, {
           sub_item_id: subItemId || null,
           name: String(item.name || '').trim() || fileBaseName(item.file_name),
           description: String(item.description || '').trim() || null,
@@ -900,6 +902,7 @@ function AdminProductsPage() {
           depth_mm: toOptionalNumber(item.depth_mm),
           dimensions_source: item.dimensions_source === 'manual' ? 'manual' : 'auto',
           allow_download: Boolean(item.allow_download),
+          show_to_customer: false,
           sort_order: sortOrder,
           is_active: Boolean(item.is_active),
         });
@@ -929,7 +932,7 @@ function AdminProductsPage() {
     return Math.max(1, maxOrder + 1);
   };
 
-  const toModel3dPayload = (source, overrides = {}) => ({
+const toModel3dPayload = (source, overrides = {}) => ({
     sub_item_id: String(source?.sub_item_id || '').trim() || null,
     name: String(source?.name || '').trim(),
     description: String(source?.description || '').trim() || null,
@@ -940,6 +943,7 @@ function AdminProductsPage() {
     depth_mm: toOptionalNumber(source?.depth_mm),
     dimensions_source: source?.dimensions_source === 'manual' ? 'manual' : 'auto',
     allow_download: Boolean(source?.allow_download),
+    show_to_customer: Boolean(source?.show_to_customer),
     sort_order: Number(source?.sort_order || 1),
     is_active: Boolean(source?.is_active),
     ...overrides,
@@ -978,6 +982,7 @@ function AdminProductsPage() {
       depth_mm: model.depth_mm == null ? '' : String(model.depth_mm),
       dimensions_source: model.dimensions_source || 'auto',
       allow_download: Boolean(model.allow_download),
+      show_to_customer: Boolean(model.show_to_customer),
       sort_order: Number(model.sort_order || 1),
       is_active: Boolean(model.is_active),
     });
@@ -1110,10 +1115,15 @@ function AdminProductsPage() {
     setError('');
     try {
       for (const entry of updates) {
+        const isBecomingPrimary = Number(entry.sort_order) === 1;
         await updateAdminProduct3DModel(
           selectedProduct.id,
           entry.item.id,
-          toModel3dPayload(entry.item, { sort_order: entry.sort_order, is_active: true })
+          toModel3dPayload(entry.item, {
+            sort_order: entry.sort_order,
+            is_active: true,
+            show_to_customer: isBecomingPrimary ? Boolean(entry.item.show_to_customer) : false,
+          })
         );
       }
       load3dModels(selectedProduct.id);
@@ -1189,6 +1199,7 @@ function AdminProductsPage() {
             patch: {
               sub_item_id: String(subItemId).trim(),
               sort_order: index + 2,
+              show_to_customer: false,
               is_active: Boolean(item.is_active),
             },
           });
@@ -2643,6 +2654,10 @@ function AdminProductsPage() {
                           </Button>
                           <Button type="button" variant="danger" onClick={() => remove3dModel(model)}>Excluir</Button>
                         </div>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {isPrimary3dModel(model) ? <StatusBadge tone="info">Principal</StatusBadge> : <StatusBadge tone="neutral">Secundario</StatusBadge>}
+                          {Boolean(model.show_to_customer) ? <StatusBadge tone="success">Publico</StatusBadge> : <StatusBadge tone="neutral">Interno</StatusBadge>}
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -2828,6 +2843,18 @@ function AdminProductsPage() {
             <input type="checkbox" checked={Boolean(model3dForm.allow_download)} onChange={(event) => setModel3dForm({ ...model3dForm, allow_download: event.target.checked })} />
             <span>Permitir download</span>
           </label>
+          <label className="inline-flex items-center gap-2 rounded-[10px] border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+            <input
+              type="checkbox"
+              checked={Boolean(model3dForm.show_to_customer)}
+              disabled={Number(model3dForm.sort_order || 0) !== 1}
+              onChange={(event) => setModel3dForm({ ...model3dForm, show_to_customer: event.target.checked })}
+            />
+            <span>Mostrar para o cliente</span>
+          </label>
+          {Number(model3dForm.sort_order || 0) !== 1 ? (
+            <p className="md:col-span-2 text-xs text-amber-700">Apenas o modelo principal (ordem 1) pode ser exibido ao cliente.</p>
+          ) : null}
           <label className="inline-flex items-center gap-2 rounded-[10px] border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
             <input type="checkbox" checked={Boolean(model3dForm.is_active)} onChange={(event) => setModel3dForm({ ...model3dForm, is_active: event.target.checked })} />
             <span>Modelo ativo</span>
