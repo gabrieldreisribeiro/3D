@@ -144,12 +144,69 @@ function is3DPreviewFile(url) {
   return ext === '.stl' || ext === '.glb' || ext === '.gltf';
 }
 
-function Public3DViewer({ url }) {
+function toPositiveNumber(value) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) && numeric > 0 ? numeric : 0;
+}
+
+function resolveModelDimensionsInMm(rawSize = {}, referenceDimensionsMm = null) {
+  const rawWidth = toPositiveNumber(rawSize.width);
+  const rawHeight = toPositiveNumber(rawSize.height);
+  const rawDepth = toPositiveNumber(rawSize.depth);
+  const rawMax = Math.max(rawWidth, rawHeight, rawDepth, 0);
+  if (rawMax <= 0) return null;
+
+  const reference = referenceDimensionsMm && typeof referenceDimensionsMm === 'object'
+    ? {
+      width: toPositiveNumber(referenceDimensionsMm.width_mm),
+      height: toPositiveNumber(referenceDimensionsMm.height_mm),
+      depth: toPositiveNumber(referenceDimensionsMm.depth_mm),
+    }
+    : null;
+
+  const ratioCandidates = [];
+  if (reference) {
+    if (reference.width > 0 && rawWidth > 0) ratioCandidates.push(reference.width / rawWidth);
+    if (reference.height > 0 && rawHeight > 0) ratioCandidates.push(reference.height / rawHeight);
+    if (reference.depth > 0 && rawDepth > 0) ratioCandidates.push(reference.depth / rawDepth);
+  }
+
+  let scaleToMm = 1;
+  if (ratioCandidates.length) {
+    const sorted = ratioCandidates.slice().sort((a, b) => a - b);
+    const mid = Math.floor(sorted.length / 2);
+    const median = sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+    if (Number.isFinite(median) && median > 0.000001 && median < 1000000) {
+      scaleToMm = median;
+    }
+  } else if (rawMax <= 10) {
+    // Sem dimensao de referencia, modelos pequenos costumam estar em metros.
+    scaleToMm = 1000;
+  }
+
+  return {
+    width_mm: rawWidth * scaleToMm,
+    height_mm: rawHeight * scaleToMm,
+    depth_mm: rawDepth * scaleToMm,
+  };
+}
+
+function formatMmAsCm(mmValue) {
+  const mm = toPositiveNumber(mmValue);
+  if (mm <= 0) return '-';
+  return `${(mm / 10).toFixed(1)} cm`;
+}
+
+function Public3DViewer({ url, referenceDimensionsMm = null }) {
   const mountRef = useRef(null);
   const [failed, setFailed] = useState(false);
+  const [dimensionsMm, setDimensionsMm] = useState(null);
+  const [measuring, setMeasuring] = useState(false);
 
   useEffect(() => {
     setFailed(false);
+    setDimensionsMm(null);
+    setMeasuring(Boolean(url && is3DPreviewFile(url)));
     if (!url || !mountRef.current || !is3DPreviewFile(url)) return undefined;
 
     let disposed = false;
@@ -193,6 +250,117 @@ function Public3DViewer({ url }) {
         controls.autoRotate = true;
         controls.autoRotateSpeed = 1.2;
 
+        const textSprites = [];
+        const spriteMaterials = [];
+        const spriteTextures = [];
+        const measurementMaterials = [];
+
+        const createTextSprite = (text) => {
+          const canvas = document.createElement('canvas');
+          canvas.width = 256;
+          canvas.height = 80;
+          const context = canvas.getContext('2d');
+          if (!context) return null;
+          context.clearRect(0, 0, canvas.width, canvas.height);
+          context.fillStyle = 'rgba(15, 23, 42, 0.82)';
+          context.fillRect(0, 0, canvas.width, canvas.height);
+          context.strokeStyle = 'rgba(255, 255, 255, 0.28)';
+          context.lineWidth = 2;
+          context.strokeRect(1, 1, canvas.width - 2, canvas.height - 2);
+          context.fillStyle = '#ffffff';
+          context.font = '600 28px system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
+          context.textAlign = 'center';
+          context.textBaseline = 'middle';
+          context.fillText(String(text || ''), canvas.width / 2, canvas.height / 2);
+
+          const texture = new THREE.CanvasTexture(canvas);
+          texture.needsUpdate = true;
+          const material = new THREE.SpriteMaterial({
+            map: texture,
+            depthTest: false,
+            depthWrite: false,
+            transparent: true,
+          });
+          const sprite = new THREE.Sprite(material);
+          sprite.renderOrder = 999;
+          sprite.scale.set(0.9, 0.28, 1);
+          textSprites.push(sprite);
+          spriteMaterials.push(material);
+          spriteTextures.push(texture);
+          return sprite;
+        };
+
+        const addMeasurementOverlay = (group, size, dimensions) => {
+          const halfX = (size.x || 0) / 2;
+          const halfY = (size.y || 0) / 2;
+          const halfZ = (size.z || 0) / 2;
+          if (halfX <= 0 || halfY <= 0 || halfZ <= 0) return;
+
+          const maxDim = Math.max(size.x || 1, size.y || 1, size.z || 1);
+          const offset = maxDim * 0.12;
+          const tick = maxDim * 0.03;
+
+          const widthY = -halfY - offset;
+          const heightX = halfX + offset;
+          const depthY = halfY + offset;
+
+          const widthLabel = createTextSprite(`L: ${formatMmAsCm(dimensions?.width_mm)}`);
+          const heightLabel = createTextSprite(`A: ${formatMmAsCm(dimensions?.height_mm)}`);
+          const depthLabel = createTextSprite(`P: ${formatMmAsCm(dimensions?.depth_mm)}`);
+
+          const widthGeometry = new THREE.BufferGeometry().setFromPoints([
+            new THREE.Vector3(-halfX, widthY, halfZ),
+            new THREE.Vector3(halfX, widthY, halfZ),
+            new THREE.Vector3(-halfX, widthY - tick, halfZ),
+            new THREE.Vector3(-halfX, widthY + tick, halfZ),
+            new THREE.Vector3(halfX, widthY - tick, halfZ),
+            new THREE.Vector3(halfX, widthY + tick, halfZ),
+          ]);
+          const widthMaterial = new THREE.LineBasicMaterial({ color: '#2563eb' });
+          measurementMaterials.push(widthMaterial);
+          const widthLines = new THREE.LineSegments(widthGeometry, widthMaterial);
+          group.add(widthLines);
+
+          const heightGeometry = new THREE.BufferGeometry().setFromPoints([
+            new THREE.Vector3(heightX, -halfY, halfZ),
+            new THREE.Vector3(heightX, halfY, halfZ),
+            new THREE.Vector3(heightX - tick, -halfY, halfZ),
+            new THREE.Vector3(heightX + tick, -halfY, halfZ),
+            new THREE.Vector3(heightX - tick, halfY, halfZ),
+            new THREE.Vector3(heightX + tick, halfY, halfZ),
+          ]);
+          const heightMaterial = new THREE.LineBasicMaterial({ color: '#16a34a' });
+          measurementMaterials.push(heightMaterial);
+          const heightLines = new THREE.LineSegments(heightGeometry, heightMaterial);
+          group.add(heightLines);
+
+          const depthGeometry = new THREE.BufferGeometry().setFromPoints([
+            new THREE.Vector3(-halfX, depthY, -halfZ),
+            new THREE.Vector3(-halfX, depthY, halfZ),
+            new THREE.Vector3(-halfX, depthY - tick, -halfZ),
+            new THREE.Vector3(-halfX, depthY + tick, -halfZ),
+            new THREE.Vector3(-halfX, depthY - tick, halfZ),
+            new THREE.Vector3(-halfX, depthY + tick, halfZ),
+          ]);
+          const depthMaterial = new THREE.LineBasicMaterial({ color: '#f59e0b' });
+          measurementMaterials.push(depthMaterial);
+          const depthLines = new THREE.LineSegments(depthGeometry, depthMaterial);
+          group.add(depthLines);
+
+          if (widthLabel) {
+            widthLabel.position.set(0, widthY - tick * 2.4, halfZ);
+            group.add(widthLabel);
+          }
+          if (heightLabel) {
+            heightLabel.position.set(heightX + tick * 2.5, 0, halfZ);
+            group.add(heightLabel);
+          }
+          if (depthLabel) {
+            depthLabel.position.set(-halfX, depthY + tick * 2.4, 0);
+            group.add(depthLabel);
+          }
+        };
+
         const applyObject = (object) => {
           const group = new THREE.Group();
           group.add(object);
@@ -200,6 +368,15 @@ function Public3DViewer({ url }) {
 
           const box = new THREE.Box3().setFromObject(group);
           const size = box.getSize(new THREE.Vector3());
+          const measured = resolveModelDimensionsInMm(
+            { width: size.x, height: size.y, depth: size.z },
+            referenceDimensionsMm
+          );
+          if (!disposed) {
+            setDimensionsMm(measured);
+            setMeasuring(false);
+          }
+          addMeasurementOverlay(group, size, measured);
           const center = box.getCenter(new THREE.Vector3());
           group.position.sub(center);
 
@@ -231,7 +408,10 @@ function Public3DViewer({ url }) {
               applyObject(new THREE.Mesh(geometry, material));
             },
             undefined,
-            () => setFailed(true)
+            () => {
+              setFailed(true);
+              setMeasuring(false);
+            }
           );
         } else {
           const loader = new GLTFLoader();
@@ -242,7 +422,10 @@ function Public3DViewer({ url }) {
               applyObject(gltf.scene);
             },
             undefined,
-            () => setFailed(true)
+            () => {
+              setFailed(true);
+              setMeasuring(false);
+            }
           );
         }
 
@@ -259,6 +442,12 @@ function Public3DViewer({ url }) {
         cleanup = () => {
           observer.disconnect();
           controls.dispose();
+          measurementMaterials.forEach((material) => material.dispose());
+          textSprites.forEach((sprite) => {
+            if (sprite.parent) sprite.parent.remove(sprite);
+          });
+          spriteMaterials.forEach((material) => material.dispose());
+          spriteTextures.forEach((texture) => texture.dispose());
           renderer.dispose();
           renderer.forceContextLoss();
           if (renderer.domElement && renderer.domElement.parentNode === container) {
@@ -267,6 +456,7 @@ function Public3DViewer({ url }) {
         };
       } catch {
         setFailed(true);
+        setMeasuring(false);
       }
     };
 
@@ -277,12 +467,25 @@ function Public3DViewer({ url }) {
       if (frameId) window.cancelAnimationFrame(frameId);
       if (cleanup) cleanup();
     };
-  }, [url]);
+  }, [url, referenceDimensionsMm]);
 
   return (
-    <div className="relative h-[360px] overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 md:h-[440px]">
-      <div ref={mountRef} className="h-full w-full" />
-      {failed ? <div className="absolute inset-0 flex items-center justify-center text-sm font-semibold text-slate-500">Nao foi possivel renderizar</div> : null}
+    <div>
+      <div className="relative h-[360px] overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 md:h-[440px]">
+        <div ref={mountRef} className="h-full w-full" />
+        {failed ? <div className="absolute inset-0 flex items-center justify-center text-sm font-semibold text-slate-500">Nao foi possivel renderizar</div> : null}
+      </div>
+      {dimensionsMm ? (
+        <div className="mt-4 rounded-xl border border-[#E6EAF0] bg-[#F9FAFB] p-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Dimensoes (modelo real)</p>
+          <div className="mt-2 grid grid-cols-1 gap-2 text-sm text-slate-700 sm:grid-cols-3">
+            <p className="rounded-lg border border-slate-200 bg-white px-3 py-2"><strong className="text-slate-900">Largura:</strong> {formatMmAsCm(dimensionsMm.width_mm)}</p>
+            <p className="rounded-lg border border-slate-200 bg-white px-3 py-2"><strong className="text-slate-900">Altura:</strong> {formatMmAsCm(dimensionsMm.height_mm)}</p>
+            <p className="rounded-lg border border-slate-200 bg-white px-3 py-2"><strong className="text-slate-900">Profundidade:</strong> {formatMmAsCm(dimensionsMm.depth_mm)}</p>
+          </div>
+        </div>
+      ) : null}
+      {measuring && !failed ? <p className="mt-3 text-xs text-slate-500">Calculando dimensoes do modelo...</p> : null}
     </div>
   );
 }
@@ -478,6 +681,17 @@ function ProductPage() {
   const activePublic3dUrl = resolveImageUrl(activePublic3dModel?.preview_file_url || '');
   const shouldShowPublic3d = Boolean(activePublic3dUrl && is3DPreviewFile(activePublic3dUrl));
   const activePublic3dLabel = selectedSubItemEntries.length === 1 ? selectedSubItemEntries[0]?.item?.title || '' : '';
+  const activePublic3dReferenceMm = selectedSubItemEntries.length === 1
+    ? {
+      width_mm: selectedSubItemEntries[0]?.item?.width_mm ?? null,
+      height_mm: selectedSubItemEntries[0]?.item?.height_mm ?? null,
+      depth_mm: selectedSubItemEntries[0]?.item?.depth_mm ?? null,
+    }
+    : {
+      width_mm: productData.width_mm ?? null,
+      height_mm: productData.height_mm ?? null,
+      depth_mm: productData.depth_mm ?? null,
+    };
   const productSecondaryOptions = getSecondaryOptions(
     productData.available_colors || [],
     productData.secondary_color_pairs || [],
@@ -1218,7 +1432,7 @@ function ProductPage() {
                 : 'Modelo principal do produto.'}
             </p>
           </div>
-          <Public3DViewer url={activePublic3dUrl} />
+          <Public3DViewer url={activePublic3dUrl} referenceDimensionsMm={activePublic3dReferenceMm} />
         </section>
       ) : null}
 
