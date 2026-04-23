@@ -1919,6 +1919,9 @@ select {
 .customer-panel-shell {
   display: grid;
   gap: 24px;
+  width: 100%;
+  max-width: 1120px;
+  margin-inline: auto;
 }
 
 .customer-panel-head {
@@ -1972,7 +1975,7 @@ select {
 
 .customer-panel-grid {
   display: grid;
-  grid-template-columns: 230px minmax(0, 1fr);
+  grid-template-columns: 220px minmax(0, 1fr);
   gap: 24px;
 }
 
@@ -2306,7 +2309,7 @@ select {
     linear-gradient(135deg, #ffffff 0%, #f5f3ff 55%, #ede9fe 100%);
   padding: 20px;
   display: grid;
-  grid-template-columns: 1.2fr 0.8fr;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
   gap: 16px;
 }
 
@@ -2346,7 +2349,7 @@ select {
 
 .customer-order-hero-title {
   margin: 2px 0 0;
-  font-size: clamp(30px, 5vw, 40px);
+  font-size: clamp(26px, 4vw, 36px);
   line-height: 1.1;
   color: #1e1b4b;
   letter-spacing: -0.03em;
@@ -2370,6 +2373,7 @@ select {
   padding: 12px;
   display: grid;
   gap: 4px;
+  min-width: 0;
 }
 
 .customer-order-hero-metric span {
@@ -2384,6 +2388,8 @@ select {
   color: #1f2937;
   font-size: 14px;
   font-weight: 700;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .customer-pill {
@@ -2397,6 +2403,9 @@ select {
   font-weight: 800;
   letter-spacing: 0.05em;
   text-transform: uppercase;
+  max-width: 100%;
+  white-space: normal;
+  line-height: 1.2;
 }
 
 .customer-pill-success {
@@ -2697,5 +2706,15 @@ select {
 
   .customer-order-card .btn {
     width: 100%;
+  }
+}
+
+@media (max-width: 1260px) {
+  .customer-panel-shell {
+    max-width: 100%;
+  }
+
+  .customer-detail-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
