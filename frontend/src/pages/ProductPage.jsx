@@ -205,15 +205,34 @@ function isValidCssColor(value) {
     : true;
 }
 
-const MODEL_PREVIEW_COLORS = [
-  { label: 'Branco', hex: '#f8fafc' },
-  { label: 'Preto', hex: '#0f172a' },
-  { label: 'Cinza', hex: '#94a3b8' },
-  { label: 'Vermelho', hex: '#ef4444' },
-  { label: 'Azul', hex: '#2563eb' },
-  { label: 'Verde', hex: '#16a34a' },
-  { label: 'Amarelo', hex: '#eab308' },
-];
+const DEFAULT_MODEL_PREVIEW_COLOR = { label: 'Cinza', hex: '#94a3b8' };
+
+const PREVIEW_COLOR_LABELS = {
+  '#f8fafc': 'Branco',
+  '#0f172a': 'Preto',
+  '#94a3b8': 'Cinza',
+  '#ef4444': 'Vermelho',
+  '#2563eb': 'Azul',
+  '#16a34a': 'Verde',
+  '#eab308': 'Amarelo',
+};
+
+function buildModelPreviewPalette(colors = []) {
+  const unique = new Map();
+  (Array.isArray(colors) ? colors : []).forEach((entry) => {
+    const normalized = String(entry || '').trim();
+    if (!normalized || !isValidCssColor(normalized)) return;
+    const key = normalized.toLowerCase();
+    if (!unique.has(key)) unique.set(key, normalized);
+  });
+
+  const palette = Array.from(unique.values()).map((hex) => ({
+    hex,
+    label: PREVIEW_COLOR_LABELS[hex.toLowerCase()] || String(hex).toUpperCase(),
+  }));
+
+  return palette.length ? palette : [DEFAULT_MODEL_PREVIEW_COLOR];
+}
 
 function Public3DViewer({
   url,
@@ -506,7 +525,7 @@ function ProductPage() {
   const [isAddingSimple, setIsAddingSimple] = useState(false);
   const [isBuyingSimple, setIsBuyingSimple] = useState(false);
   const [is3dModalOpen, setIs3dModalOpen] = useState(false);
-  const [preview3dColor, setPreview3dColor] = useState(MODEL_PREVIEW_COLORS[2].hex);
+  const [preview3dColor, setPreview3dColor] = useState(DEFAULT_MODEL_PREVIEW_COLOR.hex);
   const [preview3dDimensions, setPreview3dDimensions] = useState(null);
   const [preview3dResetSignal, setPreview3dResetSignal] = useState(0);
   const [activeDetailTab, setActiveDetailTab] = useState('description');
@@ -674,6 +693,22 @@ function ProductPage() {
   const activePublic3dContextLabel = activePublic3dLabel
     ? `Modelo principal do subitem: ${activePublic3dLabel}`
     : 'Modelo principal do produto';
+  const preview3dPalette = useMemo(() => {
+    const subItemColors = Boolean(singleSelectedSubItem?.allow_colors)
+      ? (singleSelectedSubItem?.available_colors || [])
+      : [];
+    const productColors = Boolean(productData.allow_colors)
+      ? (productData.available_colors || [])
+      : [];
+    const colors = subItemColors.length ? subItemColors : productColors;
+    return buildModelPreviewPalette(colors);
+  }, [
+    singleSelectedSubItem?.allow_colors,
+    singleSelectedSubItem?.available_colors,
+    productData.allow_colors,
+    productData.available_colors,
+  ]);
+  const defaultPreview3dColor = preview3dPalette[0]?.hex || DEFAULT_MODEL_PREVIEW_COLOR.hex;
   const productSecondarySwatches = getSecondarySwatches(
     productData.available_colors || [],
     productData.secondary_color_pairs || [],
@@ -716,13 +751,21 @@ function ProductPage() {
       setIs3dModalOpen(false);
       return;
     }
-    if (isValidCssColor(selectedColor)) {
-      setPreview3dColor(String(selectedColor).trim());
+    const normalizedSelectedColor = String(selectedColor || '').trim().toLowerCase();
+    const selectedColorInPalette = preview3dPalette.find(
+      (option) => option.hex.toLowerCase() === normalizedSelectedColor
+    );
+    if (selectedColorInPalette) {
+      setPreview3dColor(selectedColorInPalette.hex);
     } else {
-      setPreview3dColor(MODEL_PREVIEW_COLORS[2].hex);
+      setPreview3dColor((current) => {
+        const normalizedCurrent = String(current || '').trim().toLowerCase();
+        const currentInPalette = preview3dPalette.find((option) => option.hex.toLowerCase() === normalizedCurrent);
+        return currentInPalette ? currentInPalette.hex : defaultPreview3dColor;
+      });
     }
     setPreview3dResetSignal((current) => current + 1);
-  }, [activePublic3dUrl, shouldShowPublic3d, selectedColor]);
+  }, [activePublic3dUrl, shouldShowPublic3d, selectedColor, preview3dPalette, defaultPreview3dColor]);
 
   const reviewImagePreviews = useMemo(
     () =>
@@ -1053,7 +1096,6 @@ function ProductPage() {
               setIs3dModalOpen(true);
               setPreview3dResetSignal((current) => current + 1);
             }}
-            highlight3dPreview={is3dModalOpen}
           />
         </div>
 
@@ -1778,9 +1820,9 @@ function ProductPage() {
                 <h4 className="mt-1 text-sm font-semibold text-slate-900">Escolha a cor para visualizar</h4>
               </div>
               <div className="flex flex-wrap gap-2">
-                {MODEL_PREVIEW_COLORS.map((option) => (
+                {preview3dPalette.map((option, index) => (
                   <button
-                    key={`preview-color-${option.hex}`}
+                    key={`preview-color-${option.hex}-${index}`}
                     type="button"
                     className={`inline-flex items-center gap-2 rounded-full border px-2.5 py-1.5 text-xs font-semibold transition ${
                       preview3dColor === option.hex
