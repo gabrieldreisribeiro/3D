@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Navigate, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
   clearAdminToken,
@@ -151,10 +151,10 @@ function AdminLayout() {
   };
 
   const navClassName = ({ isActive }) =>
-    `group flex items-center gap-2.5 rounded-xl border px-3 py-2.5 text-sm font-medium transition-all duration-200 ${
+    `group flex items-center gap-2.5 rounded-xl border px-3 py-2.5 text-sm font-medium transition-all duration-300 ease-out ${
       isActive
         ? 'border-violet-200 bg-violet-50 text-violet-700 shadow-sm'
-        : 'border-transparent text-slate-600 hover:border-slate-200 hover:bg-white hover:text-slate-900'
+        : 'border-transparent text-slate-600 hover:border-slate-200 hover:bg-white hover:text-slate-900 hover:translate-x-1 hover:shadow-sm'
     }`;
 
   const isSuperAdmin = currentAdmin?.role === 'super_admin';
@@ -170,7 +170,7 @@ function AdminLayout() {
                 <NavLink key={item.to} to={item.to} end={Boolean(item.end)} className={navClassName}>
                   {({ isActive }) => (
                     <>
-                      <span className={`inline-flex h-7 w-7 items-center justify-center rounded-lg transition ${
+                      <span className={`inline-flex h-7 w-7 items-center justify-center rounded-lg transition-transform duration-300 ease-out group-hover:scale-110 ${
                         isActive
                           ? 'bg-violet-100 text-violet-700'
                           : 'bg-slate-100 text-slate-500 group-hover:bg-slate-200 group-hover:text-slate-700'
@@ -203,7 +203,7 @@ function AdminLayout() {
   );
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-100 via-slate-50 to-slate-100 lg:flex">
+    <div className="min-h-screen admin-bg-gradient lg:flex">
       <header className="sticky top-0 z-40 border-b border-slate-200/90 bg-white/95 px-4 py-3 backdrop-blur lg:hidden">
         <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-3">
           <div className="min-w-0">
@@ -265,7 +265,7 @@ function AdminLayout() {
         </div>
       ) : null}
 
-      <main className="mx-auto w-full max-w-[1520px] flex-1 overflow-x-hidden px-4 py-5 sm:px-6 lg:px-8 lg:py-8">
+      <main className="mx-auto w-full max-w-[1520px] flex-1 overflow-x-hidden px-4 py-5 sm:px-6 lg:px-8 lg:py-8 animate-fade-in-up">
         <Outlet context={{ logoUrl, setLogoUrl, logoSizeKey, setLogoSizeKey: handleLogoSizeChange }} />
       </main>
     </div>

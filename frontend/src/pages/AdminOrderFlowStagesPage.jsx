@@ -250,7 +250,7 @@ function AdminOrderFlowStagesPage() {
         {!loading ? (
           <div className="space-y-3">
             {orderedStages.map((stage) => (
-              <article key={stage.id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <article key={stage.id} className="glass-card rounded-2xl p-4 transition-all duration-300 hover:-translate-y-1 hover:shadow-lg">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">

@@ -35,9 +35,9 @@ function Modal({
   };
 
   return (
-    <div className="fixed inset-0 z-[70] flex items-end justify-center bg-slate-900/50 p-0 sm:items-center sm:p-4" onClick={handleBackdropClick}>
+    <div className="fixed inset-0 z-[70] flex items-end justify-center bg-slate-900/40 backdrop-blur-[3px] transition-opacity p-0 sm:items-center sm:p-4" onClick={handleBackdropClick}>
       <div
-        className={`w-full ${sizeClass} max-h-[96dvh] overflow-hidden rounded-t-2xl border border-slate-200 bg-white shadow-2xl sm:rounded-2xl`}
+        className={`w-full ${sizeClass} animate-modal-enter max-h-[96dvh] overflow-hidden rounded-t-2xl border border-slate-200/80 bg-white/95 backdrop-blur-3xl shadow-2xl sm:rounded-3xl`}
         onClick={(event) => event.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-3 border-b border-slate-200 bg-slate-50/80 px-4 py-4 sm:px-5">

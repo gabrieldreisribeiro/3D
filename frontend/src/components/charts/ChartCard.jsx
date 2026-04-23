@@ -1,6 +1,6 @@
 function ChartCard({ title, children }) {
   return (
-    <section className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-sm">
+    <section className="glass-card rounded-2xl p-4 transition-all duration-300 hover:-translate-y-1 hover:shadow-lg">
       <header className="mb-4 border-b border-slate-100 pb-3">
         <h3 className="text-sm font-semibold tracking-tight text-slate-900">{title}</h3>
       </header>

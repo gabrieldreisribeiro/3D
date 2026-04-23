@@ -159,7 +159,7 @@ function AdminDashboardPage() {
 
       {!loading && !error && summary ? (
         <>
-          <div className="admin-card-grid-4">
+          <div className="admin-card-grid-4 animate-fade-in-up stagger-1">
             <MetricCard label="Vendas" value={formatMoney(summary.total_sold)} helper="Receita no periodo" />
             <MetricCard label="Pedidos" value={summary.total_orders || 0} helper="Pedidos confirmados" />
             <MetricCard label="Itens vendidos" value={summary.total_items_sold || 0} helper="Volume comercializado" />
@@ -170,19 +170,19 @@ function AdminDashboardPage() {
             />
           </div>
 
-          <div className="admin-card-grid-3">
+          <div className="admin-card-grid-3 animate-fade-in-up stagger-2">
             <MetricCard label="Produtos ativos" value={summary.total_products || 0} helper="Catalogo publicado" />
             <MetricCard label="Sessoes geolocalizadas" value={summary.geolocated_sessions || 0} helper="Com pais, estado e cidade" />
             <MetricCard label="Ticket medio estimado" value={formatMoney((summary.total_sold || 0) / Math.max(summary.total_orders || 0, 1))} helper="Vendas / pedidos" />
           </div>
 
-          <div className="admin-card-grid-3">
+          <div className="admin-card-grid-3 animate-fade-in-up stagger-3">
             <MetricCard label="Pedidos via WhatsApp" value={summary.whatsapp_orders || 0} helper={formatMoney(summary.whatsapp_total || 0)} />
             <MetricCard label="Pedidos pagos via Pix" value={summary.pix_orders || 0} helper={formatMoney(summary.pix_total || 0)} />
             <MetricCard label="Pedidos pagos via Cartao" value={summary.credit_card_orders || 0} helper={formatMoney(summary.credit_card_total || 0)} />
           </div>
 
-          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2 animate-fade-in-up stagger-4">
             <ChartCard title="Vendas por periodo">
               <MiniBarChart points={summary.sales_series || []} money />
             </ChartCard>

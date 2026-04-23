@@ -2051,7 +2051,6 @@ select {
 
 .customer-order-detail-card {
   width: min(980px, 100%);
-  margin-inline: auto;
 }
 
 .customer-content-head {
@@ -2722,4 +2721,97 @@ select {
   .customer-detail-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+}
+
+/* --- Antigravity Admin UI Overhaul --- */
+
+.animate-fade-in-up {
+  animation: fade-in-up 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  opacity: 0;
+}
+
+@keyframes fade-in-up {
+  0% {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.stagger-1 { animation-delay: 50ms; }
+.stagger-2 { animation-delay: 100ms; }
+.stagger-3 { animation-delay: 150ms; }
+.stagger-4 { animation-delay: 200ms; }
+.stagger-5 { animation-delay: 250ms; }
+
+.glass-card {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  box-shadow: 0 4px 24px -6px rgba(15, 23, 42, 0.05);
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.glass-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 32px -8px rgba(15, 23, 42, 0.1);
+  border: 1px solid rgba(139, 92, 246, 0.2); /* violet-500/20 */
+}
+
+/* Modal enter animation */
+.animate-modal-enter {
+  animation: modal-enter 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes modal-enter {
+  0% {
+    opacity: 0;
+    transform: scale(0.95) translateY(10px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* Kanban Drag & Drop Enhancements */
+.kanban-drag-item {
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s ease, border-color 0.2s ease;
+  cursor: grab;
+}
+
+.kanban-drag-item:active {
+  cursor: grabbing;
+  transform: scale(0.96) !important;
+  box-shadow: 0 16px 32px -8px rgba(15, 23, 42, 0.15);
+  border-color: rgba(139, 92, 246, 0.4) !important;
+}
+
+/* Smoother Inputs and Buttons */
+.smooth-focus {
+  transition: border-color 0.3s ease, box-shadow 0.3s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.3s ease;
+}
+
+.btn-micro-interaction {
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.btn-micro-interaction:active {
+  transform: scale(0.96);
+}
+
+/* Subtle gradient background for the admin */
+.admin-bg-gradient {
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 50%, #f8fafc 100%);
+  background-size: 200% 200%;
+  animation: bg-shift 15s ease infinite;
+}
+
+@keyframes bg-shift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
 }
