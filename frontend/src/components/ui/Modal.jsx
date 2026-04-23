@@ -37,10 +37,10 @@ function Modal({
   return (
     <div className="fixed inset-0 z-[70] flex items-end justify-center bg-slate-900/40 backdrop-blur-[3px] transition-opacity p-0 sm:items-center sm:p-4" onClick={handleBackdropClick}>
       <div
-        className={`w-full ${sizeClass} animate-modal-enter flex flex-col max-h-[96dvh] sm:max-h-[90dvh] overflow-hidden rounded-t-2xl border border-slate-200/80 bg-white/95 backdrop-blur-3xl shadow-2xl sm:rounded-3xl`}
+        className={`w-full ${sizeClass} animate-modal-enter max-h-[96dvh] overflow-hidden rounded-t-2xl border border-slate-200/80 bg-white/95 backdrop-blur-3xl shadow-2xl sm:rounded-3xl`}
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="flex shrink-0 items-start justify-between gap-3 border-b border-slate-200 bg-slate-50/80 px-4 py-4 sm:px-5">
+        <div className="flex items-start justify-between gap-3 border-b border-slate-200 bg-slate-50/80 px-4 py-4 sm:px-5">
           <div className="min-w-0">
             <h3 className="break-words text-base font-semibold tracking-tight text-slate-900 sm:text-lg">{title}</h3>
             {subtitle ? <p className="mt-1 text-xs text-slate-500">{subtitle}</p> : null}
@@ -66,9 +66,9 @@ function Modal({
             </svg>
           </button>
         </div>
-        <div className="flex-1 overflow-y-auto bg-white px-4 py-4 sm:px-5">{children}</div>
+        <div className="max-h-[calc(96dvh-160px)] overflow-y-auto bg-white px-4 py-4 sm:px-5">{children}</div>
         {footer ? (
-          <div className="flex shrink-0 flex-wrap justify-end gap-2 border-t border-slate-200 bg-white/95 px-4 py-4 backdrop-blur sm:px-5 [&_button]:w-full sm:[&_button]:w-auto">
+          <div className="sticky bottom-0 z-10 flex flex-wrap justify-end gap-2 border-t border-slate-200 bg-white/95 px-4 py-4 backdrop-blur sm:px-5 [&_button]:w-full sm:[&_button]:w-auto">
             {footer}
           </div>
         ) : null}
