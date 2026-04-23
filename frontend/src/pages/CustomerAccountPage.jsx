@@ -5,6 +5,7 @@ import Card from '../components/ui/Card';
 import EmptyState from '../components/ui/EmptyState';
 import Input from '../components/ui/Input';
 import StatusBadge from '../components/ui/StatusBadge';
+import { getOptimizedImageSources } from '../services/api';
 import {
   changeCustomerPassword,
   clearCustomerSession,
@@ -18,10 +19,10 @@ import {
 } from '../services/api';
 
 const NAV_ITEMS = [
-  { key: 'overview', label: 'Minha conta' },
-  { key: 'orders', label: 'Minhas compras' },
-  { key: 'profile', label: 'Perfil' },
-  { key: 'password', label: 'Alterar senha' },
+  { key: 'overview', label: 'Minha conta', icon: 'HM' },
+  { key: 'orders', label: 'Minhas compras', icon: 'PD' },
+  { key: 'profile', label: 'Perfil', icon: 'PF' },
+  { key: 'password', label: 'Alterar senha', icon: 'SG' },
 ];
 
 function formatMoney(value) {
@@ -32,6 +33,15 @@ function formatDateTime(value) {
   if (!value) return '-';
   try {
     return new Date(value).toLocaleString('pt-BR');
+  } catch {
+    return '-';
+  }
+}
+
+function formatDate(value) {
+  if (!value) return '-';
+  try {
+    return new Date(value).toLocaleDateString('pt-BR');
   } catch {
     return '-';
   }
@@ -77,6 +87,92 @@ function productionBadgeTone(status) {
   if (key === 'in_production') return 'info';
   if (key === 'paid') return 'warning';
   return 'neutral';
+}
+
+function paymentStatusClass(status) {
+  const key = String(status || '').toLowerCase();
+  if (key === 'paid') return 'customer-pill customer-pill-success';
+  if (key === 'pending' || key === 'pending_payment' || key === 'awaiting_confirmation') {
+    return 'customer-pill customer-pill-warning';
+  }
+  if (key === 'failed' || key === 'canceled') return 'customer-pill customer-pill-danger';
+  return 'customer-pill customer-pill-neutral';
+}
+
+function paymentStatusIcon(status) {
+  const key = String(status || '').toLowerCase();
+  if (key === 'paid') return 'OK';
+  if (key === 'pending' || key === 'pending_payment' || key === 'awaiting_confirmation') return 'AG';
+  if (key === 'failed' || key === 'canceled') return 'FL';
+  return 'IN';
+}
+
+function stageIcon(step) {
+  const icon = String(step?.icon_name || '').toLowerCase();
+  if (step?.is_completed) return 'OK';
+  if (icon.includes('truck') || icon.includes('delivery')) return 'ENT';
+  if (icon.includes('print') || icon.includes('gear') || icon.includes('wrench') || icon.includes('hammer')) return 'PRD';
+  if (icon.includes('credit') || icon.includes('card') || icon.includes('pix') || icon.includes('payment')) return 'PG';
+  if (icon.includes('box') || icon.includes('package')) return 'CX';
+  return String(step?.name || '').slice(0, 2).toUpperCase() || '--';
+}
+
+function buildFallbackTimeline(order) {
+  const paid = String(order?.payment_status || '').toLowerCase() === 'paid';
+  const inProduction = ['in_production', 'ready'].includes(String(order?.production_status || '').toLowerCase());
+  const ready = String(order?.production_status || '').toLowerCase() === 'ready';
+
+  return [
+    {
+      stage_id: 'payment',
+      name: 'Pagamento aprovado',
+      description: 'Confirmacao financeira do pedido.',
+      completed_at: paid ? order?.paid_at || order?.updated_at : null,
+      is_completed: paid,
+      is_current: !paid,
+      color: '#16a34a',
+      icon_name: 'credit-card',
+    },
+    {
+      stage_id: 'production',
+      name: 'Em producao',
+      description: 'Seu pedido esta sendo produzido.',
+      completed_at: inProduction ? order?.production_started_at || order?.updated_at : null,
+      is_completed: inProduction,
+      is_current: paid && !inProduction,
+      color: '#2563eb',
+      icon_name: 'wrench',
+    },
+    {
+      stage_id: 'ready',
+      name: 'Pronto para entrega',
+      description: 'Pedido finalizado para envio ou retirada.',
+      completed_at: ready ? order?.ready_at || order?.updated_at : null,
+      is_completed: ready,
+      is_current: paid && inProduction && !ready,
+      color: '#64748b',
+      icon_name: 'truck',
+    },
+  ];
+}
+
+function normalizeTimeline(order) {
+  const source = Array.isArray(order?.timeline) && order.timeline.length ? order.timeline : buildFallbackTimeline(order);
+  return source.map((step, index) => ({
+    ...step,
+    key: String(step.stage_id || step.id || `${step.name}-${index}`),
+    is_completed: Boolean(step.is_completed),
+    is_current: Boolean(step.is_current),
+  }));
+}
+
+function orderProgress(order) {
+  const timeline = normalizeTimeline(order);
+  if (!timeline.length) return 0;
+  const completed = timeline.filter((step) => step.is_completed).length;
+  const current = timeline.some((step) => step.is_current);
+  const partial = current ? 0.5 : 0;
+  return Math.max(0, Math.min(100, Math.round(((completed + partial) / timeline.length) * 100)));
 }
 
 function firstNonEmpty(...values) {
@@ -231,10 +327,11 @@ function CustomerAccountPage() {
                 <button
                   key={item.key}
                   type="button"
-                  className={`customer-nav-item ${activeTab === item.key ? 'is-active' : ''}`}
+                  className={`customer-nav-item ${(activeTab === item.key || (item.key === 'orders' && activeTab === 'order_detail')) ? 'is-active' : ''}`}
                   onClick={() => setActiveTab(item.key)}
                 >
-                  {item.label}
+                  <span className="customer-nav-icon" aria-hidden="true">{item.icon}</span>
+                  <span>{item.label}</span>
                 </button>
               ))}
             </aside>
@@ -284,28 +381,50 @@ function CustomerAccountPage() {
                     />
                   ) : (
                     <div className="customer-orders-list">
-                      {orders.map((order) => (
-                        <article key={order.id} className="customer-order-card">
-                          <div className="customer-order-head">
-                            <div>
-                              <h4>Pedido #{order.id}</h4>
-                              <p>{formatDateTime(order.created_at)}</p>
+                      {orders.map((order) => {
+                        const progress = orderProgress(order);
+                        const orderLabel = order.current_stage_name || productionStatusLabel(order.production_status);
+                        return (
+                          <article key={order.id} className="customer-order-card">
+                            <div className="customer-order-head">
+                              <div>
+                                <h4>Pedido #{order.id}</h4>
+                                <p>{formatDateTime(order.created_at)}</p>
+                              </div>
+                              <div className="customer-order-badges">
+                                <StatusBadge tone={productionBadgeTone(order.production_status)}>{orderLabel}</StatusBadge>
+                                <span className={paymentStatusClass(order.payment_status)}>
+                                  {paymentStatusIcon(order.payment_status)} {paymentStatusLabel(order.payment_status)}
+                                </span>
+                              </div>
                             </div>
-                            <StatusBadge tone={statusBadgeTone(order.payment_status)}>
-                              {paymentStatusLabel(order.payment_status)}
-                            </StatusBadge>
-                          </div>
-                          <div className="customer-order-meta">
-                            <p><span>Pagamento</span><strong>{paymentMethodLabel(order.payment_method)}</strong></p>
-                            <p><span>Total</span><strong>{formatMoney(order.total)}</strong></p>
-                            <p><span>Etapa</span><strong>{order.current_stage_name || productionStatusLabel(order.production_status)}</strong></p>
-                            <p><span>Previsao</span><strong>{order.estimated_ready_at ? formatDateTime(order.estimated_ready_at) : '-'}</strong></p>
-                          </div>
-                          <Button variant="secondary" className="w-full sm:w-auto" onClick={() => handleOpenOrder(order.id)}>
-                            Ver detalhes
-                          </Button>
-                        </article>
-                      ))}
+
+                            <div className="customer-order-value-row">
+                              <p className="customer-order-value-label">Total do pedido</p>
+                              <strong className="customer-order-value">{formatMoney(order.total)}</strong>
+                            </div>
+
+                            <div className="customer-order-meta">
+                              <p><span>Pagamento</span><strong>{paymentMethodLabel(order.payment_method)}</strong></p>
+                              <p><span>Previsao</span><strong>{order.estimated_ready_at ? formatDate(order.estimated_ready_at) : '-'}</strong></p>
+                            </div>
+
+                            <div className="customer-order-progress">
+                              <div className="customer-order-progress-head">
+                                <span>Andamento</span>
+                                <strong>{progress}%</strong>
+                              </div>
+                              <div className="customer-order-progress-track" aria-hidden="true">
+                                <span className="customer-order-progress-fill" style={{ width: `${progress}%` }} />
+                              </div>
+                            </div>
+
+                            <Button className="w-full sm:w-auto" onClick={() => handleOpenOrder(order.id)}>
+                              Ver detalhes
+                            </Button>
+                          </article>
+                        );
+                      })}
                     </div>
                   )}
                 </Card>
@@ -317,42 +436,52 @@ function CustomerAccountPage() {
                     <EmptyState title="Nenhum pedido selecionado" description="Selecione um pedido na aba Minhas compras para ver os detalhes." />
                   ) : (
                     <>
+                      {(() => {
+                        const timeline = normalizeTimeline(selectedOrder);
+                        const currentStep = timeline.find((step) => step.is_current) || timeline.find((step) => !step.is_completed) || timeline[timeline.length - 1];
+                        const currentStageLabel = currentStep?.name || selectedOrder.current_stage_name || productionStatusLabel(selectedOrder.production_status);
+                        const currentProgress = orderProgress(selectedOrder);
+                        return (
+                          <>
                       <div className="customer-content-head">
                         <div>
                           <h3 className="customer-card-title">Pedido #{selectedOrder.id}</h3>
                           <p className="text-sm text-slate-500">Criado em {formatDateTime(selectedOrder.created_at)}</p>
                         </div>
-                        <StatusBadge tone={statusBadgeTone(selectedOrder.payment_status)}>
-                          {paymentStatusLabel(selectedOrder.payment_status)}
-                        </StatusBadge>
+                        <Button variant="secondary" className="w-full sm:w-auto" onClick={() => setActiveTab('orders')}>
+                          Voltar para compras
+                        </Button>
                       </div>
 
                       <section className="customer-order-hero">
                         <div className="customer-order-hero-main">
                           <p className="customer-order-hero-label">Status do pedido</p>
                           <div className="customer-order-hero-status-wrap">
-                            <StatusBadge tone={statusBadgeTone(selectedOrder.payment_status)}>
-                              {paymentStatusLabel(selectedOrder.payment_status)}
-                            </StatusBadge>
-                            <StatusBadge tone={productionBadgeTone(selectedOrder.production_status)}>
-                              {selectedOrder.current_stage_name || productionStatusLabel(selectedOrder.production_status)}
-                            </StatusBadge>
+                            <span className="customer-order-hero-stage">{currentStageLabel}</span>
                           </div>
                           <h4 className="customer-order-hero-title">
-                            {selectedOrder.current_stage_name || productionStatusLabel(selectedOrder.production_status)}
+                            {String(currentStageLabel || '').toUpperCase()}
                           </h4>
                           <p className="customer-order-hero-subtitle">
-                            Acompanhe abaixo cada etapa da producao e atualizacoes do pedido em tempo real.
+                            Acompanhe as etapas atualizadas do seu pedido em tempo real.
                           </p>
                         </div>
                         <div className="customer-order-hero-metrics">
                           <div className="customer-order-hero-metric">
-                            <span>Previsao de conclusao</span>
-                            <strong>{selectedOrder.estimated_ready_at ? formatDateTime(selectedOrder.estimated_ready_at) : '-'}</strong>
+                            <span>Status do pagamento</span>
+                            <strong>
+                              <span className={paymentStatusClass(selectedOrder.payment_status)}>
+                                {paymentStatusIcon(selectedOrder.payment_status)} {paymentStatusLabel(selectedOrder.payment_status)}
+                              </span>
+                            </strong>
                           </div>
                           <div className="customer-order-hero-metric">
-                            <span>Status do pagamento</span>
-                            <strong>{paymentStatusLabel(selectedOrder.payment_status)}</strong>
+                            <span>Previsao de entrega</span>
+                            <strong>{selectedOrder.estimated_ready_at ? formatDate(selectedOrder.estimated_ready_at) : '-'}</strong>
+                          </div>
+                          <div className="customer-order-hero-metric">
+                            <span>Progresso</span>
+                            <strong>{currentProgress}% concluido</strong>
                           </div>
                         </div>
                       </section>
@@ -367,7 +496,14 @@ function CustomerAccountPage() {
                         <div className="customer-detail-block">
                           <h4>Pagamento</h4>
                           <p><span>Metodo</span><strong>{paymentMethodLabel(selectedOrder.payment_method)}</strong></p>
-                          <p><span>Status</span><strong>{paymentStatusLabel(selectedOrder.payment_status)}</strong></p>
+                          <p>
+                            <span>Status</span>
+                            <strong>
+                              <span className={paymentStatusClass(selectedOrder.payment_status)}>
+                                {paymentStatusIcon(selectedOrder.payment_status)} {paymentStatusLabel(selectedOrder.payment_status)}
+                              </span>
+                            </strong>
+                          </p>
                           {selectedOrder.receipt_url ? (
                             <a className="customer-link" href={selectedOrder.receipt_url} target="_blank" rel="noreferrer">
                               Baixar comprovante
@@ -387,31 +523,33 @@ function CustomerAccountPage() {
 
                       <div className="space-y-2">
                         <h4 className="customer-card-subtitle">Andamento</h4>
-                        {(selectedOrder.timeline || []).length ? (
-                          <div className="customer-timeline">
-                            {(selectedOrder.timeline || []).map((step) => (
-                              <div key={step.stage_id} className={`customer-timeline-item ${step.is_current ? 'is-current' : step.is_completed ? 'is-completed' : 'is-pending'}`}>
-                                <div className="customer-timeline-track" aria-hidden="true">
-                                  <span
-                                    className={`customer-timeline-dot ${step.is_current ? 'is-current' : step.is_completed ? 'is-completed' : 'is-pending'}`}
-                                    style={{ backgroundColor: step.color || undefined }}
-                                  >
-                                    {step.is_completed ? 'v' : null}
-                                  </span>
-                                  <span className={`customer-timeline-line ${step.is_completed ? 'is-completed' : ''}`} />
-                                </div>
-                                <div className="customer-timeline-content">
-                                  <div className="customer-timeline-head">
-                                    <p className="customer-timeline-title">{step.name}</p>
-                                    <StatusBadge tone={step.is_current ? 'info' : step.is_completed ? 'success' : 'neutral'}>
-                                      {step.is_current ? 'Atual' : step.is_completed ? 'Concluida' : 'Pendente'}
-                                    </StatusBadge>
+                        {timeline.length ? (
+                          <div className="customer-timeline-horizontal-wrap">
+                            <div className="customer-timeline-horizontal">
+                              {timeline.map((step, index) => {
+                                const stateClass = step.is_current ? 'is-current' : step.is_completed ? 'is-completed' : 'is-pending';
+                                return (
+                                  <div key={step.key} className={`customer-h-step ${stateClass}`}>
+                                    <div className="customer-h-step-top">
+                                      <span className={`customer-h-step-dot ${stateClass}`} style={{ borderColor: step.color || undefined }}>
+                                        {stageIcon(step)}
+                                      </span>
+                                      {index < timeline.length - 1 ? (
+                                        <span className={`customer-h-step-line ${step.is_completed ? 'is-completed' : ''}`} aria-hidden="true" />
+                                      ) : null}
+                                    </div>
+                                    <div className="customer-h-step-body">
+                                      <p className="customer-h-step-title">{step.name}</p>
+                                      <div className="customer-h-step-meta">
+                                        {step.is_current ? <span className="customer-h-current-tag">Atual</span> : null}
+                                        <span className="customer-h-step-date">{step.completed_at ? formatDateTime(step.completed_at) : '-'}</span>
+                                      </div>
+                                      {step.description ? <p className="customer-h-step-desc">{step.description}</p> : null}
+                                    </div>
                                   </div>
-                                  {step.description ? <p className="customer-timeline-description">{step.description}</p> : null}
-                                  <p className="customer-timeline-date">{step.completed_at ? formatDateTime(step.completed_at) : '-'}</p>
-                                </div>
-                              </div>
-                            ))}
+                                );
+                              })}
+                            </div>
                           </div>
                         ) : (
                           <div className="flex flex-wrap gap-2">
@@ -433,12 +571,22 @@ function CustomerAccountPage() {
                           <div className="customer-items-list">
                             {selectedOrder.items.map((item, index) => {
                               const thumbUrl = resolveOrderItemThumb(item);
+                              const thumbSources = getOptimizedImageSources(thumbUrl, { variant: 'thumbnail', sizes: '56px' });
                               return (
                                 <div key={`${item.product_slug}-${index}`} className="customer-item-row">
                                   <div className="customer-item-left">
                                     <div className="customer-item-thumb">
                                       {thumbUrl ? (
-                                        <img src={thumbUrl} alt={item.title} loading="lazy" />
+                                        <img
+                                          src={thumbSources.src || thumbUrl}
+                                          srcSet={thumbSources.srcSet || undefined}
+                                          sizes={thumbSources.srcSet ? '56px' : undefined}
+                                          alt={item.title}
+                                          loading="lazy"
+                                          decoding="async"
+                                          width="56"
+                                          height="56"
+                                        />
                                       ) : (
                                         <span>{(item.title || '?').slice(0, 1).toUpperCase()}</span>
                                       )}
@@ -455,6 +603,9 @@ function CustomerAccountPage() {
                           </div>
                         )}
                       </div>
+                          </>
+                        );
+                      })()}
                     </>
                   )}
                 </Card>
