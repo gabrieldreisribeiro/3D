@@ -2051,7 +2051,6 @@ select {
 
 .customer-order-detail-card {
   width: min(980px, 100%);
-  margin-inline: auto;
 }
 
 .customer-content-head {
