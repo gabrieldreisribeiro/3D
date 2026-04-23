@@ -18,7 +18,7 @@ function Button({
 
   return (
     <button
-      className={`inline-flex h-10 items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold tracking-tight transition-all duration-300 btn-micro-interaction focus-visible:outline-none focus-visible:ring-2 disabled:cursor-not-allowed disabled:opacity-60 ${styles[variant] || styles.primary} ${className}`.trim()}
+      className={`inline-flex h-10 items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold tracking-tight transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 disabled:cursor-not-allowed disabled:opacity-60 ${styles[variant] || styles.primary} ${className}`.trim()}
       disabled={loading || props.disabled}
       {...props}
     >

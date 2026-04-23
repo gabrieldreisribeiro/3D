@@ -321,7 +321,7 @@ function AdminOrdersPage() {
               {stageColumns.map(({ stage, orders: stageOrders }) => (
                 <section
                   key={stage.id}
-                  className="flex h-[74vh] w-[310px] flex-col rounded-2xl border border-slate-200/60 bg-slate-50/50 backdrop-blur-xl p-3.5 shadow-sm transition-all duration-300"
+                  className="flex h-[74vh] w-[310px] flex-col rounded-2xl border border-slate-200 bg-gradient-to-b from-white to-slate-50 p-3.5 shadow-sm"
                   onDragOver={(event) => {
                     event.preventDefault();
                     event.dataTransfer.dropEffect = 'move';
@@ -347,8 +347,8 @@ function AdminOrdersPage() {
                         draggable
                         onDragStart={() => setDraggingOrderId(order.id)}
                         onDragEnd={() => setDraggingOrderId(null)}
-                        className={`kanban-drag-item rounded-xl border bg-white/90 backdrop-blur-sm p-3 ${
-                          movingOrderId === order.id ? 'border-violet-300 opacity-70 scale-95 shadow-lg' : 'border-slate-200 hover:border-violet-200 hover:shadow-md'
+                        className={`rounded-xl border bg-white p-3 transition ${
+                          movingOrderId === order.id ? 'border-violet-300 opacity-70' : 'border-slate-200 hover:border-violet-200 hover:shadow-md'
                         }`}
                       >
                         <div className="mb-2 flex items-center justify-between gap-2">
