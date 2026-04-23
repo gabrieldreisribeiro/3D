@@ -4,7 +4,7 @@ import zipfile
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
-from fastapi.responses import StreamingResponse
+from fastapi.responses import FileResponse
 from starlette.background import BackgroundTask
 
 from app.core.config import (
@@ -245,18 +245,10 @@ def download_all_uploads(_: AdminUser = Depends(require_admin)):
                 archive_name = f'{folder_key}/{file_path.name}'
                 archive.write(file_path, archive_name)
 
-    def _iter_file_chunks(path: Path, chunk_size: int = 1024 * 1024):
-        with path.open('rb') as file_stream:
-            while True:
-                chunk = file_stream.read(chunk_size)
-                if not chunk:
-                    break
-                yield chunk
-
     cleanup = BackgroundTask(lambda: temp_zip_path.unlink(missing_ok=True))
-    return StreamingResponse(
-        _iter_file_chunks(temp_zip_path),
+    return FileResponse(
+        path=temp_zip_path,
         media_type='application/zip',
-        headers={'Content-Disposition': 'attachment; filename="uploads-gallery.zip"'},
+        filename='uploads-gallery.zip',
         background=cleanup,
     )
