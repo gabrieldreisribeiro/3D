@@ -197,16 +197,56 @@ function formatMmAsCm(mmValue) {
   return `${(mm / 10).toFixed(1)} cm`;
 }
 
-function Public3DViewer({ url, referenceDimensionsMm = null }) {
+function isValidCssColor(value) {
+  const color = String(value || '').trim();
+  if (!color) return false;
+  return typeof window !== 'undefined' && typeof window.CSS !== 'undefined' && typeof window.CSS.supports === 'function'
+    ? window.CSS.supports('color', color)
+    : true;
+}
+
+const MODEL_PREVIEW_COLORS = [
+  { label: 'Branco', hex: '#f8fafc' },
+  { label: 'Preto', hex: '#0f172a' },
+  { label: 'Cinza', hex: '#94a3b8' },
+  { label: 'Vermelho', hex: '#ef4444' },
+  { label: 'Azul', hex: '#2563eb' },
+  { label: 'Verde', hex: '#16a34a' },
+  { label: 'Amarelo', hex: '#eab308' },
+];
+
+function Public3DViewer({
+  url,
+  referenceDimensionsMm = null,
+  colorHex = '#94a3b8',
+  onDimensionsChange = null,
+  resetSignal = 0,
+  className = '',
+}) {
   const mountRef = useRef(null);
   const [failed, setFailed] = useState(false);
-  const [dimensionsMm, setDimensionsMm] = useState(null);
-  const [measuring, setMeasuring] = useState(false);
+  const [loadingModel, setLoadingModel] = useState(false);
+  const controlsRef = useRef(null);
+  const cameraRef = useRef(null);
+  const initialCameraRef = useRef(null);
+  const initialTargetRef = useRef(null);
+  const modelRootRef = useRef(null);
+  const modelMaterialsRef = useRef([]);
+
+  const applyColor = (hex) => {
+    const safeHex = String(hex || '').trim() || '#94a3b8';
+    const materials = modelMaterialsRef.current || [];
+    materials.forEach((material) => {
+      if (!material || !material.color || typeof material.color.set !== 'function') return;
+      material.color.set(safeHex);
+      material.needsUpdate = true;
+    });
+  };
 
   useEffect(() => {
     setFailed(false);
-    setDimensionsMm(null);
-    setMeasuring(Boolean(url && is3DPreviewFile(url)));
+    setLoadingModel(Boolean(url && is3DPreviewFile(url)));
+    if (typeof onDimensionsChange === 'function') onDimensionsChange(null);
     if (!url || !mountRef.current || !is3DPreviewFile(url)) return undefined;
 
     let disposed = false;
@@ -225,145 +265,56 @@ function Public3DViewer({ url, referenceDimensionsMm = null }) {
 
         const container = mountRef.current;
         const scene = new THREE.Scene();
-        scene.background = new THREE.Color('#f8fafc');
+        scene.background = new THREE.Color('#f1f5f9');
 
         const camera = new THREE.PerspectiveCamera(40, container.clientWidth / Math.max(container.clientHeight, 1), 0.1, 2000);
+        cameraRef.current = camera;
         const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
         renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
         renderer.setSize(container.clientWidth, container.clientHeight);
         container.innerHTML = '';
         container.appendChild(renderer.domElement);
 
-        const ambient = new THREE.AmbientLight('#ffffff', 0.9);
-        const key = new THREE.DirectionalLight('#ffffff', 1);
-        key.position.set(2, 4, 6);
-        const fill = new THREE.DirectionalLight('#ffffff', 0.45);
-        fill.position.set(-4, -2, 3);
-        scene.add(ambient, key, fill);
+        const ambient = new THREE.AmbientLight('#ffffff', 1.15);
+        const key = new THREE.DirectionalLight('#ffffff', 1.35);
+        key.position.set(7, 10, 12);
+        const fill = new THREE.DirectionalLight('#dbeafe', 0.65);
+        fill.position.set(-8, 5, -6);
+        const rim = new THREE.DirectionalLight('#ffffff', 0.5);
+        rim.position.set(2, 6, -10);
+        scene.add(ambient, key, fill, rim);
 
         const controls = new OrbitControls(camera, renderer.domElement);
-        controls.enablePan = false;
+        controlsRef.current = controls;
+        controls.enablePan = true;
         controls.enableZoom = true;
         controls.enableRotate = true;
         controls.enableDamping = true;
-        controls.dampingFactor = 0.08;
-        controls.autoRotate = true;
-        controls.autoRotateSpeed = 1.2;
-
-        const textSprites = [];
-        const spriteMaterials = [];
-        const spriteTextures = [];
-        const measurementMaterials = [];
-
-        const createTextSprite = (text) => {
-          const canvas = document.createElement('canvas');
-          canvas.width = 256;
-          canvas.height = 80;
-          const context = canvas.getContext('2d');
-          if (!context) return null;
-          context.clearRect(0, 0, canvas.width, canvas.height);
-          context.fillStyle = 'rgba(15, 23, 42, 0.82)';
-          context.fillRect(0, 0, canvas.width, canvas.height);
-          context.strokeStyle = 'rgba(255, 255, 255, 0.28)';
-          context.lineWidth = 2;
-          context.strokeRect(1, 1, canvas.width - 2, canvas.height - 2);
-          context.fillStyle = '#ffffff';
-          context.font = '600 28px system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
-          context.textAlign = 'center';
-          context.textBaseline = 'middle';
-          context.fillText(String(text || ''), canvas.width / 2, canvas.height / 2);
-
-          const texture = new THREE.CanvasTexture(canvas);
-          texture.needsUpdate = true;
-          const material = new THREE.SpriteMaterial({
-            map: texture,
-            depthTest: false,
-            depthWrite: false,
-            transparent: true,
-          });
-          const sprite = new THREE.Sprite(material);
-          sprite.renderOrder = 999;
-          sprite.scale.set(0.9, 0.28, 1);
-          textSprites.push(sprite);
-          spriteMaterials.push(material);
-          spriteTextures.push(texture);
-          return sprite;
-        };
-
-        const addMeasurementOverlay = (group, size, dimensions) => {
-          const halfX = (size.x || 0) / 2;
-          const halfY = (size.y || 0) / 2;
-          const halfZ = (size.z || 0) / 2;
-          if (halfX <= 0 || halfY <= 0 || halfZ <= 0) return;
-
-          const maxDim = Math.max(size.x || 1, size.y || 1, size.z || 1);
-          const offset = maxDim * 0.12;
-          const tick = maxDim * 0.03;
-
-          const widthY = -halfY - offset;
-          const heightX = halfX + offset;
-          const depthY = halfY + offset;
-
-          const widthLabel = createTextSprite(`L: ${formatMmAsCm(dimensions?.width_mm)}`);
-          const heightLabel = createTextSprite(`A: ${formatMmAsCm(dimensions?.height_mm)}`);
-          const depthLabel = createTextSprite(`P: ${formatMmAsCm(dimensions?.depth_mm)}`);
-
-          const widthGeometry = new THREE.BufferGeometry().setFromPoints([
-            new THREE.Vector3(-halfX, widthY, halfZ),
-            new THREE.Vector3(halfX, widthY, halfZ),
-            new THREE.Vector3(-halfX, widthY - tick, halfZ),
-            new THREE.Vector3(-halfX, widthY + tick, halfZ),
-            new THREE.Vector3(halfX, widthY - tick, halfZ),
-            new THREE.Vector3(halfX, widthY + tick, halfZ),
-          ]);
-          const widthMaterial = new THREE.LineBasicMaterial({ color: '#2563eb' });
-          measurementMaterials.push(widthMaterial);
-          const widthLines = new THREE.LineSegments(widthGeometry, widthMaterial);
-          group.add(widthLines);
-
-          const heightGeometry = new THREE.BufferGeometry().setFromPoints([
-            new THREE.Vector3(heightX, -halfY, halfZ),
-            new THREE.Vector3(heightX, halfY, halfZ),
-            new THREE.Vector3(heightX - tick, -halfY, halfZ),
-            new THREE.Vector3(heightX + tick, -halfY, halfZ),
-            new THREE.Vector3(heightX - tick, halfY, halfZ),
-            new THREE.Vector3(heightX + tick, halfY, halfZ),
-          ]);
-          const heightMaterial = new THREE.LineBasicMaterial({ color: '#16a34a' });
-          measurementMaterials.push(heightMaterial);
-          const heightLines = new THREE.LineSegments(heightGeometry, heightMaterial);
-          group.add(heightLines);
-
-          const depthGeometry = new THREE.BufferGeometry().setFromPoints([
-            new THREE.Vector3(-halfX, depthY, -halfZ),
-            new THREE.Vector3(-halfX, depthY, halfZ),
-            new THREE.Vector3(-halfX, depthY - tick, -halfZ),
-            new THREE.Vector3(-halfX, depthY + tick, -halfZ),
-            new THREE.Vector3(-halfX, depthY - tick, halfZ),
-            new THREE.Vector3(-halfX, depthY + tick, halfZ),
-          ]);
-          const depthMaterial = new THREE.LineBasicMaterial({ color: '#f59e0b' });
-          measurementMaterials.push(depthMaterial);
-          const depthLines = new THREE.LineSegments(depthGeometry, depthMaterial);
-          group.add(depthLines);
-
-          if (widthLabel) {
-            widthLabel.position.set(0, widthY - tick * 2.4, halfZ);
-            group.add(widthLabel);
-          }
-          if (heightLabel) {
-            heightLabel.position.set(heightX + tick * 2.5, 0, halfZ);
-            group.add(heightLabel);
-          }
-          if (depthLabel) {
-            depthLabel.position.set(-halfX, depthY + tick * 2.4, 0);
-            group.add(depthLabel);
-          }
-        };
+        controls.dampingFactor = 0.09;
+        controls.autoRotate = false;
+        controls.screenSpacePanning = true;
 
         const applyObject = (object) => {
+          modelMaterialsRef.current = [];
+          object.traverse((node) => {
+            if (!node || !node.isMesh) return;
+            if (Array.isArray(node.material)) {
+              node.material = node.material.map((material) => {
+                const cloned = material?.clone ? material.clone() : material;
+                if (cloned) modelMaterialsRef.current.push(cloned);
+                return cloned;
+              });
+            } else if (node.material) {
+              node.material = node.material.clone ? node.material.clone() : node.material;
+              modelMaterialsRef.current.push(node.material);
+            }
+            node.castShadow = false;
+            node.receiveShadow = false;
+          });
+
           const group = new THREE.Group();
           group.add(object);
+          modelRootRef.current = group;
           scene.add(group);
 
           const box = new THREE.Box3().setFromObject(group);
@@ -373,19 +324,27 @@ function Public3DViewer({ url, referenceDimensionsMm = null }) {
             referenceDimensionsMm
           );
           if (!disposed) {
-            setDimensionsMm(measured);
-            setMeasuring(false);
+            setLoadingModel(false);
+            if (typeof onDimensionsChange === 'function') onDimensionsChange(measured);
           }
-          addMeasurementOverlay(group, size, measured);
           const center = box.getCenter(new THREE.Vector3());
           group.position.sub(center);
 
-          const maxDim = Math.max(size.x || 1, size.y || 1, size.z || 1);
-          const distance = maxDim * 1.9;
-          camera.position.set(distance, distance * 0.7, distance);
+          const safeMax = Math.max(size.x || 1, size.y || 1, size.z || 1);
+          const fovRadians = (camera.fov * Math.PI) / 180;
+          const fitHeightDistance = safeMax / (2 * Math.tan(fovRadians / 2));
+          const fitWidthDistance = fitHeightDistance / Math.max(camera.aspect, 0.1);
+          const distance = Math.max(fitHeightDistance, fitWidthDistance) * 1.4;
+
+          camera.position.set(distance * 0.9, distance * 0.65, distance * 1.1);
           camera.lookAt(0, 0, 0);
           controls.target.set(0, 0, 0);
+          controls.minDistance = Math.max(0.08, safeMax * 0.35);
+          controls.maxDistance = Math.max(4, safeMax * 6);
           controls.update();
+          initialCameraRef.current = camera.position.clone();
+          initialTargetRef.current = controls.target.clone();
+          applyColor(colorHex);
 
           const renderFrame = () => {
             if (disposed) return;
@@ -410,7 +369,7 @@ function Public3DViewer({ url, referenceDimensionsMm = null }) {
             undefined,
             () => {
               setFailed(true);
-              setMeasuring(false);
+              setLoadingModel(false);
             }
           );
         } else {
@@ -424,7 +383,7 @@ function Public3DViewer({ url, referenceDimensionsMm = null }) {
             undefined,
             () => {
               setFailed(true);
-              setMeasuring(false);
+              setLoadingModel(false);
             }
           );
         }
@@ -442,12 +401,11 @@ function Public3DViewer({ url, referenceDimensionsMm = null }) {
         cleanup = () => {
           observer.disconnect();
           controls.dispose();
-          measurementMaterials.forEach((material) => material.dispose());
-          textSprites.forEach((sprite) => {
-            if (sprite.parent) sprite.parent.remove(sprite);
+          modelMaterialsRef.current.forEach((material) => {
+            if (material?.dispose) material.dispose();
           });
-          spriteMaterials.forEach((material) => material.dispose());
-          spriteTextures.forEach((texture) => texture.dispose());
+          modelMaterialsRef.current = [];
+          modelRootRef.current = null;
           renderer.dispose();
           renderer.forceContextLoss();
           if (renderer.domElement && renderer.domElement.parentNode === container) {
@@ -456,7 +414,7 @@ function Public3DViewer({ url, referenceDimensionsMm = null }) {
         };
       } catch {
         setFailed(true);
-        setMeasuring(false);
+        setLoadingModel(false);
       }
     };
 
@@ -469,23 +427,29 @@ function Public3DViewer({ url, referenceDimensionsMm = null }) {
     };
   }, [url, referenceDimensionsMm]);
 
+  useEffect(() => {
+    applyColor(colorHex);
+  }, [colorHex]);
+
+  useEffect(() => {
+    if (!resetSignal) return;
+    const controls = controlsRef.current;
+    const camera = cameraRef.current;
+    const initialCamera = initialCameraRef.current;
+    const initialTarget = initialTargetRef.current;
+    if (!controls || !camera || !initialCamera || !initialTarget) return;
+    camera.position.copy(initialCamera);
+    controls.target.copy(initialTarget);
+    controls.update();
+  }, [resetSignal]);
+
   return (
-    <div>
-      <div className="relative h-[360px] overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 md:h-[440px]">
+    <div className={className}>
+      <div className="relative h-[360px] overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-100 via-slate-50 to-slate-100 md:h-[560px]">
         <div ref={mountRef} className="h-full w-full" />
         {failed ? <div className="absolute inset-0 flex items-center justify-center text-sm font-semibold text-slate-500">Nao foi possivel renderizar</div> : null}
+        {loadingModel && !failed ? <div className="absolute inset-0 flex items-center justify-center text-sm font-semibold text-slate-500">Carregando modelo 3D...</div> : null}
       </div>
-      {dimensionsMm ? (
-        <div className="mt-4 rounded-xl border border-[#E6EAF0] bg-[#F9FAFB] p-3">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Dimensoes (modelo real)</p>
-          <div className="mt-2 grid grid-cols-1 gap-2 text-sm text-slate-700 sm:grid-cols-3">
-            <p className="rounded-lg border border-slate-200 bg-white px-3 py-2"><strong className="text-slate-900">Largura:</strong> {formatMmAsCm(dimensionsMm.width_mm)}</p>
-            <p className="rounded-lg border border-slate-200 bg-white px-3 py-2"><strong className="text-slate-900">Altura:</strong> {formatMmAsCm(dimensionsMm.height_mm)}</p>
-            <p className="rounded-lg border border-slate-200 bg-white px-3 py-2"><strong className="text-slate-900">Profundidade:</strong> {formatMmAsCm(dimensionsMm.depth_mm)}</p>
-          </div>
-        </div>
-      ) : null}
-      {measuring && !failed ? <p className="mt-3 text-xs text-slate-500">Calculando dimensoes do modelo...</p> : null}
     </div>
   );
 }
@@ -541,6 +505,10 @@ function ProductPage() {
   const [isBuyingCustom, setIsBuyingCustom] = useState(false);
   const [isAddingSimple, setIsAddingSimple] = useState(false);
   const [isBuyingSimple, setIsBuyingSimple] = useState(false);
+  const [is3dModalOpen, setIs3dModalOpen] = useState(false);
+  const [preview3dColor, setPreview3dColor] = useState(MODEL_PREVIEW_COLORS[2].hex);
+  const [preview3dDimensions, setPreview3dDimensions] = useState(null);
+  const [preview3dResetSignal, setPreview3dResetSignal] = useState(0);
   const [activeDetailTab, setActiveDetailTab] = useState('description');
   const [reviewSort, setReviewSort] = useState('recent');
   const [reviewsSummary, setReviewsSummary] = useState({
@@ -676,27 +644,36 @@ function ProductPage() {
   const selectedSubItemEntries = (productData.sub_items || [])
     .map((item, index) => ({ item, key: getSubItemKey(item, index) }))
     .filter(({ key }) => Boolean(selectedSubItems[key]));
-  const selectedSubItemPublicModel = selectedSubItemEntries.length === 1 ? selectedSubItemEntries[0]?.item?.public_3d_model : null;
+  const singleSelectedSubItem = selectedSubItemEntries.length === 1 ? selectedSubItemEntries[0]?.item || null : null;
+  const selectedSubItemPublicModel = singleSelectedSubItem?.public_3d_model || null;
   const activePublic3dModel = selectedSubItemPublicModel || productData.public_3d_model || null;
   const activePublic3dUrl = resolveImageUrl(activePublic3dModel?.preview_file_url || '');
   const shouldShowPublic3d = Boolean(activePublic3dUrl && is3DPreviewFile(activePublic3dUrl));
-  const activePublic3dLabel = selectedSubItemEntries.length === 1 ? selectedSubItemEntries[0]?.item?.title || '' : '';
-  const activePublic3dReferenceMm = selectedSubItemEntries.length === 1
-    ? {
-      width_mm: selectedSubItemEntries[0]?.item?.width_mm ?? null,
-      height_mm: selectedSubItemEntries[0]?.item?.height_mm ?? null,
-      depth_mm: selectedSubItemEntries[0]?.item?.depth_mm ?? null,
-    }
-    : {
-      width_mm: productData.width_mm ?? null,
-      height_mm: productData.height_mm ?? null,
-      depth_mm: productData.depth_mm ?? null,
-    };
-  const productSecondaryOptions = getSecondaryOptions(
-    productData.available_colors || [],
-    productData.secondary_color_pairs || [],
-    selectedColor
+  const activePublic3dLabel = singleSelectedSubItem?.title || '';
+  const activePublic3dReferenceMm = useMemo(
+    () => (singleSelectedSubItem
+      ? {
+        width_mm: singleSelectedSubItem?.width_mm ?? null,
+        height_mm: singleSelectedSubItem?.height_mm ?? null,
+        depth_mm: singleSelectedSubItem?.depth_mm ?? null,
+      }
+      : {
+        width_mm: productData.width_mm ?? null,
+        height_mm: productData.height_mm ?? null,
+        depth_mm: productData.depth_mm ?? null,
+      }),
+    [
+      singleSelectedSubItem?.width_mm,
+      singleSelectedSubItem?.height_mm,
+      singleSelectedSubItem?.depth_mm,
+      productData.width_mm,
+      productData.height_mm,
+      productData.depth_mm,
+    ]
   );
+  const activePublic3dContextLabel = activePublic3dLabel
+    ? `Modelo principal do subitem: ${activePublic3dLabel}`
+    : 'Modelo principal do produto';
   const productSecondarySwatches = getSecondarySwatches(
     productData.available_colors || [],
     productData.secondary_color_pairs || [],
@@ -732,6 +709,20 @@ function ProductPage() {
     if (configured) return configured.replace(/[^\d+]/g, '');
     return String(WHATSAPP_NUMBER || '').trim().replace(/[^\d+]/g, '');
   }, [storeSettings.whatsapp_number]);
+
+  useEffect(() => {
+    setPreview3dDimensions(null);
+    if (!shouldShowPublic3d) {
+      setIs3dModalOpen(false);
+      return;
+    }
+    if (isValidCssColor(selectedColor)) {
+      setPreview3dColor(String(selectedColor).trim());
+    } else {
+      setPreview3dColor(MODEL_PREVIEW_COLORS[2].hex);
+    }
+    setPreview3dResetSignal((current) => current + 1);
+  }, [activePublic3dUrl, shouldShowPublic3d, selectedColor]);
 
   const reviewImagePreviews = useMemo(
     () =>
@@ -1053,7 +1044,17 @@ function ProductPage() {
     <section className="mx-auto flex w-full max-w-[1280px] flex-col gap-8 px-4 py-6 sm:px-6 lg:gap-10 lg:px-6">
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-12 lg:gap-6">
         <div className="lg:col-span-7">
-          <ProductGallery images={galleryImages} selected={selectedImage} onSelect={setSelectedImage} />
+          <ProductGallery
+            images={galleryImages}
+            selected={selectedImage}
+            onSelect={setSelectedImage}
+            show3dPreview={shouldShowPublic3d}
+            onOpen3dPreview={() => {
+              setIs3dModalOpen(true);
+              setPreview3dResetSignal((current) => current + 1);
+            }}
+            highlight3dPreview={is3dModalOpen}
+          />
         </div>
 
         <aside className="space-y-4 rounded-[16px] border border-[#E6EAF0] bg-white p-5 shadow-[0_8px_24px_rgba(15,23,42,0.07)] lg:col-span-5">
@@ -1422,20 +1423,6 @@ function ProductPage() {
         ))}
       </section>
 
-      {shouldShowPublic3d ? (
-        <section className="rounded-[16px] border border-[#E6EAF0] bg-white p-4 shadow-sm sm:p-5 lg:p-6">
-          <div className="mb-3">
-            <h2 className="text-[20px] font-semibold tracking-tight text-[#111827]">Visualizacao 3D</h2>
-            <p className="mt-1 text-sm text-[#667085]">
-              {activePublic3dLabel
-                ? `Mostrando o modelo principal do subitem: ${activePublic3dLabel}`
-                : 'Modelo principal do produto.'}
-            </p>
-          </div>
-          <Public3DViewer url={activePublic3dUrl} referenceDimensionsMm={activePublic3dReferenceMm} />
-        </section>
-      ) : null}
-
       <section className="rounded-[16px] border border-[#E6EAF0] bg-white p-4 shadow-sm sm:p-5 lg:p-6">
         <div className="flex flex-wrap items-center gap-2 border-b border-[#E6EAF0] pb-3">
           <button
@@ -1758,6 +1745,74 @@ function ProductPage() {
           </div>
         </div>
       </section>
+
+      {shouldShowPublic3d ? (
+        <Modal
+          open={is3dModalOpen}
+          onClose={() => setIs3dModalOpen(false)}
+          title="Pre-visualizacao 3D"
+          subtitle={activePublic3dContextLabel}
+          size="lg"
+          closeOnEscape
+          footer={(
+            <>
+              <Button variant="secondary" onClick={() => setIs3dModalOpen(false)}>Fechar</Button>
+              <Button onClick={() => setPreview3dResetSignal((current) => current + 1)}>Resetar visao</Button>
+            </>
+          )}
+        >
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
+            <div className="lg:col-span-8">
+              <Public3DViewer
+                url={activePublic3dUrl}
+                referenceDimensionsMm={activePublic3dReferenceMm}
+                colorHex={preview3dColor}
+                onDimensionsChange={setPreview3dDimensions}
+                resetSignal={preview3dResetSignal}
+                className="rounded-2xl bg-white"
+              />
+            </div>
+            <aside className="space-y-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 lg:col-span-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Personalize a visualizacao</p>
+                <h4 className="mt-1 text-sm font-semibold text-slate-900">Escolha a cor para visualizar</h4>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {MODEL_PREVIEW_COLORS.map((option) => (
+                  <button
+                    key={`preview-color-${option.hex}`}
+                    type="button"
+                    className={`inline-flex items-center gap-2 rounded-full border px-2.5 py-1.5 text-xs font-semibold transition ${
+                      preview3dColor === option.hex
+                        ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
+                        : 'border-slate-200 bg-white text-slate-600 hover:border-emerald-300'
+                    }`}
+                    onClick={() => setPreview3dColor(option.hex)}
+                  >
+                    <span className="h-4 w-4 rounded-full border border-slate-300" style={{ backgroundColor: option.hex }} />
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+
+              {preview3dDimensions ? (
+                <div className="space-y-2 rounded-xl border border-slate-200 bg-white p-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Dimensoes estimadas</p>
+                  <p className="text-sm text-slate-700"><strong className="text-slate-900">Largura:</strong> {formatMmAsCm(preview3dDimensions.width_mm)}</p>
+                  <p className="text-sm text-slate-700"><strong className="text-slate-900">Altura:</strong> {formatMmAsCm(preview3dDimensions.height_mm)}</p>
+                  <p className="text-sm text-slate-700"><strong className="text-slate-900">Profundidade:</strong> {formatMmAsCm(preview3dDimensions.depth_mm)}</p>
+                </div>
+              ) : (
+                <p className="text-xs text-slate-500">As dimensoes aparecem automaticamente apos carregar o modelo.</p>
+              )}
+
+              <div className="rounded-xl border border-slate-200 bg-white p-3 text-xs text-slate-600">
+                Arraste para girar, use o scroll para zoom e arraste com o botao direito para mover a camera.
+              </div>
+            </aside>
+          </div>
+        </Modal>
+      ) : null}
 
       <Modal
         open={reviewModalOpen}
