@@ -733,10 +733,12 @@ export async function renameAdminUploadFile(folder, currentName, newName) {
 export async function downloadAdminUploadsZip() {
   const token = localStorage.getItem(ADMIN_TOKEN_KEY);
   const fingerprint = getClientFingerprint();
+  const sessionId = getSessionId();
   const response = await fetch(buildApiUrl('/admin/uploads/download-all'), {
     headers: {
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(fingerprint ? { 'X-Client-Fingerprint': fingerprint } : {}),
+      ...(sessionId ? { 'X-Session-Id': sessionId } : {}),
     },
   });
 
@@ -753,13 +755,16 @@ export async function downloadAdminUploadsZip() {
 
   const blob = await response.blob();
   const url = window.URL.createObjectURL(blob);
+  const contentDisposition = response.headers.get('content-disposition') || '';
+  const fileNameMatch = contentDisposition.match(/filename\*?=(?:UTF-8''|")?([^\";]+)/i);
+  const fileName = fileNameMatch?.[1] ? decodeURIComponent(fileNameMatch[1].trim()) : 'uploads-gallery.zip';
   const anchor = document.createElement('a');
   anchor.href = url;
-  anchor.download = 'uploads-gallery.zip';
+  anchor.download = fileName;
   document.body.appendChild(anchor);
   anchor.click();
   anchor.remove();
-  window.URL.revokeObjectURL(url);
+  window.setTimeout(() => window.URL.revokeObjectURL(url), 1000);
 }
 
 export function fetchAdminSummary(params = {}) {
