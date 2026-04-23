@@ -339,7 +339,7 @@ function CustomerAccountPage() {
             <div className="customer-panel-content">
               {activeTab === 'overview' ? (
                 <>
-                  <div className="customer-stats-grid">
+                  <div className="customer-stats-grid animate-fade-in-up stagger-1">
                     <Card className="customer-stat-card">
                       <p>Total de pedidos</p>
                       <strong>{stats.totalOrders}</strong>
@@ -354,7 +354,7 @@ function CustomerAccountPage() {
                     </Card>
                   </div>
 
-                  <Card className="space-y-3">
+                  <Card className="space-y-3 animate-fade-in-up stagger-2">
                     <h3 className="customer-card-title">Resumo da conta</h3>
                     <div className="customer-account-list">
                       <p><strong>Nome:</strong> {customer?.full_name || '-'}</p>
@@ -367,7 +367,7 @@ function CustomerAccountPage() {
               ) : null}
 
               {activeTab === 'orders' ? (
-                <Card className="space-y-4">
+                <Card className="space-y-4 animate-fade-in-up stagger-1">
                   <div className="customer-content-head">
                     <h3 className="customer-card-title">Minhas compras</h3>
                     <p className="text-sm text-slate-500">Visualize status, pagamento e detalhe dos pedidos.</p>
@@ -431,7 +431,7 @@ function CustomerAccountPage() {
               ) : null}
 
               {activeTab === 'order_detail' ? (
-                <Card className="customer-order-detail-card space-y-4">
+                <Card className="customer-order-detail-card space-y-4 animate-fade-in-up stagger-1">
                   {!selectedOrder ? (
                     <EmptyState title="Nenhum pedido selecionado" description="Selecione um pedido na aba Minhas compras para ver os detalhes." />
                   ) : (
@@ -612,7 +612,7 @@ function CustomerAccountPage() {
               ) : null}
 
               {activeTab === 'profile' ? (
-                <Card className="space-y-4">
+                <Card className="space-y-4 animate-fade-in-up stagger-1">
                   <div className="customer-content-head">
                     <h3 className="customer-card-title">Perfil</h3>
                     <p className="text-sm text-slate-500">Mantenha seus dados atualizados para facilitar novos pedidos.</p>
@@ -643,7 +643,7 @@ function CustomerAccountPage() {
               ) : null}
 
               {activeTab === 'password' ? (
-                <Card className="space-y-4">
+                <Card className="space-y-4 animate-fade-in-up stagger-1">
                   <div className="customer-content-head">
                     <h3 className="customer-card-title">Alterar senha</h3>
                     <p className="text-sm text-slate-500">Use uma senha forte para proteger sua conta.</p>
