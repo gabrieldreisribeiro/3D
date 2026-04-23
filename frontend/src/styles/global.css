@@ -1826,13 +1826,10 @@ select {
 }
 
 .customer-auth-card {
-  border-radius: 24px;
-  border-color: rgba(255, 255, 255, 0.6);
-  background: rgba(255, 255, 255, 0.7);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  padding: 32px;
-  box-shadow: 0 20px 40px rgba(15, 23, 42, 0.04), inset 0 0 0 1px rgba(255, 255, 255, 0.5);
+  border-radius: 18px;
+  border-color: #e7eaf3;
+  padding: 22px;
+  box-shadow: 0 14px 30px rgba(15, 23, 42, 0.08);
 }
 
 .customer-auth-eyebrow {
@@ -1983,16 +1980,14 @@ select {
 }
 
 .customer-panel-nav {
-  border-radius: 24px;
-  border-color: rgba(255, 255, 255, 0.6);
-  background: rgba(255, 255, 255, 0.7);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  padding: 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 18px;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  padding: 12px;
   height: fit-content;
   display: grid;
   gap: 6px;
-  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.03), inset 0 0 0 1px rgba(255, 255, 255, 0.5);
+  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.06);
 }
 
 .customer-nav-item {
@@ -2089,19 +2084,16 @@ select {
 }
 
 .customer-stat-card {
-  border-radius: 20px;
-  border-color: rgba(255, 255, 255, 0.6);
-  background: rgba(255, 255, 255, 0.7);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  padding: 24px;
-  box-shadow: 0 4px 15px rgba(15, 23, 42, 0.02), inset 0 0 0 1px rgba(255, 255, 255, 0.5);
+  border-radius: 18px;
+  border-color: #e5e7eb;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  padding: 20px;
 }
 
 .customer-stat-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 14px 28px rgba(15, 23, 42, 0.06), inset 0 0 0 1px rgba(255, 255, 255, 0.8);
+  transform: translateY(-1px);
+  box-shadow: 0 12px 20px rgba(15, 23, 42, 0.08);
 }
 
 .customer-stat-card p {
@@ -2134,22 +2126,18 @@ select {
 }
 
 .customer-order-card {
-  border-radius: 20px;
-  border-color: rgba(255, 255, 255, 0.6);
-  background: rgba(255, 255, 255, 0.7);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  padding: 24px;
+  border: 1px solid #e2e8f0;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  border-radius: 18px;
+  padding: 18px;
   display: grid;
-  gap: 16px;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 0 4px 15px rgba(15, 23, 42, 0.02), inset 0 0 0 1px rgba(255, 255, 255, 0.5);
+  gap: 14px;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .customer-order-card:hover {
-  transform: translateY(-2px);
-  border-color: #ddd6fe;
-  box-shadow: 0 14px 28px rgba(109, 40, 217, 0.06), inset 0 0 0 1px rgba(255, 255, 255, 0.8);
+  border-color: #c4b5fd;
+  box-shadow: 0 14px 28px rgba(15, 23, 42, 0.1);
 }
 
 .customer-order-head {

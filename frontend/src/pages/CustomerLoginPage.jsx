@@ -33,7 +33,7 @@ function CustomerLoginPage() {
 
   return (
     <section className="customer-auth-shell">
-      <div className="customer-auth-wrap animate-fade-in-up">
+      <div className="customer-auth-wrap">
         <Card className="customer-auth-card">
           <p className="customer-auth-eyebrow">Area do cliente</p>
           <h1 className="customer-auth-title">Entrar na conta</h1>
