@@ -354,13 +354,15 @@ function CustomerAccountPage() {
                     </Card>
                   </div>
 
-                  <div className="customer-detail-block mt-8">
-                    <h4>Resumo dos seus dados</h4>
-                    <p><span>Nome completo</span><strong>{customer?.full_name || '-'}</strong></p>
-                    <p><span>E-mail</span><strong>{customer?.email || '-'}</strong></p>
-                    <p><span>Telefone</span><strong>{customer?.phone_number || '-'}</strong></p>
-                    <p><span>Ultima compra</span><strong>{stats.lastOrder ? `#${stats.lastOrder.id}` : '-'}</strong></p>
-                  </div>
+                  <Card className="space-y-3">
+                    <h3 className="customer-card-title">Resumo da conta</h3>
+                    <div className="customer-account-list">
+                      <p><strong>Nome:</strong> {customer?.full_name || '-'}</p>
+                      <p><strong>Email:</strong> {customer?.email || '-'}</p>
+                      <p><strong>Telefone:</strong> {customer?.phone_number || '-'}</p>
+                      <p><strong>Ultimo pedido:</strong> {stats.lastOrder ? `#${stats.lastOrder.id}` : '-'}</p>
+                    </div>
+                  </Card>
                 </>
               ) : null}
 
@@ -418,7 +420,7 @@ function CustomerAccountPage() {
                             </div>
 
                             <Button className="w-full sm:w-auto" onClick={() => handleOpenOrder(order.id)}>
-                              Acompanhar pedido
+                              Ver detalhes
                             </Button>
                           </article>
                         );
@@ -461,7 +463,7 @@ function CustomerAccountPage() {
                             {String(currentStageLabel || '').toUpperCase()}
                           </h4>
                           <p className="customer-order-hero-subtitle">
-                            Acompanhe as etapas do seu pedido. Fique tranquilo, avisaremos quando houver novidades.
+                            Acompanhe as etapas atualizadas do seu pedido em tempo real.
                           </p>
                         </div>
                         <div className="customer-order-hero-metrics">
@@ -497,13 +499,9 @@ function CustomerAccountPage() {
                           <p>
                             <span>Status</span>
                             <strong>
-                              {selectedOrder.payment_method === 'whatsapp' ? (
-                                <span className="customer-pill customer-pill-neutral">Combinado via WhatsApp</span>
-                              ) : (
-                                <span className={paymentStatusClass(selectedOrder.payment_status)}>
-                                  {paymentStatusIcon(selectedOrder.payment_status)} {paymentStatusLabel(selectedOrder.payment_status)}
-                                </span>
-                              )}
+                              <span className={paymentStatusClass(selectedOrder.payment_status)}>
+                                {paymentStatusIcon(selectedOrder.payment_status)} {paymentStatusLabel(selectedOrder.payment_status)}
+                              </span>
                             </strong>
                           </p>
                           {selectedOrder.receipt_url ? (
@@ -616,10 +614,10 @@ function CustomerAccountPage() {
               {activeTab === 'profile' ? (
                 <Card className="space-y-4">
                   <div className="customer-content-head">
-                    <h3 className="customer-card-title">Meu Perfil</h3>
-                    <p className="text-sm text-slate-500">Mantenha seus dados atualizados para agilizar suas proximas compras e entregas.</p>
+                    <h3 className="customer-card-title">Perfil</h3>
+                    <p className="text-sm text-slate-500">Mantenha seus dados atualizados para facilitar novos pedidos.</p>
                   </div>
-                  <form className="grid gap-4 max-w-xl" onSubmit={handleSaveProfile}>
+                  <form className="grid gap-3" onSubmit={handleSaveProfile}>
                     <Input
                       label="Nome completo"
                       value={profileForm.full_name}
@@ -647,10 +645,10 @@ function CustomerAccountPage() {
               {activeTab === 'password' ? (
                 <Card className="space-y-4">
                   <div className="customer-content-head">
-                    <h3 className="customer-card-title">Segurança da Conta</h3>
-                    <p className="text-sm text-slate-500">Use uma senha forte e unica para manter sua conta e pedidos protegidos.</p>
+                    <h3 className="customer-card-title">Alterar senha</h3>
+                    <p className="text-sm text-slate-500">Use uma senha forte para proteger sua conta.</p>
                   </div>
-                  <form className="grid gap-4 max-w-xl" onSubmit={handleChangePassword}>
+                  <form className="grid gap-3" onSubmit={handleChangePassword}>
                     <Input
                       label="Senha atual"
                       type="password"
