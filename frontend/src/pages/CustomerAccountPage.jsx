@@ -431,7 +431,7 @@ function CustomerAccountPage() {
               ) : null}
 
               {activeTab === 'order_detail' ? (
-                <Card className="space-y-4">
+                <Card className="customer-order-detail-card space-y-4">
                   {!selectedOrder ? (
                     <EmptyState title="Nenhum pedido selecionado" description="Selecione um pedido na aba Minhas compras para ver os detalhes." />
                   ) : (

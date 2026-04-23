@@ -2049,6 +2049,11 @@ select {
   gap: 24px;
 }
 
+.customer-order-detail-card {
+  width: min(980px, 100%);
+  margin-inline: auto;
+}
+
 .customer-content-head {
   display: flex;
   flex-wrap: wrap;
