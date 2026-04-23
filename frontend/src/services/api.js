@@ -193,9 +193,18 @@ function isAnimatedGifUrl(url) {
   return /\.gif$/i.test(base);
 }
 
+function supportsOptimizedVariants(url) {
+  const { base } = splitAssetUrl(url);
+  if (!base) return false;
+  if (isAnimatedGifUrl(base)) return false;
+  if (/__orig\.[^./]+$/i.test(base)) return true;
+  if (/__thumb\.[^./]+$/i.test(base) || /__medium\.[^./]+$/i.test(base) || /__large\.[^./]+$/i.test(base)) return true;
+  return /\.webp$/i.test(base);
+}
+
 function withImageVariant(url, variant = 'large') {
   const { base, suffix } = splitAssetUrl(url);
-  if (!base || isAnimatedGifUrl(base)) return url;
+  if (!base || !supportsOptimizedVariants(base)) return url;
   const variantSuffix = variant === 'thumbnail' ? '__thumb' : variant === 'medium' ? '__medium' : '__large';
   const normalized = base.replace(/__(thumb|medium|large|orig)(?=\.[^./]+$)/i, '');
   const extMatch = normalized.match(/(\.[^./]+)$/);
@@ -220,6 +229,10 @@ export function getOptimizedImageSources(url, options = {}) {
   if (isAnimatedGifUrl(url)) {
     const src = resolveAssetUrl(url) || url;
     return { src, srcSet: '', sizes, isAnimated: true };
+  }
+  if (!supportsOptimizedVariants(url)) {
+    const src = resolveAssetUrl(url) || url;
+    return { src, srcSet: '', sizes, isAnimated: false };
   }
   const thumbnail = resolveOptimizedAssetUrl(url, 'thumbnail');
   const medium = resolveOptimizedAssetUrl(url, 'medium');
