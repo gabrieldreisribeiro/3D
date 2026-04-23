@@ -377,7 +377,7 @@ function CustomerAccountPage() {
                     <EmptyState
                       title="Voce ainda nao realizou nenhuma compra"
                       description="Quando seu primeiro pedido for criado, ele aparecera aqui automaticamente."
-                      action={<Link className="inline-flex text-sm font-semibold text-amber-700 underline hover:text-amber-800" to="/">Explorar produtos</Link>}
+                      action={<Link className="inline-flex text-sm font-semibold text-violet-700 underline" to="/">Explorar produtos</Link>}
                     />
                   ) : (
                     <div className="customer-orders-list">
