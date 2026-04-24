@@ -7,15 +7,12 @@ import StatusBadge from '../components/ui/StatusBadge';
 import {
   createAdmin3DModel,
   deleteAdmin3DModel,
-  downloadAllAdmin3MFImportItems,
   downloadAdmin3DModelOriginal,
-  downloadAdmin3MFImportItem,
   downloadAdmin3DModelPreview,
   downloadAllAdmin3DModels,
   fetchAdmin3DModelById,
   fetchAdmin3DModels,
   fetchAdminProducts,
-  processAdmin3MFImport,
   resolveAssetUrl,
   uploadAdmin3DOriginalFile,
   uploadAdmin3DPreviewFile,
@@ -64,14 +61,6 @@ function toOptionalNumber(value) {
 
 function formatDims(item) {
   return `${item.width_mm ?? '-'} x ${item.height_mm ?? '-'} x ${item.depth_mm ?? '-'} mm`;
-}
-
-function formatBytes(value) {
-  const total = Number(value || 0);
-  if (!Number.isFinite(total) || total <= 0) return '-';
-  if (total < 1024) return `${total} B`;
-  if (total < 1024 * 1024) return `${(total / 1024).toFixed(1)} KB`;
-  return `${(total / (1024 * 1024)).toFixed(2)} MB`;
 }
 
 function ModelCardSkeleton() {
@@ -389,9 +378,6 @@ function Admin3DModelsPage() {
   const [activeBatchId, setActiveBatchId] = useState('');
   const [batchUploading, setBatchUploading] = useState(false);
   const [batchSaving, setBatchSaving] = useState(false);
-  const [import3mfFile, setImport3mfFile] = useState(null);
-  const [import3mfProcessing, setImport3mfProcessing] = useState(false);
-  const [import3mfResult, setImport3mfResult] = useState(null);
   const [batchProductSearch, setBatchProductSearch] = useState('');
   const [batchSubItemSearch, setBatchSubItemSearch] = useState('');
   const [modalProductSearch, setModalProductSearch] = useState('');
@@ -647,95 +633,6 @@ function Admin3DModelsPage() {
         status: 'error',
         error_message: uploadError?.message || 'Falha no upload do preview.',
       });
-    }
-  };
-
-  const createQueueItemFrom3MFGenerated = (generated, defaultProductId = '') => ({
-    id: (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : `queue_3mf_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-    file: null,
-    file_name: String(generated?.file_name || '').trim(),
-    extension: '.stl',
-    signature: `3mf:${String(import3mfResult?.session_id || '')}:${String(generated?.part_id || '')}`,
-    product_id: defaultProductId ? String(defaultProductId) : '',
-    sub_item_id: '',
-    name: fileBaseName(generated?.file_name || generated?.display_label || 'modelo'),
-    description: String(generated?.display_label || '').trim() || '',
-    sort_order: '',
-    original_file_url: String(generated?.stl_file_url || '').trim(),
-    preview_file_url: String(generated?.stl_file_url || '').trim(),
-    width_mm: generated?.width_mm == null ? '' : String(generated.width_mm),
-    height_mm: generated?.height_mm == null ? '' : String(generated.height_mm),
-    depth_mm: generated?.depth_mm == null ? '' : String(generated.depth_mm),
-    dimensions_source: 'auto',
-    allow_download: false,
-    show_to_customer: false,
-    is_active: true,
-    status: 'ready',
-    error_message: '',
-  });
-
-  const addGeneratedToBatchQueue = (generated) => {
-    if (!generated || !import3mfResult?.session_id) return;
-    const signature = `3mf:${String(import3mfResult.session_id)}:${String(generated.part_id || '')}`;
-    const alreadyExists = batchQueue.some((item) => item.signature === signature);
-    if (alreadyExists) return;
-    const defaultProductId = productFilter !== 'all' ? String(productFilter) : '';
-    const nextItem = createQueueItemFrom3MFGenerated(generated, defaultProductId);
-    setBatchQueue((current) => [...current, nextItem]);
-    if (!activeBatchId) setActiveBatchId(nextItem.id);
-  };
-
-  const addAllGeneratedToBatchQueue = () => {
-    if (!import3mfResult?.session_id || !Array.isArray(import3mfResult?.items)) return;
-    const existingSignatures = new Set(batchQueue.map((item) => item.signature));
-    const defaultProductId = productFilter !== 'all' ? String(productFilter) : '';
-    const itemsToAppend = import3mfResult.items
-      .filter((entry) => {
-        const signature = `3mf:${String(import3mfResult.session_id)}:${String(entry.part_id || '')}`;
-        return !existingSignatures.has(signature);
-      })
-      .map((entry) => createQueueItemFrom3MFGenerated(entry, defaultProductId));
-    if (!itemsToAppend.length) return;
-    setBatchQueue((current) => [...current, ...itemsToAppend]);
-    if (!activeBatchId) setActiveBatchId(itemsToAppend[0].id);
-    flashNotice(`${itemsToAppend.length} STL(s) adicionados na fila.`);
-  };
-
-  const handleProcess3MF = async () => {
-    if (!import3mfFile) {
-      setError('Selecione um arquivo .3mf antes de processar.');
-      return;
-    }
-    setImport3mfProcessing(true);
-    setError('');
-    try {
-      const result = await processAdmin3MFImport(import3mfFile);
-      setImport3mfResult(result || null);
-      flashNotice(`${Array.isArray(result?.items) ? result.items.length : 0} STL(s) gerado(s) a partir do 3MF.`);
-    } catch (requestError) {
-      setError(requestError?.message || 'Falha ao processar arquivo 3MF.');
-    } finally {
-      setImport3mfProcessing(false);
-    }
-  };
-
-  const handleDownloadGeneratedItem = async (generated) => {
-    if (!generated || !import3mfResult?.session_id) return;
-    try {
-      await downloadAdmin3MFImportItem(import3mfResult.session_id, generated.part_id, generated.file_name);
-    } catch (downloadError) {
-      setError(downloadError?.message || 'Falha ao baixar STL gerado.');
-    }
-  };
-
-  const handleDownloadAllGeneratedItems = async () => {
-    if (!import3mfResult?.session_id) return;
-    try {
-      const zipName = `${fileBaseName(import3mfResult?.source_file_name || 'modelo')}_plates_stl.zip`;
-      await downloadAllAdmin3MFImportItems(import3mfResult.session_id, zipName);
-      flashNotice('Download ZIP iniciado.');
-    } catch (downloadError) {
-      setError(downloadError?.message || 'Falha ao baixar ZIP dos STLs.');
     }
   };
 
@@ -1130,71 +1027,6 @@ function Admin3DModelsPage() {
           <p className="text-xs font-semibold uppercase tracking-[0.14em] text-amber-700">Nao atribuidos</p>
           <p className="mt-2 text-3xl font-bold tracking-tight text-amber-800">{modelStats.unassigned}</p>
         </div>
-      </section>
-
-      <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-        <div className="flex flex-wrap items-center gap-2">
-          <label className="inline-flex cursor-pointer items-center rounded-[10px] border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:border-violet-200 hover:text-violet-700">
-            <input
-              type="file"
-              accept=".3mf"
-              className="hidden"
-              onChange={(event) => {
-                setImport3mfFile(event.target.files?.[0] || null);
-                setImport3mfResult(null);
-              }}
-            />
-            Importar 3MF
-          </label>
-          <Button variant="secondary" onClick={handleProcess3MF} loading={import3mfProcessing} disabled={!import3mfFile}>
-            Processar 3MF
-          </Button>
-          <Button variant="ghost" onClick={addAllGeneratedToBatchQueue} disabled={!import3mfResult?.items?.length}>
-            Adicionar todos na fila
-          </Button>
-          <Button variant="ghost" onClick={handleDownloadAllGeneratedItems} disabled={!import3mfResult?.items?.length}>
-            Baixar ZIP dos STLs
-          </Button>
-          <small className="text-xs text-slate-500">
-            {import3mfFile ? `Selecionado: ${import3mfFile.name}` : 'Selecione um .3mf com multiplos plates ou objetos.'}
-          </small>
-        </div>
-
-        {import3mfResult?.warning_message ? (
-          <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">{import3mfResult.warning_message}</p>
-        ) : null}
-
-        {import3mfResult?.items?.length ? (
-          <div className="mt-3 grid grid-cols-1 gap-3 xl:grid-cols-2">
-            {import3mfResult.items.map((generated) => {
-              const signature = `3mf:${String(import3mfResult.session_id)}:${String(generated.part_id || '')}`;
-              const queued = batchQueue.some((item) => item.signature === signature);
-              return (
-                <article key={signature} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                  <div className="flex flex-wrap items-start justify-between gap-2">
-                    <div>
-                      <p className="text-sm font-semibold text-slate-900">{generated.display_label || generated.file_name}</p>
-                      <p className="text-xs text-slate-500">{generated.file_name}</p>
-                      <p className="text-xs text-slate-600">
-                        {generated.width_mm ?? '-'} x {generated.height_mm ?? '-'} x {generated.depth_mm ?? '-'} mm
-                      </p>
-                    </div>
-                    <StatusBadge tone={queued ? 'success' : 'neutral'}>
-                      {queued ? 'Na fila' : (generated.plate_number ? `Plate ${generated.plate_number}` : 'Objeto')}
-                    </StatusBadge>
-                  </div>
-                  <p className="mt-2 text-xs text-slate-500">Tamanho: {formatBytes(generated.file_size_bytes)}</p>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    <Button variant="ghost" onClick={() => handleDownloadGeneratedItem(generated)}>Baixar STL</Button>
-                    <Button variant="secondary" onClick={() => addGeneratedToBatchQueue(generated)} disabled={queued}>
-                      {queued ? 'Ja adicionado' : 'Adicionar a fila'}
-                    </Button>
-                  </div>
-                </article>
-              );
-            })}
-          </div>
-        ) : null}
       </section>
 
       <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">

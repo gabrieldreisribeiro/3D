@@ -52,7 +52,6 @@ from app.schemas import (
     Product3DModelResponse,
     Product3DModelUpdate,
     Product3DModelUploadResponse,
-    Admin3MFImportProcessResponse,
     ProductResponse,
     AdminReviewListResponse,
     AdminReviewResponse,
@@ -80,11 +79,6 @@ from app.schemas import (
     PromotionUpdate,
     StoreSettingsResponse,
     StoreSettingsUpdate,
-)
-from app.services.model_conversion_service import (
-    get_3mf_generated_part_path,
-    get_3mf_manifest,
-    process_3mf_file,
 )
 from app.services.coupon_service import (
     admin_coupon_by_id,
@@ -780,54 +774,6 @@ def upload_product_3d_preview_file(
         depth_mm=dimensions[2],
         dimensions_extracted=True,
     )
-
-
-@router.post('/3d-models/import-3mf/process', response_model=Admin3MFImportProcessResponse)
-def process_3mf_import_file(
-    file: UploadFile = File(...),
-    _: AdminUser = Depends(require_admin),
-):
-    return Admin3MFImportProcessResponse(**process_3mf_file(file))
-
-
-@router.get('/3d-models/import-3mf/{session_id}/download/{part_id}')
-def download_3mf_import_part(
-    session_id: str,
-    part_id: int,
-    _: AdminUser = Depends(require_admin),
-):
-    if int(part_id) <= 0:
-        raise HTTPException(status_code=404, detail='Arquivo STL gerado nao encontrado.')
-    path, item = get_3mf_generated_part_path(session_id, part_id)
-    file_name = str(item.get('file_name') or path.name).strip() or path.name
-    media_type = mimetypes.guess_type(file_name)[0] or 'application/octet-stream'
-    return FileResponse(path=path, filename=file_name, media_type=media_type)
-
-
-@router.get('/3d-models/import-3mf/{session_id}/download/all')
-def download_3mf_import_all(
-    session_id: str,
-    _: AdminUser = Depends(require_admin),
-):
-    manifest = get_3mf_manifest(session_id)
-    rows = manifest.get('items') or []
-    if not rows:
-        raise HTTPException(status_code=404, detail='Nenhum STL gerado para esta sessao.')
-
-    memory_file = io.BytesIO()
-    source_name = Path(str(manifest.get('source_file_name') or 'modelo')).stem
-    zip_name = f'{source_name}_plates_stl.zip'
-    with zipfile.ZipFile(memory_file, 'w', zipfile.ZIP_DEFLATED) as zip_out:
-        for entry in rows:
-            part_id = int(entry.get('part_id') or 0)
-            if part_id <= 0:
-                continue
-            path, item = get_3mf_generated_part_path(session_id, part_id)
-            file_name = str(item.get('file_name') or path.name).strip() or path.name
-            zip_out.write(path, arcname=file_name)
-    memory_file.seek(0)
-    headers = {'Content-Disposition': f'attachment; filename="{zip_name}"'}
-    return StreamingResponse(memory_file, media_type='application/zip', headers=headers)
 
 
 @router.get('/3d-models', response_model=list[Admin3DModelResponse])

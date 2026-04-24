@@ -681,23 +681,6 @@ export async function uploadAdmin3DPreviewFile(file, fileName = null) {
   return data;
 }
 
-export async function processAdmin3MFImport(file) {
-  const token = localStorage.getItem(ADMIN_TOKEN_KEY);
-  const formData = new FormData();
-  formData.append('file', file);
-  const response = await fetch(buildApiUrl('/admin/3d-models/import-3mf/process'), {
-    method: 'POST',
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
-    body: formData,
-  });
-  const data = await response.json();
-  if (!response.ok) {
-    if (response.status === 401) localStorage.removeItem(ADMIN_TOKEN_KEY);
-    throw new Error(getApiErrorMessage(data, 'Erro ao processar arquivo 3MF'));
-  }
-  return data;
-}
-
 export function fetchAdminUploadFiles(folder = 'all') {
   const query = new URLSearchParams();
   query.set('folder', folder || 'all');
@@ -1627,19 +1610,6 @@ export async function downloadAdmin3DModelOriginal(modelId, filename = null) {
 export async function downloadAdmin3DModelPreview(modelId, filename = null) {
   const fallbackName = String(filename || '').trim() || `modelo_${modelId}_preview`;
   return downloadAdminDatabaseExport(`/admin/3d-models/${modelId}/download/preview`, fallbackName);
-}
-
-export async function downloadAdmin3MFImportItem(sessionId, partId, filename = null) {
-  const safeSession = encodeURIComponent(String(sessionId || '').trim());
-  const safePartId = encodeURIComponent(String(partId || '').trim());
-  const fallbackName = String(filename || '').trim() || `plate_${safePartId}.stl`;
-  return downloadAdminDatabaseExport(`/admin/3d-models/import-3mf/${safeSession}/download/${safePartId}`, fallbackName);
-}
-
-export async function downloadAllAdmin3MFImportItems(sessionId, filename = null) {
-  const safeSession = encodeURIComponent(String(sessionId || '').trim());
-  const fallbackName = String(filename || '').trim() || 'plates_stl.zip';
-  return downloadAdminDatabaseExport(`/admin/3d-models/import-3mf/${safeSession}/download/all`, fallbackName);
 }
 
 export async function downloadAllAdmin3DModels(params = {}) {
