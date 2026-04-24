@@ -194,98 +194,166 @@ def _load_3mf_model_xml(content: bytes) -> tuple[ET.Element, str]:
 
 
 def _parse_3mf_triangles_by_group(content: bytes) -> tuple[list[dict[str, Any]], bool]:
-    root, _ = _load_3mf_model_xml(content)
-    unit = str(root.attrib.get('unit') or 'millimeter').strip().lower()
-    unit_scale = float(UNIT_TO_MM.get(unit, 1.0))
+    try:
+        archive = zipfile.ZipFile(io.BytesIO(content), 'r')
+    except zipfile.BadZipFile as exc:
+        raise HTTPException(status_code=400, detail='Arquivo .3mf invalido ou corrompido.') from exc
 
-    resources_node = next((node for node in list(root) if _local_name(node.tag).lower() == 'resources'), None)
-    build_node = next((node for node in list(root) if _local_name(node.tag).lower() == 'build'), None)
-    if resources_node is None:
-        raise HTTPException(status_code=400, detail='3MF sem secao resources.')
+    def normalize_part_path(value: str | None) -> str:
+        text = str(value or '').strip().replace('\\', '/')
+        while text.startswith('/'):
+            text = text[1:]
+        text = re.sub(r'/+', '/', text)
+        return text
 
-    object_nodes: dict[int, ET.Element] = {}
-    object_metadata: dict[int, dict[str, str]] = {}
-    object_meshes: dict[int, dict[str, Any]] = {}
-    object_components: dict[int, list[tuple[int, tuple[float, ...]]]] = {}
+    model_parts = [
+        normalize_part_path(name)
+        for name in archive.namelist()
+        if name.lower().endswith('.model') and normalize_part_path(name).lower().startswith('3d/')
+    ]
+    if not model_parts:
+        raise HTTPException(status_code=400, detail='Nao foi encontrado arquivo .model dentro do pacote 3MF.')
+    model_parts = sorted(set(model_parts))
 
-    for node in list(resources_node):
-        if _local_name(node.tag).lower() != 'object':
-            continue
-        object_id_raw = node.attrib.get('id')
-        if object_id_raw is None:
-            continue
+    roots: dict[str, ET.Element] = {}
+    lower_to_path: dict[str, str] = {}
+    for part in model_parts:
         try:
-            object_id = int(object_id_raw)
-        except ValueError:
+            xml_bytes = archive.read(part)
+            root = ET.fromstring(xml_bytes)
+        except (KeyError, ET.ParseError):
             continue
-        object_nodes[object_id] = node
-        object_metadata[object_id] = _parse_metadata_map(node)
-        mesh_node = next((child for child in list(node) if _local_name(child.tag).lower() == 'mesh'), None)
-        if mesh_node is not None:
-            vertices_node = next((child for child in list(mesh_node) if _local_name(child.tag).lower() == 'vertices'), None)
-            triangles_node = next((child for child in list(mesh_node) if _local_name(child.tag).lower() == 'triangles'), None)
-            vertices: list[tuple[float, float, float]] = []
-            triangles: list[tuple[int, int, int]] = []
-            if vertices_node is not None:
-                for vertex_node in list(vertices_node):
-                    if _local_name(vertex_node.tag).lower() != 'vertex':
+        roots[part] = root
+        lower_to_path[part.lower()] = part
+    if not roots:
+        raise HTTPException(status_code=400, detail='Conteudo XML do 3MF invalido.')
+
+    if '3d/3dmodel.model' in lower_to_path:
+        main_model = lower_to_path['3d/3dmodel.model']
+    else:
+        main_model = sorted(roots.keys())[0]
+
+    def resolve_model_path(current_model: str, path_value: str | None) -> str:
+        raw = str(path_value or '').strip()
+        if not raw:
+            return current_model
+        normalized = normalize_part_path(raw)
+        if normalized.lower() in lower_to_path:
+            return lower_to_path[normalized.lower()]
+        base_dir = normalize_part_path(str(Path(current_model).parent))
+        candidate = normalize_part_path(f'{base_dir}/{normalized}')
+        if candidate.lower() in lower_to_path:
+            return lower_to_path[candidate.lower()]
+        return current_model
+
+    def safe_float(raw: str | None, default: float = 0.0) -> float:
+        token = str(raw or '').strip()
+        if not token:
+            return float(default)
+        try:
+            return float(token)
+        except ValueError:
+            try:
+                return float(token.replace(',', '.'))
+            except ValueError:
+                return float(default)
+
+    object_metadata: dict[tuple[str, int], dict[str, str]] = {}
+    object_meshes: dict[tuple[str, int], dict[str, Any]] = {}
+    object_components: dict[tuple[str, int], list[tuple[str, int, tuple[float, ...]]]] = {}
+    model_units: dict[str, float] = {}
+    all_object_refs: list[tuple[str, int]] = []
+
+    for model_path, root in roots.items():
+        unit = str(root.attrib.get('unit') or 'millimeter').strip().lower()
+        model_units[model_path] = float(UNIT_TO_MM.get(unit, 1.0))
+        resources_node = next((node for node in list(root) if _local_name(node.tag).lower() == 'resources'), None)
+        if resources_node is None:
+            continue
+
+        for object_node in list(resources_node):
+            if _local_name(object_node.tag).lower() != 'object':
+                continue
+            object_id_raw = object_node.attrib.get('id')
+            if object_id_raw is None:
+                continue
+            try:
+                object_id = int(object_id_raw)
+            except ValueError:
+                continue
+            object_ref = (model_path, object_id)
+            all_object_refs.append(object_ref)
+            object_metadata[object_ref] = _parse_metadata_map(object_node)
+
+            mesh_node = next((child for child in list(object_node) if _local_name(child.tag).lower() == 'mesh'), None)
+            if mesh_node is not None:
+                vertices_node = next((child for child in list(mesh_node) if _local_name(child.tag).lower() == 'vertices'), None)
+                triangles_node = next((child for child in list(mesh_node) if _local_name(child.tag).lower() == 'triangles'), None)
+                vertices: list[tuple[float, float, float]] = []
+                triangles: list[tuple[int, int, int]] = []
+                if vertices_node is not None:
+                    for vertex_node in list(vertices_node):
+                        if _local_name(vertex_node.tag).lower() != 'vertex':
+                            continue
+                        vertices.append((
+                            safe_float(vertex_node.attrib.get('x'), 0.0),
+                            safe_float(vertex_node.attrib.get('y'), 0.0),
+                            safe_float(vertex_node.attrib.get('z'), 0.0),
+                        ))
+                if triangles_node is not None:
+                    for tri_node in list(triangles_node):
+                        if _local_name(tri_node.tag).lower() != 'triangle':
+                            continue
+                        raw_v1 = tri_node.attrib.get('v1') or tri_node.attrib.get('vertex1')
+                        raw_v2 = tri_node.attrib.get('v2') or tri_node.attrib.get('vertex2')
+                        raw_v3 = tri_node.attrib.get('v3') or tri_node.attrib.get('vertex3')
+                        try:
+                            v1 = int(raw_v1)
+                            v2 = int(raw_v2)
+                            v3 = int(raw_v3)
+                        except (TypeError, ValueError):
+                            continue
+                        if min(v1, v2, v3) < 0 or max(v1, v2, v3) >= len(vertices):
+                            continue
+                        triangles.append((v1, v2, v3))
+                object_meshes[object_ref] = {'vertices': vertices, 'triangles': triangles}
+
+            components_node = next((child for child in list(object_node) if _local_name(child.tag).lower() == 'components'), None)
+            if components_node is not None:
+                components: list[tuple[str, int, tuple[float, ...]]] = []
+                for comp_node in list(components_node):
+                    if _local_name(comp_node.tag).lower() != 'component':
+                        continue
+                    object_ref_raw = comp_node.attrib.get('objectid')
+                    if object_ref_raw is None:
                         continue
                     try:
-                        vertices.append((
-                            float(vertex_node.attrib.get('x') or 0.0),
-                            float(vertex_node.attrib.get('y') or 0.0),
-                            float(vertex_node.attrib.get('z') or 0.0),
-                        ))
+                        child_object_id = int(object_ref_raw)
                     except ValueError:
                         continue
-            if triangles_node is not None:
-                for tri_node in list(triangles_node):
-                    if _local_name(tri_node.tag).lower() != 'triangle':
-                        continue
-                    try:
-                        v1 = int(tri_node.attrib.get('v1'))
-                        v2 = int(tri_node.attrib.get('v2'))
-                        v3 = int(tri_node.attrib.get('v3'))
-                    except (TypeError, ValueError):
-                        continue
-                    if min(v1, v2, v3) < 0 or max(v1, v2, v3) >= len(vertices):
-                        continue
-                    triangles.append((v1, v2, v3))
-            object_meshes[object_id] = {'vertices': vertices, 'triangles': triangles}
+                    child_model = resolve_model_path(model_path, comp_node.attrib.get('path'))
+                    components.append((child_model, child_object_id, _parse_transform(comp_node.attrib.get('transform'))))
+                if components:
+                    object_components[object_ref] = components
 
-        components_node = next((child for child in list(node) if _local_name(child.tag).lower() == 'components'), None)
-        if components_node is not None:
-            comps: list[tuple[int, tuple[float, ...]]] = []
-            for comp_node in list(components_node):
-                if _local_name(comp_node.tag).lower() != 'component':
-                    continue
-                obj_ref_raw = comp_node.attrib.get('objectid')
-                if obj_ref_raw is None:
-                    continue
-                try:
-                    obj_ref = int(obj_ref_raw)
-                except ValueError:
-                    continue
-                comps.append((obj_ref, _parse_transform(comp_node.attrib.get('transform'))))
-            if comps:
-                object_components[object_id] = comps
-
-    if not object_nodes:
+    if not all_object_refs:
         raise HTTPException(status_code=400, detail='Nao foi encontrado nenhum objeto dentro do 3MF.')
 
     def collect_object_triangles(
-        object_id: int,
+        object_ref: tuple[str, int],
         transform: tuple[float, ...],
-        stack: set[int],
+        stack: set[tuple[str, int]],
     ) -> list[tuple[tuple[float, float, float], tuple[float, float, float], tuple[float, float, float]]]:
-        if object_id in stack:
+        if object_ref in stack:
             return []
         next_stack = set(stack)
-        next_stack.add(object_id)
+        next_stack.add(object_ref)
         output: list[tuple[tuple[float, float, float], tuple[float, float, float], tuple[float, float, float]]] = []
-        mesh = object_meshes.get(object_id)
+
+        mesh = object_meshes.get(object_ref)
         if mesh and mesh['vertices'] and mesh['triangles']:
             vertices = mesh['vertices']
+            unit_scale = float(model_units.get(object_ref[0], 1.0))
             for i1, i2, i3 in mesh['triangles']:
                 p1 = _apply_transform(transform, vertices[i1])
                 p2 = _apply_transform(transform, vertices[i2])
@@ -295,36 +363,42 @@ def _parse_3mf_triangles_by_group(content: bytes) -> tuple[list[dict[str, Any]],
                     p2 = (p2[0] * unit_scale, p2[1] * unit_scale, p2[2] * unit_scale)
                     p3 = (p3[0] * unit_scale, p3[1] * unit_scale, p3[2] * unit_scale)
                 output.append((p1, p2, p3))
-        for child_object_id, child_transform in object_components.get(object_id, []):
-            output.extend(collect_object_triangles(child_object_id, _compose_transform(transform, child_transform), next_stack))
+
+        for child_model_path, child_object_id, child_transform in object_components.get(object_ref, []):
+            child_ref = (child_model_path, child_object_id)
+            output.extend(collect_object_triangles(child_ref, _compose_transform(transform, child_transform), next_stack))
         return output
 
     build_items: list[dict[str, Any]] = []
-    if build_node is not None:
-        for idx, node in enumerate(list(build_node)):
-            if _local_name(node.tag).lower() != 'item':
-                continue
-            object_id_raw = node.attrib.get('objectid')
-            if object_id_raw is None:
-                continue
-            try:
-                object_id = int(object_id_raw)
-            except ValueError:
-                continue
-            item_meta = _parse_metadata_map(node)
-            plate_number = _plate_from_metadata(item_meta) or _plate_from_metadata(object_metadata.get(object_id, {}))
-            build_items.append(
-                {
-                    'index': idx + 1,
-                    'object_id': object_id,
-                    'transform': _parse_transform(node.attrib.get('transform')),
-                    'plate_number': plate_number,
-                }
-            )
+    main_root = roots.get(main_model)
+    if main_root is not None:
+        build_node = next((node for node in list(main_root) if _local_name(node.tag).lower() == 'build'), None)
+        if build_node is not None:
+            for idx, node in enumerate(list(build_node)):
+                if _local_name(node.tag).lower() != 'item':
+                    continue
+                object_id_raw = node.attrib.get('objectid')
+                if object_id_raw is None:
+                    continue
+                try:
+                    object_id = int(object_id_raw)
+                except ValueError:
+                    continue
+                object_ref = (main_model, object_id)
+                item_meta = _parse_metadata_map(node)
+                plate_number = _plate_from_metadata(item_meta) or _plate_from_metadata(object_metadata.get(object_ref, {}))
+                build_items.append(
+                    {
+                        'index': idx + 1,
+                        'object_ref': object_ref,
+                        'transform': _parse_transform(node.attrib.get('transform')),
+                        'plate_number': plate_number,
+                    }
+                )
 
     groups: list[dict[str, Any]] = []
+    used_plate_grouping = False
     plate_detected = any(item.get('plate_number') is not None for item in build_items)
-
     if plate_detected and build_items:
         grouped_by_plate: dict[int, list[dict[str, Any]]] = {}
         for item in build_items:
@@ -334,7 +408,7 @@ def _parse_3mf_triangles_by_group(content: bytes) -> tuple[list[dict[str, Any]],
         for plate_number in sorted(grouped_by_plate.keys()):
             triangles: list[tuple[tuple[float, float, float], tuple[float, float, float], tuple[float, float, float]]] = []
             for item in grouped_by_plate[plate_number]:
-                triangles.extend(collect_object_triangles(item['object_id'], item['transform'], set()))
+                triangles.extend(collect_object_triangles(item['object_ref'], item['transform'], set()))
             if not triangles:
                 continue
             groups.append(
@@ -344,11 +418,15 @@ def _parse_3mf_triangles_by_group(content: bytes) -> tuple[list[dict[str, Any]],
                     'triangles': triangles,
                 }
             )
+        used_plate_grouping = bool(groups)
 
     if not groups:
-        fallback_items = build_items or [{'index': idx + 1, 'object_id': object_id, 'transform': _matrix_identity()} for idx, object_id in enumerate(sorted(object_nodes.keys()))]
+        fallback_items = build_items or [
+            {'index': idx + 1, 'object_ref': object_ref, 'transform': _matrix_identity()}
+            for idx, object_ref in enumerate(sorted(set(all_object_refs)))
+        ]
         for fallback in fallback_items:
-            triangles = collect_object_triangles(fallback['object_id'], fallback['transform'], set())
+            triangles = collect_object_triangles(fallback['object_ref'], fallback['transform'], set())
             if not triangles:
                 continue
             groups.append(
@@ -362,7 +440,7 @@ def _parse_3mf_triangles_by_group(content: bytes) -> tuple[list[dict[str, Any]],
     if not groups:
         raise HTTPException(status_code=400, detail='Nao foi possivel extrair malhas do arquivo 3MF.')
 
-    return groups, not plate_detected
+    return groups, not used_plate_grouping
 
 
 def process_3mf_file(file: UploadFile) -> dict[str, Any]:
