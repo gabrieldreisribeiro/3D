@@ -661,6 +661,27 @@ class Admin3DModelUpdateRequest(Product3DModelUpdate):
     product_id: Optional[int] = Field(default=None, ge=1)
 
 
+class Admin3MFImportGeneratedItemResponse(BaseModel):
+    part_id: int
+    file_name: str
+    display_label: str
+    plate_number: Optional[int] = None
+    width_mm: Optional[float] = None
+    height_mm: Optional[float] = None
+    depth_mm: Optional[float] = None
+    file_size_bytes: int
+    stl_file_url: str
+    download_endpoint: str
+
+
+class Admin3MFImportProcessResponse(BaseModel):
+    session_id: str
+    source_file_name: str
+    used_fallback: bool = False
+    warning_message: Optional[str] = None
+    items: List[Admin3MFImportGeneratedItemResponse] = Field(default_factory=list)
+
+
 class AdminOrderItemResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
