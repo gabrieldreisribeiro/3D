@@ -465,7 +465,7 @@ const PRODUCT_WIZARD_STEPS = [
   {
     id: 'basic',
     title: 'Informacoes basicas',
-    subtitle: 'Dados principais, categoria e modo de preco.',
+    subtitle: 'Dados principais do produto.',
   },
   {
     id: 'media',
@@ -479,8 +479,8 @@ const PRODUCT_WIZARD_STEPS = [
   },
   {
     id: 'models',
-    title: 'Modelos 3D e extras',
-    subtitle: 'Sub itens, arquivos 3D e importacao em lote.',
+    title: 'Subitens e modelos 3D',
+    subtitle: 'Subitens, importacao em lote e modelos vinculados.',
   },
   {
     id: 'review',
@@ -1714,7 +1714,7 @@ const toModel3dPayload = (source, overrides = {}) => ({
           </>
         }
       >
-        <form className="space-y-4" onSubmit={handleProductFormSubmit}>
+        <form className="space-y-4 pb-6" onSubmit={handleProductFormSubmit}>
           <div className="sticky top-0 z-20 -mx-4 border-b border-slate-200 bg-white/95 px-4 py-3 backdrop-blur sm:-mx-5 sm:px-5">
             <div className="flex gap-2 overflow-x-auto pb-1">
               {PRODUCT_WIZARD_STEPS.map((step, index) => {
@@ -1734,7 +1734,7 @@ const toModel3dPayload = (source, overrides = {}) => ({
                     }`}
                   >
                     <span className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-current text-[11px]">
-                      {index + 1}
+                      {isCompleted ? '✓' : index + 1}
                     </span>
                     <span>{step.title}</span>
                   </button>
@@ -1752,50 +1752,15 @@ const toModel3dPayload = (source, overrides = {}) => ({
           {productWizardStep === 0 ? (
             <ProductFormSection
               title="Informacoes basicas"
-              subtitle="Dados principais do produto, descricao e configuracao base de preco."
+              subtitle="Dados principais do produto."
             >
           <Input label="Titulo" value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} required />
           <Input label="Slug" value={form.slug} onChange={(event) => setForm({ ...form, slug: event.target.value })} required />
-          <Select label="Categoria" options={categoryOptions} value={form.category_id} onChange={(event) => setForm({ ...form, category_id: event.target.value })} />
-          {(form.sub_items || []).length === 0 ? (
-            <div className="flex flex-col gap-1.5">
-              <span className="text-xs font-medium uppercase tracking-wide text-slate-500">Modo de preco</span>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => setForm({ ...form, pricing_mode: 'calculated' })}
-                  className={`h-10 rounded-[10px] border px-4 text-sm font-medium transition ${
-                    form.pricing_mode === 'calculated'
-                      ? 'border-violet-600 bg-violet-600 text-white'
-                      : 'border-slate-200 bg-white text-slate-600 hover:border-violet-200 hover:text-violet-700'
-                  }`}
-                >
-                  Calculo automatico
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setForm({ ...form, pricing_mode: 'manual' })}
-                  className={`h-10 rounded-[10px] border px-4 text-sm font-medium transition ${
-                    form.pricing_mode === 'manual'
-                      ? 'border-violet-600 bg-violet-600 text-white'
-                      : 'border-slate-200 bg-white text-slate-600 hover:border-violet-200 hover:text-violet-700'
-                  }`}
-                >
-                  Preco fixo
-                </button>
-              </div>
-              <p className="text-xs text-slate-500">
-                Em calculo automatico, o preco final e calculado ao salvar com base nos custos.
-              </p>
-            </div>
-          ) : (
-            <div className="rounded-[10px] border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
-              Com sub itens ativos, o preco principal do produto fica oculto e a venda sera pela composicao dos sub itens.
-            </div>
-          )}
+          <Select className="md:col-span-2" label="Categoria" options={categoryOptions} value={form.category_id} onChange={(event) => setForm({ ...form, category_id: event.target.value })} />
 
           <Input
             label="Descricao curta"
+            className="md:col-span-2"
             value={form.short_description}
             onChange={(event) => setForm({ ...form, short_description: event.target.value })}
             required
@@ -1912,8 +1877,44 @@ const toModel3dPayload = (source, overrides = {}) => ({
           {productWizardStep === 2 ? (
             <ProductFormSection
               title="Producao, custo e personalizacao"
-              subtitle="Controle de prazo, variacoes e calculo de preco."
+              subtitle="Preco, producao, cores/personalizacao e dimensoes gerais do produto."
             >
+          <div className="md:col-span-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Bloco 1 · Preco</p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setForm({ ...form, pricing_mode: 'calculated' })}
+                className={`h-10 rounded-[10px] border px-4 text-sm font-medium transition ${
+                  form.pricing_mode === 'calculated'
+                    ? 'border-violet-600 bg-violet-600 text-white'
+                    : 'border-slate-200 bg-white text-slate-600 hover:border-violet-200 hover:text-violet-700'
+                }`}
+              >
+                Calculo automatico
+              </button>
+              <button
+                type="button"
+                onClick={() => setForm({ ...form, pricing_mode: 'manual' })}
+                className={`h-10 rounded-[10px] border px-4 text-sm font-medium transition ${
+                  form.pricing_mode === 'manual'
+                    ? 'border-violet-600 bg-violet-600 text-white'
+                    : 'border-slate-200 bg-white text-slate-600 hover:border-violet-200 hover:text-violet-700'
+                }`}
+              >
+                Preco fixo
+              </button>
+            </div>
+            {(form.sub_items || []).length === 0 ? (
+              <p className="mt-2 text-xs text-slate-500">Em calculo automatico, o preco final e calculado ao salvar com base nos custos.</p>
+            ) : (
+              <p className="mt-2 text-xs text-slate-500">Com sub itens ativos, o preco principal do produto fica oculto e a venda sera pela composicao dos sub itens.</p>
+            )}
+          </div>
+
+          <div className="md:col-span-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Bloco 2 · Producao</p>
+            <div className="mt-3 grid grid-cols-1 gap-4 md:grid-cols-2">
           <Input
             label="Tempo de producao (horas)"
             type="number"
@@ -1927,6 +1928,12 @@ const toModel3dPayload = (source, overrides = {}) => ({
             <p className="mt-1 text-lg font-semibold text-slate-900">{calculatedProductionDays} dia(s)</p>
             <p className="text-xs text-slate-500">Calculado automaticamente pelas horas de producao.</p>
           </div>
+            </div>
+          </div>
+
+          <div className="md:col-span-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Bloco 3 · Cores e personalizacao</p>
+            <div className="mt-3 grid grid-cols-1 gap-4 md:grid-cols-2">
           <label className="inline-flex items-center gap-2 rounded-[10px] border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
             <input
               type="checkbox"
@@ -1943,8 +1950,9 @@ const toModel3dPayload = (source, overrides = {}) => ({
             />
             <span>Permitir personalizacao com texto neste produto</span>
           </label>
+            </div>
           {form.allow_colors ? (
-            <div className="md:col-span-2 rounded-[10px] border border-slate-200 bg-slate-50 p-3">
+            <div className="mt-3 rounded-[10px] border border-slate-200 bg-slate-50 p-3">
               <div className="mb-2 flex items-center justify-between">
                 <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Paleta de cores do produto</p>
                 <div className="flex items-center gap-2">
@@ -2043,7 +2051,15 @@ const toModel3dPayload = (source, overrides = {}) => ({
               </div>
             </div>
           ) : null}
+          </div>
 
+          {(form.sub_items || []).length === 0 ? (
+            <div className="md:col-span-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                {form.pricing_mode === 'manual' ? 'Campos de preco manual' : 'Campos de calculo automatico'}
+              </p>
+            </div>
+          ) : null}
           {(form.sub_items || []).length === 0 && form.pricing_mode === 'manual' ? (
             <Input
               label="Preco do produto"
@@ -2071,15 +2087,18 @@ const toModel3dPayload = (source, overrides = {}) => ({
           ) : null}
 
           {productWizardStep === 3 ? (
-            <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <ProductFormSection
+              title="Subitens do anuncio"
+              subtitle="Gerencie os subitens e como cada um participa no preco e nas dimensoes."
+            >
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-              <h4 className="text-sm font-semibold text-slate-900">Sub itens do anuncio</h4>
+              <h4 className="text-sm font-semibold text-slate-900">Lista de subitens</h4>
               <Button type="button" variant="secondary" onClick={addSubItem}>Adicionar sub item</Button>
             </div>
 
-            <div className="space-y-4">
+            <div className="space-y-4 md:col-span-2">
               {(form.sub_items || []).length === 0 ? (
-                <p className="text-sm text-slate-500">Sem sub itens. Produto sera tratado como item unico.</p>
+                <p className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-3 py-3 text-sm text-slate-500">Sem subitens. Produto sera tratado como item unico.</p>
               ) : null}
 
               {(form.sub_items || []).map((subItem, index) => (
@@ -2359,13 +2378,13 @@ const toModel3dPayload = (source, overrides = {}) => ({
                 </div>
               ))}
             </div>
-            </section>
+            </ProductFormSection>
           ) : null}
 
           {productWizardStep === 2 ? (
           <ProductFormSection
             title="Dimensoes do produto"
-            subtitle="Defina manualmente ou use o modelo 3D principal."
+            subtitle="Bloco 4 · Defina manualmente ou use o modelo 3D principal."
           >
             <div className="md:col-span-2 flex flex-wrap gap-2">
               <button
@@ -2692,7 +2711,7 @@ const toModel3dPayload = (source, overrides = {}) => ({
           <section className="rounded-2xl border border-slate-200 bg-slate-50 p-4 shadow-sm">
             <h4 className="text-sm font-semibold tracking-tight text-slate-900">Revisao rapida</h4>
             <p className="mt-1 text-xs text-slate-500">Confira os principais dados antes de concluir o cadastro.</p>
-            <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
               <div className="rounded-xl border border-slate-200 bg-white p-3">
                 <p className="text-xs uppercase tracking-wide text-slate-500">Produto</p>
                 <p className="mt-1 text-sm font-semibold text-slate-900">{form.title || 'Sem titulo'}</p>
@@ -2700,12 +2719,24 @@ const toModel3dPayload = (source, overrides = {}) => ({
                 <p className="text-xs text-slate-600">Categoria: {categoryOptions.find((item) => String(item.value) === String(form.category_id))?.label || 'Sem categoria'}</p>
               </div>
               <div className="rounded-xl border border-slate-200 bg-white p-3">
-                <p className="text-xs uppercase tracking-wide text-slate-500">Resumo rapido</p>
-                <p className="mt-1 text-xs text-slate-600">Sub itens: {(form.sub_items || []).length}</p>
-                <p className="text-xs text-slate-600">Imagens extras: {extraImageLinks.length}</p>
-                <p className="text-xs text-slate-600">Modo de preco: {form.pricing_mode === 'manual' ? 'Preco fixo' : 'Calculo automatico'}</p>
+                <p className="text-xs uppercase tracking-wide text-slate-500">Preco e producao</p>
+                <p className="mt-1 text-xs text-slate-600">Modo de preco: {form.pricing_mode === 'manual' ? 'Preco fixo' : 'Calculo automatico'}</p>
+                <p className="text-xs text-slate-600">Tempo de producao: {toNumber(form.lead_time_hours)} hora(s)</p>
+                <p className="text-xs text-slate-600">Prazo para cliente: {calculatedProductionDays} dia(s)</p>
+                {(form.sub_items || []).length === 0 && form.pricing_mode === 'manual' ? (
+                  <p className="text-xs text-slate-600">Preco manual: R$ {toNumber(form.manual_price).toFixed(2)}</p>
+                ) : null}
               </div>
-              <div className="rounded-xl border border-slate-200 bg-white p-3 sm:col-span-2">
+              <div className="rounded-xl border border-slate-200 bg-white p-3">
+                <p className="text-xs uppercase tracking-wide text-slate-500">Variacoes e modelos</p>
+                <p className="mt-1 text-xs text-slate-600">Sub itens: {(form.sub_items || []).length}</p>
+                <p className="text-xs text-slate-600">Modelos 3D: {product3dModels.length}</p>
+                <p className="text-xs text-slate-600">Visiveis ao cliente: {product3dModels.filter((item) => Boolean(item.show_to_customer)).length}</p>
+                <p className="text-xs text-slate-600">Imagens extras: {extraImageLinks.length}</p>
+                <p className="text-xs text-slate-600">Fonte de dimensoes: {form.dimensions_source === 'model' ? 'Modelo principal' : 'Manual'}</p>
+                <p className="text-xs text-slate-600">Status: {form.is_active ? 'Ativo' : 'Inativo'}</p>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-white p-3 sm:col-span-2 lg:col-span-3">
                 <p className="mb-2 text-xs uppercase tracking-wide text-slate-500">Preview de midia</p>
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                   <ImagePreviewThumb src={coverImageUrl} alt={form.title || 'Capa'} className="h-20 sm:h-24" />
