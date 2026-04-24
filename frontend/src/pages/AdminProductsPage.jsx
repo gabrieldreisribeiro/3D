@@ -142,6 +142,7 @@ function fileExtension(value) {
 
 const MODEL3D_PREVIEW_EXTENSIONS = new Set(['.stl', '.glb']);
 const MODEL3D_ORIGINAL_EXTENSIONS = new Set(['.3mf', '.stl', '.gcode', '.glb', '.obj', '.step', '.stp']);
+const IMAGE_PREVIEW_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.webp', '.gif', '.svg', '.avif']);
 
 function isModel3dPreviewExtension(ext) {
   return MODEL3D_PREVIEW_EXTENSIONS.has(String(ext || '').toLowerCase());
@@ -149,6 +150,10 @@ function isModel3dPreviewExtension(ext) {
 
 function isModel3dOriginalExtension(ext) {
   return MODEL3D_ORIGINAL_EXTENSIONS.has(String(ext || '').toLowerCase());
+}
+
+function isImagePreviewExtension(ext) {
+  return IMAGE_PREVIEW_EXTENSIONS.has(String(ext || '').toLowerCase());
 }
 
 function resolveModelFileUrl(model) {
@@ -537,6 +542,48 @@ function ImagePreviewThumb({ src, alt, className = '' }) {
   );
 }
 
+function Model3dListThumbnail({ model }) {
+  const fileUrl = String(model?.preview_file_url || resolveModelFileUrl(model) || '').trim();
+  const ext = fileExtension(fileUrl);
+  const isImage = isImagePreviewExtension(ext);
+  const hasPreview = modelHasPreview(model);
+  const optimizedSources = useMemo(
+    () =>
+      getOptimizedImageSources(fileUrl, {
+        variant: 'thumbnail',
+        sizes: '80px',
+      }),
+    [fileUrl]
+  );
+
+  if (isImage && fileUrl) {
+    return (
+      <img
+        src={optimizedSources.src || fileUrl}
+        srcSet={optimizedSources.srcSet || undefined}
+        sizes={optimizedSources.srcSet ? '80px' : undefined}
+        alt={model?.name || 'Preview do modelo 3D'}
+        className="h-16 w-16 rounded-lg border border-slate-200 object-cover sm:h-20 sm:w-20"
+        loading="lazy"
+        decoding="async"
+        width="80"
+        height="80"
+      />
+    );
+  }
+
+  return (
+    <div className="flex h-16 w-16 flex-col items-center justify-center rounded-lg border border-slate-200 bg-slate-100 text-slate-500 sm:h-20 sm:w-20">
+      <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="1.8">
+        <path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z" />
+        <path d="m4 7.5 8 4.5 8-4.5" />
+        <path d="M12 12v9" />
+      </svg>
+      <span className="mt-1 text-[10px] font-medium">{hasPreview ? '3D' : 'Sem'}</span>
+    </div>
+  );
+}
+
 function AdminProductsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [products, setProducts] = useState([]);
@@ -558,6 +605,7 @@ function AdminProductsPage() {
   const [batch3dSaving, setBatch3dSaving] = useState(false);
   const [batch3dResult, setBatch3dResult] = useState(null);
   const [applyingSubItemModelById, setApplyingSubItemModelById] = useState({});
+  const [selected3dCardId, setSelected3dCardId] = useState(null);
 /*  */  const [form, setForm] = usePersistentState('modal:admin-products:form', initialForm);
   const [error, setError] = useState('');
   const [isModalOpen, setIsModalOpen] = usePersistentState('modal:admin-products:open', false);
@@ -586,6 +634,14 @@ function AdminProductsPage() {
   const coverImageUrl = String(form.cover_image || '').trim();
   const extraImageLinks = useMemo(() => parseImageLinks(form.images), [form.images]);
   const calculatedProductionDays = useMemo(() => toProductionDaysFromHours(form.lead_time_hours), [form.lead_time_hours]);
+
+  useEffect(() => {
+    setSelected3dCardId((current) => {
+      if (!product3dModels.length) return null;
+      if (current && product3dModels.some((item) => item.id === current)) return current;
+      return product3dModels[0].id;
+    });
+  }, [product3dModels, selectedProduct?.id]);
 
   const closeProductModal = () => {
     setIsModalOpen(false);
@@ -2664,21 +2720,46 @@ const toModel3dPayload = (source, overrides = {}) => ({
               ) : (
                 <div className="space-y-2">
                   {product3dModels.map((model) => (
-                    <div key={model.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <div>
-                          <p className="text-sm font-semibold text-slate-900">
-                            {model.name} {isPrimary3dModel(model) ? <span className="text-emerald-700">(principal)</span> : null}
-                          </p>
-                          <p className="text-xs text-slate-500">
-                            {model.width_mm ?? '-'} x {model.height_mm ?? '-'} x {model.depth_mm ?? '-'} mm | ordem {model.sort_order} | {model.sub_item_title ? `subitem: ${model.sub_item_title}` : 'principal'}
-                          </p>
-                          <p className="text-xs text-slate-500">
-                            {modelHasPreview(model)
-                              ? `Preview 3D habilitado (${fileExtension(model.preview_file_url || resolveModelFileUrl(model))})`
-                              : `Sem preview 3D (${fileExtension(resolveModelFileUrl(model)) || 'arquivo'})`}
-                          </p>
+                    <article
+                      key={model.id}
+                      className={`rounded-xl border p-3 transition ${
+                        selected3dCardId === model.id
+                          ? 'border-violet-300 bg-violet-50 ring-1 ring-violet-100'
+                          : 'border-slate-200 bg-slate-50 hover:border-violet-200 hover:bg-white'
+                      }`}
+                      onClick={() => setSelected3dCardId(model.id)}
+                    >
+                      <div className="flex flex-col gap-3">
+                        <div className="flex items-center gap-3">
+                          <Model3dListThumbnail model={model} />
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2">
+                              <p className="truncate text-sm font-semibold text-slate-900">
+                                {model.name} {isPrimary3dModel(model) ? <span className="text-emerald-700">(principal)</span> : null}
+                              </p>
+                              <span
+                                className={`h-2.5 w-2.5 shrink-0 rounded-full ${model.is_active ? 'bg-emerald-500' : 'bg-slate-300'}`}
+                                aria-label={model.is_active ? 'Modelo ativo' : 'Modelo inativo'}
+                                title={model.is_active ? 'Modelo ativo' : 'Modelo inativo'}
+                              />
+                            </div>
+                            <p className="mt-1 text-xs text-slate-500">
+                              {model.width_mm ?? '-'} x {model.height_mm ?? '-'} x {model.depth_mm ?? '-'} mm | ordem {model.sort_order} | {model.sub_item_title ? `subitem: ${model.sub_item_title}` : 'principal'}
+                            </p>
+                            <p className="text-xs text-slate-500">
+                              {modelHasPreview(model)
+                                ? `Preview 3D habilitado (${fileExtension(model.preview_file_url || resolveModelFileUrl(model))})`
+                                : `Sem preview 3D (${fileExtension(resolveModelFileUrl(model)) || 'arquivo'})`}
+                            </p>
+                          </div>
                         </div>
+
+                        <div className="flex flex-wrap gap-2">
+                          {isPrimary3dModel(model) ? <StatusBadge tone="info">Principal</StatusBadge> : <StatusBadge tone="neutral">Secundario</StatusBadge>}
+                          {Boolean(model.show_to_customer) ? <StatusBadge tone="success">Publico</StatusBadge> : <StatusBadge tone="neutral">Interno</StatusBadge>}
+                          {model.is_active ? <StatusBadge tone="success">Ativo</StatusBadge> : <StatusBadge tone="danger">Inativo</StatusBadge>}
+                        </div>
+
                         <div className="flex flex-wrap gap-2">
                           <Button type="button" variant="secondary" onClick={() => setPrimary3dModel(model)} disabled={isPrimary3dModel(model)}>
                             Definir principal
@@ -2692,12 +2773,8 @@ const toModel3dPayload = (source, overrides = {}) => ({
                           </Button>
                           <Button type="button" variant="danger" onClick={() => remove3dModel(model)}>Excluir</Button>
                         </div>
-                        <div className="mt-2 flex flex-wrap gap-2">
-                          {isPrimary3dModel(model) ? <StatusBadge tone="info">Principal</StatusBadge> : <StatusBadge tone="neutral">Secundario</StatusBadge>}
-                          {Boolean(model.show_to_customer) ? <StatusBadge tone="success">Publico</StatusBadge> : <StatusBadge tone="neutral">Interno</StatusBadge>}
-                        </div>
                       </div>
-                    </div>
+                    </article>
                   ))}
                 </div>
               )}
