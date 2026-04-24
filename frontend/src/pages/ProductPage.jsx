@@ -478,6 +478,132 @@ function Public3DViewer({
   );
 }
 
+function Tiny3DThumbnail({ url }) {
+  const mountRef = useRef(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    setFailed(false);
+    if (!url || !mountRef.current || !is3DPreviewFile(url)) return undefined;
+
+    let disposed = false;
+    let cleanup = null;
+
+    const setup = async () => {
+      try {
+        const THREE = await import('three');
+        const [{ GLTFLoader }, { STLLoader }] = await Promise.all([
+          import('three/examples/jsm/loaders/GLTFLoader.js'),
+          import('three/examples/jsm/loaders/STLLoader.js'),
+        ]);
+        if (disposed || !mountRef.current) return;
+
+        const container = mountRef.current;
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color('#e2e8f0');
+
+        const camera = new THREE.PerspectiveCamera(38, container.clientWidth / Math.max(container.clientHeight, 1), 0.1, 2000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+        renderer.setSize(container.clientWidth, container.clientHeight);
+        container.innerHTML = '';
+        container.appendChild(renderer.domElement);
+
+        const ambient = new THREE.AmbientLight('#ffffff', 0.95);
+        const key = new THREE.DirectionalLight('#ffffff', 0.9);
+        key.position.set(2, 4, 6);
+        const fill = new THREE.DirectionalLight('#ffffff', 0.45);
+        fill.position.set(-3, -2, 2);
+        scene.add(ambient, key, fill);
+
+        const applyObject = (object) => {
+          const material = new THREE.MeshStandardMaterial({
+            color: '#7a8ca5',
+            roughness: 0.4,
+            metalness: 0.08,
+          });
+          object.traverse?.((node) => {
+            if (node?.isMesh) node.material = material;
+          });
+
+          const group = new THREE.Group();
+          group.add(object);
+          scene.add(group);
+
+          const box = new THREE.Box3().setFromObject(group);
+          const size = box.getSize(new THREE.Vector3());
+          const center = box.getCenter(new THREE.Vector3());
+          group.position.sub(center);
+
+          const maxDim = Math.max(size.x || 1, size.y || 1, size.z || 1);
+          const distance = maxDim * 2.05;
+          camera.position.set(distance * 1.05, distance * 0.68, distance);
+          camera.lookAt(0, 0, 0);
+          renderer.render(scene, camera);
+        };
+
+        const ext = fileExtensionFromUrl(url);
+        if (ext === '.stl') {
+          const loader = new STLLoader();
+          loader.load(
+            url,
+            (geometry) => {
+              if (disposed) return;
+              geometry.computeVertexNormals();
+              const mesh = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({
+                color: '#7a8ca5',
+                roughness: 0.4,
+                metalness: 0.08,
+              }));
+              applyObject(mesh);
+            },
+            undefined,
+            () => setFailed(true)
+          );
+        } else {
+          const loader = new GLTFLoader();
+          loader.load(
+            url,
+            (gltf) => {
+              if (disposed) return;
+              const root = gltf.scene || gltf.scenes?.[0];
+              if (!root) {
+                setFailed(true);
+                return;
+              }
+              applyObject(root);
+            },
+            undefined,
+            () => setFailed(true)
+          );
+        }
+
+        cleanup = () => {
+          renderer.dispose();
+          scene.traverse((node) => {
+            if (node?.geometry?.dispose) node.geometry.dispose();
+            if (Array.isArray(node?.material)) node.material.forEach((item) => item?.dispose?.());
+            else if (node?.material?.dispose) node.material.dispose();
+          });
+          if (container.contains(renderer.domElement)) container.removeChild(renderer.domElement);
+        };
+      } catch {
+        setFailed(true);
+      }
+    };
+
+    void setup();
+
+    return () => {
+      disposed = true;
+      if (cleanup) cleanup();
+    };
+  }, [url]);
+
+  if (failed || !is3DPreviewFile(url)) return null;
+  return <div ref={mountRef} className="h-full w-full" />;
+}
+
 function Public3DModelOptionCard({
   model,
   index = 0,
@@ -514,6 +640,10 @@ function Public3DModelOptionCard({
           width="80"
           height="80"
         />
+      ) : is3DPreviewFile(previewUrl) ? (
+        <div className="h-16 w-16 shrink-0 overflow-hidden rounded-lg border border-slate-200 bg-slate-100">
+          <Tiny3DThumbnail url={previewUrl} />
+        </div>
       ) : (
         <div className="flex h-16 w-16 shrink-0 flex-col items-center justify-center rounded-lg border border-slate-200 bg-slate-100 text-slate-500">
           <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="1.8">
