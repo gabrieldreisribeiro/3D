@@ -139,6 +139,11 @@ function fileExtensionFromUrl(url) {
   return value.slice(index);
 }
 
+function isImagePreviewFile(url) {
+  const ext = fileExtensionFromUrl(url);
+  return ['.png', '.jpg', '.jpeg', '.webp', '.gif', '.svg', '.avif'].includes(ext);
+}
+
 function is3DPreviewFile(url) {
   const ext = fileExtensionFromUrl(url);
   return ext === '.stl' || ext === '.glb' || ext === '.gltf';
@@ -470,6 +475,66 @@ function Public3DViewer({
         {loadingModel && !failed ? <div className="absolute inset-0 flex items-center justify-center text-sm font-semibold text-slate-500">Carregando modelo 3D...</div> : null}
       </div>
     </div>
+  );
+}
+
+function Public3DModelOptionCard({
+  model,
+  index = 0,
+  isSelected = false,
+  onSelect,
+}) {
+  const previewUrl = resolveImageUrl(model?.preview_file_url || '');
+  const isImage = isImagePreviewFile(previewUrl);
+  const previewExt = fileExtensionFromUrl(previewUrl).replace('.', '').toUpperCase();
+  const sources = useMemo(
+    () => getOptimizedImageSources(previewUrl, { variant: 'thumbnail', sizes: '80px' }),
+    [previewUrl]
+  );
+
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      className={`flex w-full items-center gap-3 rounded-xl border px-2.5 py-2 text-left transition ${
+        isSelected
+          ? 'border-emerald-400 bg-emerald-50 ring-1 ring-emerald-100'
+          : 'border-slate-200 bg-white hover:border-emerald-200 hover:bg-slate-50'
+      }`}
+    >
+      {isImage && previewUrl ? (
+        <img
+          src={sources.src || previewUrl}
+          srcSet={sources.srcSet || undefined}
+          sizes={sources.srcSet ? '80px' : undefined}
+          alt={model?.name || `Modelo ${index + 1}`}
+          className="h-16 w-16 shrink-0 rounded-lg border border-slate-200 object-cover"
+          loading="lazy"
+          decoding="async"
+          width="80"
+          height="80"
+        />
+      ) : (
+        <div className="flex h-16 w-16 shrink-0 flex-col items-center justify-center rounded-lg border border-slate-200 bg-slate-100 text-slate-500">
+          <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="1.8">
+            <path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z" />
+            <path d="m4 7.5 8 4.5 8-4.5" />
+            <path d="M12 12v9" />
+          </svg>
+          <span className="mt-1 text-[10px] font-semibold">{previewExt || '3D'}</span>
+        </div>
+      )}
+
+      <div className="min-w-0 flex-1">
+        <p className="line-clamp-1 text-sm font-semibold text-slate-800">{model?.name || `Modelo ${index + 1}`}</p>
+        <div className="mt-1 flex items-center gap-2">
+          <span className={`h-2.5 w-2.5 rounded-full ${isSelected ? 'bg-emerald-500' : 'bg-slate-300'}`} />
+          <span className={`text-xs font-semibold ${isSelected ? 'text-emerald-700' : 'text-slate-500'}`}>
+            {isSelected ? 'Ativo' : 'Disponivel'}
+          </span>
+        </div>
+      </div>
+    </button>
   );
 }
 
@@ -1847,19 +1912,13 @@ function ProductPage() {
                     {activePublic3dModels.map((model, index) => {
                       const isSelected = String(model?.id) === String(activePublic3dModel?.id);
                       return (
-                        <button
+                        <Public3DModelOptionCard
                           key={`public-model-option-${model?.id || index}`}
-                          type="button"
-                          onClick={() => setSelectedPublic3dModelId(String(model?.id || ''))}
-                          className={`flex w-full items-center justify-between rounded-lg border px-3 py-2 text-left text-sm transition ${
-                            isSelected
-                              ? 'border-emerald-400 bg-emerald-50 text-emerald-800'
-                              : 'border-slate-200 bg-white text-slate-700 hover:border-emerald-200'
-                          }`}
-                        >
-                          <span className="line-clamp-1 font-medium">{model?.name || `Modelo ${index + 1}`}</span>
-                          {isSelected ? <span className="text-xs font-semibold">Ativo</span> : null}
-                        </button>
+                          model={model}
+                          index={index}
+                          isSelected={isSelected}
+                          onSelect={() => setSelectedPublic3dModelId(String(model?.id || ''))}
+                        />
                       );
                     })}
                   </div>
