@@ -1045,6 +1045,25 @@ const toModel3dPayload = (source, overrides = {}) => ({
     }
   };
 
+  const toggle3dModelCustomerVisibility = async (model) => {
+    if (!selectedProduct?.id) return;
+    setSaving(true);
+    setError('');
+    try {
+      await updateAdminProduct3DModel(
+        selectedProduct.id,
+        model.id,
+        toModel3dPayload(model, { show_to_customer: !Boolean(model.show_to_customer) })
+      );
+      load3dModels(selectedProduct.id);
+      loadProducts();
+    } catch (toggleError) {
+      setError(toggleError.message || 'Falha ao atualizar visibilidade para cliente.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const remove3dModel = async (model) => {
     if (!selectedProduct?.id) return;
     const confirmed = window.confirm(`Excluir modelo 3D "${model.name}"?`);
@@ -1115,14 +1134,12 @@ const toModel3dPayload = (source, overrides = {}) => ({
     setError('');
     try {
       for (const entry of updates) {
-        const isBecomingPrimary = Number(entry.sort_order) === 1;
         await updateAdminProduct3DModel(
           selectedProduct.id,
           entry.item.id,
           toModel3dPayload(entry.item, {
             sort_order: entry.sort_order,
             is_active: true,
-            show_to_customer: isBecomingPrimary ? Boolean(entry.item.show_to_customer) : false,
           })
         );
       }
@@ -1199,7 +1216,6 @@ const toModel3dPayload = (source, overrides = {}) => ({
             patch: {
               sub_item_id: String(subItemId).trim(),
               sort_order: index + 2,
-              show_to_customer: false,
               is_active: Boolean(item.is_active),
             },
           });
@@ -2648,6 +2664,9 @@ const toModel3dPayload = (source, overrides = {}) => ({
                           <Button type="button" variant="secondary" onClick={() => setPrimary3dModel(model)} disabled={isPrimary3dModel(model)}>
                             Definir principal
                           </Button>
+                          <Button type="button" variant={Boolean(model.show_to_customer) ? 'ghost' : 'secondary'} onClick={() => toggle3dModelCustomerVisibility(model)}>
+                            {Boolean(model.show_to_customer) ? 'Ocultar do cliente' : 'Exibir para cliente'}
+                          </Button>
                           <Button type="button" variant="secondary" onClick={() => openEdit3dModel(model)}>Editar</Button>
                           <Button type="button" variant="ghost" onClick={() => toggle3dModelStatus(model)}>
                             {model.is_active ? 'Inativar' : 'Ativar'}
@@ -2843,18 +2862,6 @@ const toModel3dPayload = (source, overrides = {}) => ({
             <input type="checkbox" checked={Boolean(model3dForm.allow_download)} onChange={(event) => setModel3dForm({ ...model3dForm, allow_download: event.target.checked })} />
             <span>Permitir download</span>
           </label>
-          <label className="inline-flex items-center gap-2 rounded-[10px] border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
-            <input
-              type="checkbox"
-              checked={Boolean(model3dForm.show_to_customer)}
-              disabled={Number(model3dForm.sort_order || 0) !== 1}
-              onChange={(event) => setModel3dForm({ ...model3dForm, show_to_customer: event.target.checked })}
-            />
-            <span>Mostrar para o cliente</span>
-          </label>
-          {Number(model3dForm.sort_order || 0) !== 1 ? (
-            <p className="md:col-span-2 text-xs text-amber-700">Apenas o modelo principal (ordem 1) pode ser exibido ao cliente.</p>
-          ) : null}
           <label className="inline-flex items-center gap-2 rounded-[10px] border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
             <input type="checkbox" checked={Boolean(model3dForm.is_active)} onChange={(event) => setModel3dForm({ ...model3dForm, is_active: event.target.checked })} />
             <span>Modelo ativo</span>

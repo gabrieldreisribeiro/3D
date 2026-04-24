@@ -13,6 +13,7 @@ from app.services.order_service import list_most_ordered_products
 from app.services.product_pricing_service import calculate_product_pricing
 from app.services.product_3d_model_service import (
     get_primary_model_dimensions_map,
+    get_public_model_list_maps,
     get_public_primary_model_maps,
     get_sub_item_dimensions_map,
 )
@@ -350,6 +351,7 @@ def list_admin_products_with_drafts(db: Session) -> list[dict]:
     primary_dims = get_primary_model_dimensions_map(db, positive_ids)
     sub_item_dims = get_sub_item_dimensions_map(db, positive_ids)
     public_product_models, public_sub_item_models = get_public_primary_model_maps(db, positive_ids)
+    public_product_model_lists, public_sub_item_model_lists = get_public_model_list_maps(db, positive_ids)
     for item in merged:
         pid = int(item.get('id') or 0)
         has_manual = all(item.get(key) is not None for key in ['width_mm', 'height_mm', 'depth_mm'])
@@ -373,7 +375,9 @@ def list_admin_products_with_drafts(db: Session) -> list[dict]:
                 sub_item['depth_mm'] = depth
                 sub_item['dimensions_source'] = 'model'
             sub_item['public_3d_model'] = public_sub_item_models.get((pid, sub_item_id)) if pid > 0 and sub_item_id else None
+            sub_item['public_3d_models'] = public_sub_item_model_lists.get((pid, sub_item_id), []) if pid > 0 and sub_item_id else []
         item['public_3d_model'] = public_product_models.get(pid) if pid > 0 else None
+        item['public_3d_models'] = public_product_model_lists.get(pid, []) if pid > 0 else []
     merged.sort(key=lambda item: int(item.get('id', 0)), reverse=True)
     return merged
 

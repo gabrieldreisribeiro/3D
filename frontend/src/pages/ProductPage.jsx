@@ -528,6 +528,7 @@ function ProductPage() {
   const [preview3dColor, setPreview3dColor] = useState(DEFAULT_MODEL_PREVIEW_COLOR.hex);
   const [preview3dDimensions, setPreview3dDimensions] = useState(null);
   const [preview3dResetSignal, setPreview3dResetSignal] = useState(0);
+  const [selectedPublic3dModelId, setSelectedPublic3dModelId] = useState('');
   const [activeDetailTab, setActiveDetailTab] = useState('description');
   const [reviewSort, setReviewSort] = useState('recent');
   const [reviewsSummary, setReviewsSummary] = useState({
@@ -623,6 +624,7 @@ function ProductPage() {
     promotional_price: null,
     promotion_badge: null,
     public_3d_model: null,
+    public_3d_models: [],
     width_mm: null,
     height_mm: null,
     depth_mm: null,
@@ -664,8 +666,20 @@ function ProductPage() {
     .map((item, index) => ({ item, key: getSubItemKey(item, index) }))
     .filter(({ key }) => Boolean(selectedSubItems[key]));
   const singleSelectedSubItem = selectedSubItemEntries.length === 1 ? selectedSubItemEntries[0]?.item || null : null;
-  const selectedSubItemPublicModel = singleSelectedSubItem?.public_3d_model || null;
-  const activePublic3dModel = selectedSubItemPublicModel || productData.public_3d_model || null;
+  const selectedSubItemPublicModels = Array.isArray(singleSelectedSubItem?.public_3d_models) && singleSelectedSubItem.public_3d_models.length
+    ? singleSelectedSubItem.public_3d_models
+    : (singleSelectedSubItem?.public_3d_model ? [singleSelectedSubItem.public_3d_model] : []);
+  const productPublic3dModels = Array.isArray(productData.public_3d_models) && productData.public_3d_models.length
+    ? productData.public_3d_models
+    : (productData.public_3d_model ? [productData.public_3d_model] : []);
+  const activePublic3dModels = (selectedSubItemPublicModels.length ? selectedSubItemPublicModels : productPublic3dModels)
+    .filter((model) => {
+      const url = resolveImageUrl(model?.preview_file_url || '');
+      return Boolean(url && is3DPreviewFile(url));
+    });
+  const activePublic3dModel = activePublic3dModels.find((item) => String(item?.id) === String(selectedPublic3dModelId))
+    || activePublic3dModels[0]
+    || null;
   const activePublic3dUrl = resolveImageUrl(activePublic3dModel?.preview_file_url || '');
   const shouldShowPublic3d = Boolean(activePublic3dUrl && is3DPreviewFile(activePublic3dUrl));
   const activePublic3dLabel = singleSelectedSubItem?.title || '';
@@ -691,8 +705,8 @@ function ProductPage() {
     ]
   );
   const activePublic3dContextLabel = activePublic3dLabel
-    ? `Modelo principal do subitem: ${activePublic3dLabel}`
-    : 'Modelo principal do produto';
+    ? `Modelos 3D do subitem: ${activePublic3dLabel}`
+    : 'Modelos 3D do produto';
   const preview3dPalette = useMemo(() => {
     const subItemColors = Boolean(singleSelectedSubItem?.allow_colors)
       ? (singleSelectedSubItem?.available_colors || [])
@@ -746,6 +760,17 @@ function ProductPage() {
   }, [storeSettings.whatsapp_number]);
 
   useEffect(() => {
+    if (!activePublic3dModels.length) {
+      setSelectedPublic3dModelId('');
+      return;
+    }
+    setSelectedPublic3dModelId((current) => {
+      if (activePublic3dModels.some((item) => String(item?.id) === String(current))) return current;
+      return String(activePublic3dModels[0]?.id || '');
+    });
+  }, [activePublic3dModels]);
+
+  useEffect(() => {
     setPreview3dDimensions(null);
     if (!shouldShowPublic3d) {
       setIs3dModalOpen(false);
@@ -765,7 +790,7 @@ function ProductPage() {
       });
     }
     setPreview3dResetSignal((current) => current + 1);
-  }, [activePublic3dUrl, shouldShowPublic3d, selectedColor, preview3dPalette, defaultPreview3dColor]);
+  }, [activePublic3dUrl, shouldShowPublic3d, selectedColor, preview3dPalette, defaultPreview3dColor, selectedPublic3dModelId]);
 
   const reviewImagePreviews = useMemo(
     () =>
@@ -1815,6 +1840,31 @@ function ProductPage() {
               />
             </div>
             <aside className="space-y-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 lg:col-span-4">
+              {activePublic3dModels.length > 1 ? (
+                <div className="space-y-2 rounded-xl border border-slate-200 bg-white p-3">
+                  <p className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Modelos disponiveis</p>
+                  <div className="space-y-2">
+                    {activePublic3dModels.map((model, index) => {
+                      const isSelected = String(model?.id) === String(activePublic3dModel?.id);
+                      return (
+                        <button
+                          key={`public-model-option-${model?.id || index}`}
+                          type="button"
+                          onClick={() => setSelectedPublic3dModelId(String(model?.id || ''))}
+                          className={`flex w-full items-center justify-between rounded-lg border px-3 py-2 text-left text-sm transition ${
+                            isSelected
+                              ? 'border-emerald-400 bg-emerald-50 text-emerald-800'
+                              : 'border-slate-200 bg-white text-slate-700 hover:border-emerald-200'
+                          }`}
+                        >
+                          <span className="line-clamp-1 font-medium">{model?.name || `Modelo ${index + 1}`}</span>
+                          {isSelected ? <span className="text-xs font-semibold">Ativo</span> : null}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : null}
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Personalize a visualizacao</p>
                 <h4 className="mt-1 text-sm font-semibold text-slate-900">Escolha a cor para visualizar</h4>

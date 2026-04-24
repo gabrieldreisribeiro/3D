@@ -348,21 +348,8 @@ def _validate_public_visibility_for_model(
 ) -> None:
     if not bool(show_to_customer):
         return
-    if int(sort_order or 0) != 1:
-        raise HTTPException(status_code=400, detail='Apenas o modelo principal (ordem 1) pode ser exibido ao cliente.')
     if not product_id:
         raise HTTPException(status_code=400, detail='Vincule o modelo a um produto para exibir ao cliente.')
-    query = db.query(Product3DModel).filter(
-        Product3DModel.product_id == int(product_id),
-        Product3DModel.sub_item_id == sub_item_id,
-        Product3DModel.show_to_customer == True,
-        Product3DModel.sort_order == 1,
-    )
-    if current_model_id:
-        query = query.filter(Product3DModel.id != int(current_model_id))
-    existing = query.first()
-    if existing:
-        raise HTTPException(status_code=400, detail='Ja existe um modelo principal publico para este produto/subitem.')
 
 
 def _count_super_admins(db: Session) -> int:

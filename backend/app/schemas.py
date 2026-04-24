@@ -81,6 +81,7 @@ class ProductSubItem(BaseModel):
     estimated_profit: float = 0
     final_price: float = 0
     public_3d_model: Optional[PublicProduct3DModelResponse] = None
+    public_3d_models: List[PublicProduct3DModelResponse] = Field(default_factory=list)
 
 
 class ProductBase(BaseModel):
@@ -120,6 +121,7 @@ class ProductBase(BaseModel):
     promotional_price: Optional[float] = None
     promotion_badge: Optional[str] = None
     public_3d_model: Optional[PublicProduct3DModelResponse] = None
+    public_3d_models: List[PublicProduct3DModelResponse] = Field(default_factory=list)
 
 class ProductResponse(ProductBase):
     pass

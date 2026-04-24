@@ -346,9 +346,8 @@ def get_public_primary_model_maps(
             Product3DModel.product_id.in_(ids),
             Product3DModel.is_active == True,
             Product3DModel.show_to_customer == True,
-            Product3DModel.sort_order == 1,
         )
-        .order_by(Product3DModel.product_id.asc(), Product3DModel.sub_item_id.asc(), Product3DModel.id.asc())
+        .order_by(Product3DModel.product_id.asc(), Product3DModel.sub_item_id.asc(), Product3DModel.sort_order.asc(), Product3DModel.id.asc())
         .all()
     )
     by_product: dict[int, dict] = {}
@@ -367,19 +366,52 @@ def get_public_primary_model_maps(
     return by_product, by_sub_item
 
 
+def get_public_model_list_maps(
+    db: Session,
+    product_ids: list[int],
+) -> tuple[dict[int, list[dict]], dict[tuple[int, str], list[dict]]]:
+    ids = [int(item) for item in product_ids if int(item) > 0]
+    if not ids:
+        return {}, {}
+    rows = (
+        db.query(Product3DModel)
+        .filter(
+            Product3DModel.product_id.in_(ids),
+            Product3DModel.is_active == True,
+            Product3DModel.show_to_customer == True,
+        )
+        .order_by(Product3DModel.product_id.asc(), Product3DModel.sub_item_id.asc(), Product3DModel.sort_order.asc(), Product3DModel.id.asc())
+        .all()
+    )
+    by_product: dict[int, list[dict]] = {}
+    by_sub_item: dict[tuple[int, str], list[dict]] = {}
+    for row in rows:
+        serialized = _serialize_public_model(row)
+        if row.sub_item_id:
+            key = (int(row.product_id), str(row.sub_item_id).strip())
+            by_sub_item.setdefault(key, []).append(serialized)
+            continue
+        pid = int(row.product_id)
+        by_product.setdefault(pid, []).append(serialized)
+    return by_product, by_sub_item
+
+
 def apply_public_3d_models(products: list, db: Session) -> None:
     if not products:
         return
     ids = [int(item.id) for item in products if getattr(item, 'id', None)]
     by_product, by_sub_item = get_public_primary_model_maps(db, ids)
+    by_product_list, by_sub_item_list = get_public_model_list_maps(db, ids)
     for product in products:
         pid = int(product.id)
         product.public_3d_model = by_product.get(pid)
+        product.public_3d_models = by_product_list.get(pid, [])
         parsed_sub_items = parse_sub_items_from_storage(getattr(product, 'sub_items', []))
         for sub_item in parsed_sub_items:
             sub_item_id = str(sub_item.get('id') or '').strip()
             key = (pid, sub_item_id)
             sub_item['public_3d_model'] = by_sub_item.get(key)
+            sub_item['public_3d_models'] = by_sub_item_list.get(key, [])
         product.sub_items = parsed_sub_items
 
 
