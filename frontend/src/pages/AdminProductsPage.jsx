@@ -2897,6 +2897,24 @@ const toModel3dPayload = (source, overrides = {}) => ({
                               {model.sub_item_title ? `Subitem: ${model.sub_item_title}` : 'Produto principal'} | dimensoes: {formatModel3dDimensions(model)}
                             </p>
                           </div>
+                          <div className="flex flex-wrap gap-2 sm:justify-end">
+                            <Button
+                              type="button"
+                              variant={Boolean(model.show_to_customer) ? 'ghost' : 'secondary'}
+                              onClick={() => toggle3dModelCustomerVisibility(model)}
+                              disabled={saving || !selectedProduct?.id}
+                            >
+                              {Boolean(model.show_to_customer) ? 'Ocultar do cliente' : 'Exibir para cliente'}
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="danger"
+                              onClick={() => remove3dModel(model)}
+                              disabled={saving || !selectedProduct?.id}
+                            >
+                              Excluir
+                            </Button>
+                          </div>
                         </div>
                       </article>
                     ))}
