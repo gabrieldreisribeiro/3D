@@ -28,7 +28,7 @@ function Modal({
 
   if (!open) return null;
 
-  const sizeClass = size === 'lg' ? 'max-w-4xl' : size === 'sm' ? 'max-w-md' : 'max-w-2xl';
+  const sizeClass = size === 'xl' ? 'max-w-7xl' : size === 'lg' ? 'max-w-4xl' : size === 'sm' ? 'max-w-md' : 'max-w-2xl';
 
   const handleBackdropClick = () => {
     if (closeOnBackdrop) onClose();

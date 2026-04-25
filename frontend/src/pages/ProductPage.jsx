@@ -469,7 +469,7 @@ function Public3DViewer({
 
   return (
     <div className={className}>
-      <div className="relative h-[360px] overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-100 via-slate-50 to-slate-100 md:h-[560px]">
+      <div className="relative h-[42dvh] min-h-[260px] max-h-[360px] overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-100 via-slate-50 to-slate-100 md:h-[560px] md:max-h-none">
         <div ref={mountRef} className="h-full w-full" />
         {failed ? <div className="absolute inset-0 flex items-center justify-center text-sm font-semibold text-slate-500">Nao foi possivel renderizar</div> : null}
         {loadingModel && !failed ? <div className="absolute inset-0 flex items-center justify-center text-sm font-semibold text-slate-500">Carregando modelo 3D...</div> : null}
@@ -622,7 +622,7 @@ function Public3DModelOptionCard({
     <button
       type="button"
       onClick={onSelect}
-      className={`flex w-full items-center gap-3 rounded-xl border px-2.5 py-2 text-left transition ${
+      className={`flex h-full min-h-[92px] w-full flex-col items-center justify-center gap-1.5 rounded-xl border px-1.5 py-2 text-center transition sm:min-h-[76px] sm:flex-row sm:justify-start sm:gap-2 sm:px-2 sm:text-left lg:min-h-0 lg:gap-3 lg:px-2.5 ${
         isSelected
           ? 'border-emerald-400 bg-emerald-50 ring-1 ring-emerald-100'
           : 'border-slate-200 bg-white hover:border-emerald-200 hover:bg-slate-50'
@@ -634,37 +634,85 @@ function Public3DModelOptionCard({
           srcSet={sources.srcSet || undefined}
           sizes={sources.srcSet ? '80px' : undefined}
           alt={model?.name || `Modelo ${index + 1}`}
-          className="h-16 w-16 shrink-0 rounded-lg border border-slate-200 object-cover"
+          className="h-11 w-11 shrink-0 rounded-lg border border-slate-200 object-cover sm:h-14 sm:w-14 lg:h-16 lg:w-16"
           loading="lazy"
           decoding="async"
           width="80"
           height="80"
         />
       ) : is3DPreviewFile(previewUrl) ? (
-        <div className="h-16 w-16 shrink-0 overflow-hidden rounded-lg border border-slate-200 bg-slate-100">
+        <div className="h-11 w-11 shrink-0 overflow-hidden rounded-lg border border-slate-200 bg-slate-100 sm:h-14 sm:w-14 lg:h-16 lg:w-16">
           <Tiny3DThumbnail url={previewUrl} />
         </div>
       ) : (
-        <div className="flex h-16 w-16 shrink-0 flex-col items-center justify-center rounded-lg border border-slate-200 bg-slate-100 text-slate-500">
-          <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="1.8">
+        <div className="flex h-11 w-11 shrink-0 flex-col items-center justify-center rounded-lg border border-slate-200 bg-slate-100 text-slate-500 sm:h-14 sm:w-14 lg:h-16 lg:w-16">
+          <svg viewBox="0 0 24 24" className="h-5 w-5 sm:h-6 sm:w-6" fill="none" stroke="currentColor" strokeWidth="1.8">
             <path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z" />
             <path d="m4 7.5 8 4.5 8-4.5" />
             <path d="M12 12v9" />
           </svg>
-          <span className="mt-1 text-[10px] font-semibold">{previewExt || '3D'}</span>
+          <span className="mt-0.5 text-[9px] font-semibold sm:mt-1 sm:text-[10px]">{previewExt || '3D'}</span>
         </div>
       )}
 
-      <div className="min-w-0 flex-1">
-        <p className="line-clamp-1 text-sm font-semibold text-slate-800">{model?.name || `Modelo ${index + 1}`}</p>
-        <div className="mt-1 flex items-center gap-2">
+      <div className="min-w-0 max-w-full sm:flex-1">
+        <p className="line-clamp-1 text-[11px] font-semibold text-slate-800 sm:text-xs lg:text-sm">{model?.name || `Modelo ${index + 1}`}</p>
+        <div className="mt-1 flex items-center justify-center gap-1.5 sm:justify-start sm:gap-2">
           <span className={`h-2.5 w-2.5 rounded-full ${isSelected ? 'bg-emerald-500' : 'bg-slate-300'}`} />
-          <span className={`text-xs font-semibold ${isSelected ? 'text-emerald-700' : 'text-slate-500'}`}>
+          <span className={`hidden text-xs font-semibold sm:inline ${isSelected ? 'text-emerald-700' : 'text-slate-500'}`}>
             {isSelected ? 'Ativo' : 'Disponivel'}
           </span>
         </div>
       </div>
     </button>
+  );
+}
+
+function Public3DPreviewControls({
+  palette,
+  selectedColor,
+  onColorSelect,
+  dimensions,
+}) {
+  return (
+    <>
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Personalize a visualizacao</p>
+        <h4 className="mt-1 text-sm font-semibold text-slate-900">Escolha a cor para visualizar</h4>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {palette.map((option, index) => (
+          <button
+            key={`preview-color-${option.hex}-${index}`}
+            type="button"
+            className={`inline-flex items-center gap-2 rounded-full border px-2.5 py-1.5 text-xs font-semibold transition ${
+              selectedColor === option.hex
+                ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
+                : 'border-slate-200 bg-white text-slate-600 hover:border-emerald-300'
+            }`}
+            onClick={() => onColorSelect(option.hex)}
+          >
+            <span className="h-4 w-4 rounded-full border border-slate-300" style={{ backgroundColor: option.hex }} />
+            {option.label}
+          </button>
+        ))}
+      </div>
+
+      {dimensions ? (
+        <div className="space-y-2 rounded-xl border border-slate-200 bg-white p-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Dimensoes estimadas</p>
+          <p className="text-sm text-slate-700"><strong className="text-slate-900">Largura:</strong> {formatMmAsCm(dimensions.width_mm)}</p>
+          <p className="text-sm text-slate-700"><strong className="text-slate-900">Altura:</strong> {formatMmAsCm(dimensions.height_mm)}</p>
+          <p className="text-sm text-slate-700"><strong className="text-slate-900">Profundidade:</strong> {formatMmAsCm(dimensions.depth_mm)}</p>
+        </div>
+      ) : (
+        <p className="text-xs text-slate-500">As dimensoes aparecem automaticamente apos carregar o modelo.</p>
+      )}
+
+      <div className="rounded-xl border border-slate-200 bg-white p-3 text-xs text-slate-600">
+        Arraste para girar, use o scroll para zoom e arraste com o botao direito para mover a camera.
+      </div>
+    </>
   );
 }
 
@@ -2014,7 +2062,7 @@ function ProductPage() {
           onClose={() => setIs3dModalOpen(false)}
           title="Pre-visualizacao 3D"
           subtitle={activePublic3dContextLabel}
-          size="lg"
+          size="xl"
           closeOnEscape
           footer={(
             <>
@@ -2023,22 +2071,14 @@ function ProductPage() {
             </>
           )}
         >
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
-            <div className="lg:col-span-8">
-              <Public3DViewer
-                url={activePublic3dUrl}
-                referenceDimensionsMm={activePublic3dReferenceMm}
-                colorHex={preview3dColor}
-                onDimensionsChange={setPreview3dDimensions}
-                resetSignal={preview3dResetSignal}
-                className="rounded-2xl bg-white"
-              />
-            </div>
-            <aside className="space-y-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 lg:col-span-4">
+          <div className="grid grid-cols-1 gap-3 lg:grid-cols-12 lg:gap-4">
+            <aside className={`order-1 space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 lg:col-span-4 lg:max-h-[calc(96dvh-220px)] lg:overflow-y-auto lg:p-4 ${
+              activePublic3dModels.length > 1 ? '' : 'hidden lg:block'
+            }`}>
               {activePublic3dModels.length > 1 ? (
-                <div className="space-y-2 rounded-xl border border-slate-200 bg-white p-3">
+                <div className="space-y-2 rounded-xl border border-slate-200 bg-white p-2 sm:p-3">
                   <p className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Modelos disponiveis</p>
-                  <div className="space-y-2">
+                  <div className="grid grid-cols-3 gap-2 lg:block lg:space-y-2">
                     {activePublic3dModels.map((model, index) => {
                       const isSelected = String(model?.id) === String(activePublic3dModel?.id);
                       return (
@@ -2054,43 +2094,34 @@ function ProductPage() {
                   </div>
                 </div>
               ) : null}
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Personalize a visualizacao</p>
-                <h4 className="mt-1 text-sm font-semibold text-slate-900">Escolha a cor para visualizar</h4>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {preview3dPalette.map((option, index) => (
-                  <button
-                    key={`preview-color-${option.hex}-${index}`}
-                    type="button"
-                    className={`inline-flex items-center gap-2 rounded-full border px-2.5 py-1.5 text-xs font-semibold transition ${
-                      preview3dColor === option.hex
-                        ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
-                        : 'border-slate-200 bg-white text-slate-600 hover:border-emerald-300'
-                    }`}
-                    onClick={() => setPreview3dColor(option.hex)}
-                  >
-                    <span className="h-4 w-4 rounded-full border border-slate-300" style={{ backgroundColor: option.hex }} />
-                    {option.label}
-                  </button>
-                ))}
-              </div>
-
-              {preview3dDimensions ? (
-                <div className="space-y-2 rounded-xl border border-slate-200 bg-white p-3">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Dimensoes estimadas</p>
-                  <p className="text-sm text-slate-700"><strong className="text-slate-900">Largura:</strong> {formatMmAsCm(preview3dDimensions.width_mm)}</p>
-                  <p className="text-sm text-slate-700"><strong className="text-slate-900">Altura:</strong> {formatMmAsCm(preview3dDimensions.height_mm)}</p>
-                  <p className="text-sm text-slate-700"><strong className="text-slate-900">Profundidade:</strong> {formatMmAsCm(preview3dDimensions.depth_mm)}</p>
-                </div>
-              ) : (
-                <p className="text-xs text-slate-500">As dimensoes aparecem automaticamente apos carregar o modelo.</p>
-              )}
-
-              <div className="rounded-xl border border-slate-200 bg-white p-3 text-xs text-slate-600">
-                Arraste para girar, use o scroll para zoom e arraste com o botao direito para mover a camera.
+              <div className="hidden space-y-4 lg:block">
+                <Public3DPreviewControls
+                  palette={preview3dPalette}
+                  selectedColor={preview3dColor}
+                  onColorSelect={setPreview3dColor}
+                  dimensions={preview3dDimensions}
+                />
               </div>
             </aside>
+
+            <div className="order-2 lg:col-span-8">
+              <Public3DViewer
+                url={activePublic3dUrl}
+                referenceDimensionsMm={activePublic3dReferenceMm}
+                colorHex={preview3dColor}
+                onDimensionsChange={setPreview3dDimensions}
+                resetSignal={preview3dResetSignal}
+                className="rounded-2xl bg-white"
+              />
+            </div>
+            <div className="order-3 space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 lg:hidden">
+              <Public3DPreviewControls
+                palette={preview3dPalette}
+                selectedColor={preview3dColor}
+                onColorSelect={setPreview3dColor}
+                dimensions={preview3dDimensions}
+              />
+            </div>
           </div>
         </Modal>
       ) : null}
