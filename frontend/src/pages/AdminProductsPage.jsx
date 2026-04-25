@@ -1,5 +1,5 @@
 ﻿import { useEffect, useMemo, useRef, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import Button from '../components/ui/Button';
 import DataCard from '../components/ui/DataCard';
 import EmptyState from '../components/ui/EmptyState';
@@ -485,7 +485,7 @@ const PRODUCT_WIZARD_STEPS = [
   {
     id: 'models',
     title: 'Subitens e modelos 3D',
-    subtitle: 'Subitens, importacao em lote e modelos vinculados.',
+    subtitle: 'Subitens, dimensoes e resumo dos modelos vinculados.',
   },
   {
     id: 'review',
@@ -585,6 +585,7 @@ function Model3dListThumbnail({ model }) {
 }
 
 function AdminProductsPage() {
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -1337,6 +1338,42 @@ const toModel3dPayload = (source, overrides = {}) => ({
   const activeBatch3dItem = batch3dQueue.find((item) => item.id === batch3dActiveId) || null;
   const activeBatchProduct = products.find((item) => String(item.id) === String(activeBatch3dItem?.product_id || '')) || null;
   const activeBatchSubItems = Array.isArray(activeBatchProduct?.sub_items) ? activeBatchProduct.sub_items : [];
+  const sortedProduct3dModels = [...(product3dModels || [])].sort((a, b) => {
+    const byScope = String(a?.sub_item_id || '').localeCompare(String(b?.sub_item_id || ''));
+    if (byScope !== 0) return byScope;
+    const bySort = Number(a?.sort_order || 0) - Number(b?.sort_order || 0);
+    if (bySort !== 0) return bySort;
+    return Number(a?.id || 0) - Number(b?.id || 0);
+  });
+  const mainProduct3dModels = sortedProduct3dModels.filter((item) => !String(item?.sub_item_id || '').trim());
+  const primaryProduct3dModel = mainProduct3dModels.find((item) => isPrimary3dModel(item)) || mainProduct3dModels[0] || null;
+  const publicProduct3dModels = sortedProduct3dModels.filter((item) => Boolean(item.show_to_customer));
+  const model3dPublicStatus = publicProduct3dModels.length > 0 ? 'Ativo' : 'Inativo';
+  const subItem3dSummaries = (form.sub_items || []).map((subItem, index) => {
+    const target = String(subItem?.id || '').trim();
+    const models = target
+      ? sortedProduct3dModels.filter((item) => String(item?.sub_item_id || '').trim() === target)
+      : [];
+    const primaryModel = models.find((item) => isPrimary3dModel(item)) || models[0] || null;
+    return {
+      key: target || `subitem-summary-${index}`,
+      title: subItem?.title || `Sub item ${index + 1}`,
+      models,
+      primaryModel,
+      dimensions: `${subItem?.width_mm || '-'} x ${subItem?.height_mm || '-'} x ${subItem?.depth_mm || '-'} mm`,
+      isPublic: models.some((item) => Boolean(item.show_to_customer)),
+    };
+  });
+  const formatModel3dDimensions = (model) =>
+    model ? `${model.width_mm ?? '-'} x ${model.height_mm ?? '-'} x ${model.depth_mm ?? '-'} mm` : '-';
+  const open3dModelsLibrary = (filtered = true) => {
+    const params = new URLSearchParams();
+    if (filtered && selectedProduct?.id && Number(selectedProduct.id) > 0) {
+      params.set('product_id', String(selectedProduct.id));
+    }
+    const query = params.toString();
+    navigate(`/painel-interno/modelos-3d${query ? `?${query}` : ''}`);
+  };
 
   const updateSubItem = (index, field, value) => {
     setForm((current) => ({
@@ -2499,7 +2536,7 @@ const toModel3dPayload = (source, overrides = {}) => ({
           </ProductFormSection>
           ) : null}
 
-          {productWizardStep === 3 ? (
+          {false && productWizardStep === 3 ? (
             <>
             <ProductFormSection
               title="Importacao em lote 3D"
@@ -2783,6 +2820,110 @@ const toModel3dPayload = (source, overrides = {}) => ({
             </>
           ) : null}
 
+          {productWizardStep === 3 ? (
+            <ProductFormSection
+              title="Modelos 3D vinculados"
+              subtitle="Resumo contextual. Cadastros, uploads e edicoes completas ficam na tela Modelos 3D."
+            >
+              <div className="md:col-span-2 flex flex-col gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-slate-900">
+                    {selectedProduct?.id && Number(selectedProduct.id) > 0
+                      ? `${product3dModels.length} modelo(s) vinculado(s) a este produto.`
+                      : 'Salve o produto para vincular modelos 3D na biblioteca.'}
+                  </p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    Produtos exibem apenas o resumo. Use a biblioteca para upload em lote, novo modelo, edicao, download e revinculacao.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    onClick={() => open3dModelsLibrary(true)}
+                    disabled={!selectedProduct?.id || Number(selectedProduct.id) <= 0}
+                  >
+                    Gerenciar modelos 3D
+                  </Button>
+                  <Button type="button" variant="secondary" onClick={() => open3dModelsLibrary(false)}>
+                    Abrir biblioteca completa
+                  </Button>
+                </div>
+              </div>
+
+              <div className="md:col-span-2 grid grid-cols-1 gap-3 lg:grid-cols-4">
+                <div className="rounded-xl border border-slate-200 bg-white p-3">
+                  <p className="text-xs uppercase tracking-wide text-slate-500">Modelos vinculados</p>
+                  <p className="mt-1 text-2xl font-bold text-slate-900">{product3dModels.length}</p>
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-white p-3">
+                  <p className="text-xs uppercase tracking-wide text-slate-500">Modelo principal</p>
+                  <p className="mt-1 truncate text-sm font-semibold text-slate-900">
+                    {primaryProduct3dModel?.name || 'Nenhum modelo principal definido.'}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-white p-3">
+                  <p className="text-xs uppercase tracking-wide text-slate-500">Modelo 3D publico</p>
+                  <p className={`mt-1 text-sm font-semibold ${model3dPublicStatus === 'Ativo' ? 'text-emerald-700' : 'text-slate-700'}`}>
+                    {model3dPublicStatus}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-white p-3">
+                  <p className="text-xs uppercase tracking-wide text-slate-500">Dimensoes do principal</p>
+                  <p className="mt-1 text-sm font-semibold text-slate-900">{formatModel3dDimensions(primaryProduct3dModel)}</p>
+                </div>
+              </div>
+
+              <div className="md:col-span-2">
+                {product3dModels.length === 0 ? (
+                  <p className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-3 py-3 text-sm text-slate-500">
+                    Nenhum modelo 3D vinculado. Abra a biblioteca filtrada por este produto para importar ou vincular arquivos.
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {sortedProduct3dModels.map((model) => (
+                      <article key={model.id} className="rounded-xl border border-slate-200 bg-white p-3">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                          <Model3dListThumbnail model={model} />
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="truncate text-sm font-semibold text-slate-900">{model.name}</p>
+                              {isPrimary3dModel(model) ? <StatusBadge tone="info">Principal</StatusBadge> : <StatusBadge tone="neutral">Secundario</StatusBadge>}
+                              {Boolean(model.show_to_customer) ? <StatusBadge tone="success">Publico</StatusBadge> : <StatusBadge tone="neutral">Interno</StatusBadge>}
+                              {model.is_active ? <StatusBadge tone="success">Ativo</StatusBadge> : <StatusBadge tone="danger">Inativo</StatusBadge>}
+                            </div>
+                            <p className="mt-1 text-xs text-slate-500">
+                              {model.sub_item_title ? `Subitem: ${model.sub_item_title}` : 'Produto principal'} | dimensoes: {formatModel3dDimensions(model)}
+                            </p>
+                          </div>
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="md:col-span-2 rounded-xl border border-slate-200 bg-white p-3">
+                <p className="text-sm font-semibold text-slate-900">Subitens com modelos</p>
+                {subItem3dSummaries.length === 0 ? (
+                  <p className="mt-2 text-xs text-slate-500">Este produto nao possui subitens.</p>
+                ) : (
+                  <div className="mt-3 space-y-2">
+                    {subItem3dSummaries.map((summary) => (
+                      <div key={summary.key} className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+                        <p className="text-sm font-medium text-slate-800">
+                          {summary.title}{' -> '}{summary.primaryModel?.name || 'nenhum modelo principal'}
+                        </p>
+                        <p className="mt-1 text-xs text-slate-500">
+                          {summary.models.length} modelo(s) | dimensoes: {summary.dimensions} | visivel para cliente: {summary.isPublic ? 'sim' : 'nao'}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </ProductFormSection>
+          ) : null}
+
           {productWizardStep === 4 ? (
             <>
           <section className="rounded-2xl border border-slate-200 bg-slate-50 p-4 shadow-sm">
@@ -2900,7 +3041,7 @@ const toModel3dPayload = (source, overrides = {}) => ({
       </Modal>
 
       <Modal
-        open={model3dModalOpen}
+        open={false && model3dModalOpen}
         title={editing3dModelId ? 'Editar modelo 3D' : 'Novo modelo 3D'}
         onClose={() => setModel3dModalOpen(false)}
         footer={

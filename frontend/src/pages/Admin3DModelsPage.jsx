@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import Modal from '../components/ui/Modal';
@@ -106,6 +107,11 @@ function isPreviewExtension(ext) {
 
 function isOriginalExtension(ext) {
   return MODEL3D_ORIGINAL_EXTENSIONS.has(String(ext || '').toLowerCase());
+}
+
+function getProductFilterFromParams(searchParams) {
+  const value = String(searchParams.get('product_id') || '').trim();
+  return Number(value) > 0 ? value : 'all';
 }
 
 function createBatchQueueItem(file, defaultProductId = '') {
@@ -352,12 +358,13 @@ function ModelThumbnail({ item }) {
 }
 
 function Admin3DModelsPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [rows, setRows] = useState([]);
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState('');
-  const [productFilter, setProductFilter] = useState('all');
+  const [productFilter, setProductFilter] = useState(() => getProductFilterFromParams(searchParams));
   const [typeFilter, setTypeFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [downloadFilter, setDownloadFilter] = useState('all');
@@ -389,16 +396,20 @@ function Admin3DModelsPage() {
     window.setTimeout(() => setNotice(''), 2400);
   };
 
-  const loadData = () => {
+  const loadData = (overrides = {}) => {
+    const nextSearch = overrides.search ?? search;
+    const nextProductFilter = overrides.productFilter ?? productFilter;
+    const nextStatusFilter = overrides.statusFilter ?? statusFilter;
+    const nextDownloadFilter = overrides.downloadFilter ?? downloadFilter;
     setLoading(true);
     setError('');
     Promise.all([
       fetchAdminProducts(),
       fetchAdmin3DModels({
-        search: search || undefined,
-        product_id: productFilter !== 'all' ? Number(productFilter) : undefined,
-        is_active: statusFilter === 'all' ? 'all' : statusFilter === 'active',
-        allow_download: downloadFilter === 'all' ? 'all' : downloadFilter === 'yes',
+        search: nextSearch || undefined,
+        product_id: nextProductFilter !== 'all' ? Number(nextProductFilter) : undefined,
+        is_active: nextStatusFilter === 'all' ? 'all' : nextStatusFilter === 'active',
+        allow_download: nextDownloadFilter === 'all' ? 'all' : nextDownloadFilter === 'yes',
       }),
     ])
       .then(([productRows, modelRows]) => {
@@ -409,9 +420,29 @@ function Admin3DModelsPage() {
       .finally(() => setLoading(false));
   };
 
+  const updateProductFilter = (nextValue) => {
+    const normalized = Number(nextValue || 0) > 0 ? String(nextValue) : 'all';
+    setProductFilter(normalized);
+    const nextParams = new URLSearchParams(searchParams);
+    if (normalized === 'all') {
+      nextParams.delete('product_id');
+    } else {
+      nextParams.set('product_id', normalized);
+    }
+    setSearchParams(nextParams, { replace: true });
+    loadData({ productFilter: normalized });
+  };
+
   useEffect(() => {
     loadData();
   }, []);
+
+  useEffect(() => {
+    const nextProductFilter = getProductFilterFromParams(searchParams);
+    if (nextProductFilter === productFilter) return;
+    setProductFilter(nextProductFilter);
+    loadData({ productFilter: nextProductFilter });
+  }, [searchParams]);
 
   const filteredRows = useMemo(() => {
     const text = String(search || '').trim().toLowerCase();
@@ -483,6 +514,14 @@ function Admin3DModelsPage() {
     () => products.filter((item) => Number(item.id) > 0).map((item) => ({ value: String(item.id), label: item.title })),
     [products]
   );
+
+  const contextProduct = useMemo(
+    () => (productFilter === 'all' ? null : products.find((item) => String(item.id) === String(productFilter))),
+    [products, productFilter]
+  );
+  const contextProductLabel = productFilter === 'all'
+    ? ''
+    : (contextProduct?.title || `Produto #${productFilter}`);
 
   const selectedProduct = useMemo(
     () => products.find((item) => String(item.id) === String(form.product_id || '')),
@@ -712,7 +751,10 @@ function Admin3DModelsPage() {
     setPreviewUploadFile(null);
     setModalProductSearch('');
     setModalSubItemSearch('');
-    setForm(emptyForm);
+    setForm({
+      ...emptyForm,
+      product_id: productFilter !== 'all' ? String(productFilter) : '',
+    });
     setModalOpen(true);
   };
 
@@ -971,6 +1013,10 @@ function Admin3DModelsPage() {
     }
   };
 
+  const focusBatchUpload = () => {
+    document.getElementById('batch-3d-upload')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
   const quickPillClass = (active) =>
     `h-9 rounded-full border px-3 text-xs font-semibold transition ${
       active
@@ -983,7 +1029,7 @@ function Admin3DModelsPage() {
       <SectionHeader
         eyebrow="Interno"
         title="Modelos 3D"
-        subtitle="Gerencie todos os modelos 3D e atribua depois quando estiverem sem vinculo."
+        subtitle="Gerencie a biblioteca de modelos, vincule a produtos/subitens e defina modelos principais."
         action={(
           <div className="flex flex-wrap items-center gap-2">
             <span className="rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600">
@@ -992,6 +1038,9 @@ function Admin3DModelsPage() {
             <span className="rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600">
               Selecionados: {selectedInFilterCount}
             </span>
+            <Button variant="secondary" onClick={focusBatchUpload}>Upload em lote 3D</Button>
+            <Button onClick={openCreate}>Novo modelo</Button>
+            <Button variant="secondary" onClick={handleDownloadAll}>Baixar todos</Button>
             <Button variant="ghost" onClick={toggleSelectAllFiltered} disabled={!filteredRows.length}>
               {areAllFilteredSelected ? 'Desmarcar filtrados' : 'Selecionar filtrados'}
             </Button>
@@ -1001,14 +1050,28 @@ function Admin3DModelsPage() {
             <Button variant="danger" onClick={removeAllFilteredModels} disabled={!filteredRows.length || saving}>
               Excluir todos filtrados
             </Button>
-            <Button variant="secondary" onClick={handleDownloadAll}>Baixar todos</Button>
-            <Button onClick={openCreate}>+ Novo modelo</Button>
           </div>
         )}
       />
 
       {error ? <p className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p> : null}
       {notice ? <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{notice}</p> : null}
+
+      {productFilter !== 'all' ? (
+        <section className="flex flex-col gap-3 rounded-2xl border border-violet-200 bg-violet-50 px-4 py-3 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-sm font-semibold text-violet-900">
+              Voce esta gerenciando modelos do produto: {contextProductLabel}
+            </p>
+            <p className="mt-1 text-xs text-violet-700">
+              Uploads, novos modelos e edicoes feitas aqui ja partem deste contexto.
+            </p>
+          </div>
+          <Button variant="secondary" onClick={() => updateProductFilter('all')}>
+            Limpar filtro
+          </Button>
+        </section>
+      ) : null}
 
       <section className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -1029,7 +1092,7 @@ function Admin3DModelsPage() {
         </div>
       </section>
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+      <section id="batch-3d-upload" className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         <div className="mb-3 flex flex-wrap items-center gap-2">
           <label className="inline-flex cursor-pointer items-center rounded-[10px] border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:border-violet-200 hover:text-violet-700">
             <input
@@ -1237,7 +1300,7 @@ function Admin3DModelsPage() {
             />
             <label className="flex flex-col gap-1.5">
               <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Produto</span>
-              <select value={productFilter} onChange={(event) => setProductFilter(event.target.value)} className="h-11 rounded-xl border border-slate-200 px-3 text-sm">
+              <select value={productFilter} onChange={(event) => updateProductFilter(event.target.value)} className="h-11 rounded-xl border border-slate-200 px-3 text-sm">
                 <option value="all">Todos</option>
                 {productOptions.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
               </select>
