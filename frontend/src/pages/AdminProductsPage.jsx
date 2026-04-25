@@ -2536,11 +2536,11 @@ const toModel3dPayload = (source, overrides = {}) => ({
           </ProductFormSection>
           ) : null}
 
-          {false && productWizardStep === 3 ? (
+          {productWizardStep === 3 ? (
             <>
             <ProductFormSection
-              title="Importacao em lote 3D"
-              subtitle="Envie varios arquivos de uma vez, clique no card para atribuir produto/sub item e salve em lote."
+              title="Importacao em lote 3D deste produto"
+              subtitle="Envie varios arquivos ja contextualizados neste produto. Clique no card apenas se precisar ajustar sub item, dimensoes ou ordem."
             >
             <div className="md:col-span-2 flex flex-wrap items-center gap-2">
               <label className="inline-flex cursor-pointer items-center rounded-[10px] border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:border-violet-200 hover:text-violet-700">
@@ -2583,7 +2583,7 @@ const toModel3dPayload = (source, overrides = {}) => ({
               <div className="space-y-2">
                 {batch3dQueue.length === 0 ? (
                   <p className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-xs text-slate-500">
-                    Nenhum item na fila. Adicione varios arquivos para importar em lote.
+                    Nenhum item na fila. Adicione varios arquivos para importar em lote neste produto.
                   </p>
                 ) : (
                   batch3dQueue.map((item) => (
@@ -2737,6 +2737,7 @@ const toModel3dPayload = (source, overrides = {}) => ({
             ) : null}
             </ProductFormSection>
 
+            {false ? (
             <ProductFormSection
               title="Modelos 3D"
               subtitle="Associe multiplos arquivos 3D ao produto e defina qual e o principal para dimensoes no front."
@@ -2817,6 +2818,7 @@ const toModel3dPayload = (source, overrides = {}) => ({
               )}
             </div>
             </ProductFormSection>
+            ) : null}
             </>
           ) : null}
 
