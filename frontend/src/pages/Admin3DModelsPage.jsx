@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import Model3DThumbnail from '../components/Model3DThumbnail';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import Modal from '../components/ui/Modal';
@@ -326,38 +327,18 @@ function Model3DPreview({ src, className = '', interactive = false }) {
 
 function ModelThumbnail({ item }) {
   const previewUrl = resolveAssetUrl(item.preview_file_url || '') || item.preview_file_url || '';
-  const isImage = isPreviewImage(previewUrl);
-
-  if (isImage && previewUrl) {
-    return (
-      <div className="group relative aspect-square overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
-        <img
-          src={previewUrl}
-          alt={item.name}
-          className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]"
-          loading="lazy"
-        />
-      </div>
-    );
-  }
-  if (is3DPreviewFile(previewUrl)) {
-    return <Model3DPreview src={previewUrl} className="aspect-square" />;
-  }
   return (
-    <div className="group relative flex aspect-square items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
-      <div className="flex flex-col items-center gap-2 text-slate-500 transition duration-300 group-hover:scale-[1.03]">
-        <svg viewBox="0 0 24 24" className="h-10 w-10" fill="none" stroke="currentColor" strokeWidth="1.8">
-          <path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z" />
-          <path d="m4 7.5 8 4.5 8-4.5" />
-          <path d="M12 12v9" />
-        </svg>
-        <span className="px-2 text-center text-[11px] font-medium">Preview 3D</span>
-      </div>
-    </div>
+    <Model3DThumbnail
+      url={previewUrl}
+      alt={item.name || 'Preview do modelo 3D'}
+      className="aspect-square"
+      fallbackLabel="Preview 3D"
+    />
   );
 }
 
 function Admin3DModelsPage() {
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [rows, setRows] = useState([]);
   const [products, setProducts] = useState([]);
@@ -390,6 +371,8 @@ function Admin3DModelsPage() {
   const [modalProductSearch, setModalProductSearch] = useState('');
   const [modalSubItemSearch, setModalSubItemSearch] = useState('');
   const [selectedRowIds, setSelectedRowIds] = useState([]);
+  const [autoOpenedModelId, setAutoOpenedModelId] = useState(null);
+  const sourceProductId = String(searchParams.get('source_product_id') || '').trim();
 
   const flashNotice = (message) => {
     setNotice(message);
@@ -426,11 +409,17 @@ function Admin3DModelsPage() {
     const nextParams = new URLSearchParams(searchParams);
     if (normalized === 'all') {
       nextParams.delete('product_id');
+      nextParams.delete('source_product_id');
     } else {
       nextParams.set('product_id', normalized);
     }
     setSearchParams(nextParams, { replace: true });
     loadData({ productFilter: normalized });
+  };
+
+  const returnToSourceProduct = () => {
+    if (!sourceProductId) return;
+    navigate(`/painel-interno/produtos?edit=${sourceProductId}&source=modelos-3d`);
   };
 
   useEffect(() => {
@@ -786,6 +775,18 @@ function Admin3DModelsPage() {
     setModalOpen(true);
   };
 
+  useEffect(() => {
+    const modelId = Number(searchParams.get('model_id') || 0);
+    if (!modelId || autoOpenedModelId === modelId || !rows.length) return;
+    const target = rows.find((item) => Number(item.id) === modelId);
+    if (!target) return;
+    openEdit(target);
+    setAutoOpenedModelId(modelId);
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.delete('model_id');
+    setSearchParams(nextParams, { replace: true });
+  }, [searchParams, rows, autoOpenedModelId]);
+
   const openDetail = async (id) => {
     setError('');
     try {
@@ -1061,7 +1062,7 @@ function Admin3DModelsPage() {
         <section className="flex flex-col gap-3 rounded-2xl border border-violet-200 bg-violet-50 px-4 py-3 shadow-sm sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-sm font-semibold text-violet-900">
-              Voce esta gerenciando modelos do produto: {contextProductLabel}
+              Gerenciando modelos de: {contextProductLabel}
             </p>
             <p className="mt-1 text-xs text-violet-700">
               Uploads, novos modelos e edicoes feitas aqui ja partem deste contexto.
@@ -1070,6 +1071,11 @@ function Admin3DModelsPage() {
           <Button variant="secondary" onClick={() => updateProductFilter('all')}>
             Limpar filtro
           </Button>
+          {sourceProductId ? (
+            <Button onClick={returnToSourceProduct}>
+              Voltar ao produto
+            </Button>
+          ) : null}
         </section>
       ) : null}
 

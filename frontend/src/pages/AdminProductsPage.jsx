@@ -4,6 +4,7 @@ import Button from '../components/ui/Button';
 import DataCard from '../components/ui/DataCard';
 import EmptyState from '../components/ui/EmptyState';
 import Input from '../components/ui/Input';
+import Model3DThumbnail from '../components/Model3DThumbnail';
 import Modal from '../components/ui/Modal';
 import SectionHeader from '../components/ui/SectionHeader';
 import Select from '../components/ui/Select';
@@ -22,14 +23,12 @@ import {
   fetchAdminCategories,
   getOptimizedImageSources,
   publishAdminProductInstagram,
-  setAdminProduct3DModelStatus,
   setAdminProductStatus,
   updateAdminProduct3DModel,
   updateAdminProduct,
   uploadAdmin3DOriginalFile,
   uploadAdmin3DPreviewFile,
   uploadAdminProductImage,
-  resolveAssetUrl,
 } from '../services/api';
 
 const defaultPricingFields = {
@@ -97,21 +96,6 @@ const initialForm = {
   ...defaultPricingFields,
 };
 
-const createEmpty3dModelForm = () => ({
-  sub_item_id: '',
-  name: '',
-  description: '',
-  file_url: '',
-  width_mm: '',
-  height_mm: '',
-  depth_mm: '',
-  dimensions_source: 'auto',
-  allow_download: false,
-  show_to_customer: false,
-  sort_order: 1,
-  is_active: true,
-});
-
 function toNumber(value) {
   const parsed = Number(String(value ?? '').replace(',', '.'));
   return Number.isNaN(parsed) ? 0 : parsed;
@@ -143,7 +127,6 @@ function fileExtension(value) {
 
 const MODEL3D_PREVIEW_EXTENSIONS = new Set(['.stl', '.glb', '.gltf']);
 const MODEL3D_ORIGINAL_EXTENSIONS = new Set(['.3mf', '.stl', '.gcode', '.glb', '.obj', '.step', '.stp']);
-const IMAGE_PREVIEW_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.webp', '.gif', '.svg', '.avif']);
 
 function isModel3dPreviewExtension(ext) {
   return MODEL3D_PREVIEW_EXTENSIONS.has(String(ext || '').toLowerCase());
@@ -153,10 +136,6 @@ function isModel3dOriginalExtension(ext) {
   return MODEL3D_ORIGINAL_EXTENSIONS.has(String(ext || '').toLowerCase());
 }
 
-function isImagePreviewExtension(ext) {
-  return IMAGE_PREVIEW_EXTENSIONS.has(String(ext || '').toLowerCase());
-}
-
 function resolveModelFileUrl(model) {
   return String(model?.original_file_url || model?.preview_file_url || '').trim();
 }
@@ -164,133 +143,6 @@ function resolveModelFileUrl(model) {
 function modelHasPreview(model) {
   const ext = fileExtension(model?.preview_file_url || resolveModelFileUrl(model));
   return isModel3dPreviewExtension(ext);
-}
-
-function Model3dMiniPreview({ src, className = '' }) {
-  const mountRef = useRef(null);
-  const [failed, setFailed] = useState(false);
-
-  useEffect(() => {
-    setFailed(false);
-    if (!src || !mountRef.current || !isModel3dPreviewExtension(fileExtension(src))) return undefined;
-
-    let disposed = false;
-    let cleanup = null;
-
-    const setup = async () => {
-      try {
-        const THREE = await import('three');
-        const [{ GLTFLoader }, { STLLoader }] = await Promise.all([
-          import('three/examples/jsm/loaders/GLTFLoader.js'),
-          import('three/examples/jsm/loaders/STLLoader.js'),
-        ]);
-        if (disposed || !mountRef.current) return;
-
-        const container = mountRef.current;
-        const scene = new THREE.Scene();
-        scene.background = new THREE.Color('#f8fafc');
-
-        const camera = new THREE.PerspectiveCamera(38, container.clientWidth / Math.max(container.clientHeight, 1), 0.1, 2000);
-        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-        renderer.setSize(container.clientWidth, container.clientHeight);
-        container.innerHTML = '';
-        container.appendChild(renderer.domElement);
-
-        scene.add(new THREE.AmbientLight('#ffffff', 0.95));
-        const key = new THREE.DirectionalLight('#ffffff', 1.1);
-        key.position.set(2, 4, 5);
-        const fill = new THREE.DirectionalLight('#ffffff', 0.45);
-        fill.position.set(-3, 1, 4);
-        scene.add(key, fill);
-
-        const renderObject = (object) => {
-          const group = new THREE.Group();
-          group.add(object);
-          scene.add(group);
-
-          const box = new THREE.Box3().setFromObject(group);
-          const size = box.getSize(new THREE.Vector3());
-          const center = box.getCenter(new THREE.Vector3());
-          group.position.sub(center);
-          group.rotation.x = -0.35;
-          group.rotation.y = 0.55;
-
-          const maxDim = Math.max(size.x || 1, size.y || 1, size.z || 1);
-          const distance = maxDim * 2.2;
-          camera.position.set(distance, distance * 0.65, distance);
-          camera.lookAt(0, 0, 0);
-          renderer.render(scene, camera);
-        };
-
-        const ext = fileExtension(src);
-        if (ext === '.stl') {
-          new STLLoader().load(
-            src,
-            (geometry) => {
-              if (disposed) return;
-              geometry.computeVertexNormals();
-              const material = new THREE.MeshStandardMaterial({ color: '#94a3b8', roughness: 0.38, metalness: 0.08 });
-              renderObject(new THREE.Mesh(geometry, material));
-            },
-            undefined,
-            () => setFailed(true)
-          );
-        } else {
-          new GLTFLoader().load(
-            src,
-            (gltf) => {
-              if (disposed) return;
-              renderObject(gltf.scene);
-            },
-            undefined,
-            () => setFailed(true)
-          );
-        }
-
-        const handleResize = () => {
-          if (!container || !renderer || !camera) return;
-          const width = container.clientWidth;
-          const height = Math.max(container.clientHeight, 1);
-          renderer.setSize(width, height);
-          camera.aspect = width / height;
-          camera.updateProjectionMatrix();
-          renderer.render(scene, camera);
-        };
-        const observer = new ResizeObserver(handleResize);
-        observer.observe(container);
-
-        cleanup = () => {
-          observer.disconnect();
-          renderer.dispose();
-          renderer.forceContextLoss();
-          if (renderer.domElement && renderer.domElement.parentNode === container) {
-            container.removeChild(renderer.domElement);
-          }
-        };
-      } catch {
-        setFailed(true);
-      }
-    };
-
-    setup();
-
-    return () => {
-      disposed = true;
-      if (cleanup) cleanup();
-    };
-  }, [src]);
-
-  return (
-    <div className={`relative overflow-hidden rounded-lg border border-slate-200 bg-slate-50 ${className}`.trim()}>
-      <div ref={mountRef} className="h-full w-full" />
-      {failed ? (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-50 text-[10px] font-medium text-slate-500">
-          3D
-        </div>
-      ) : null}
-    </div>
-  );
 }
 
 function createBatch3dQueueItem(file, defaultProductId = '') {
@@ -671,54 +523,15 @@ function ImagePreviewThumb({ src, alt, className = '' }) {
 }
 
 function Model3dListThumbnail({ model }) {
-  const rawFileUrl = String(model?.preview_file_url || resolveModelFileUrl(model) || '').trim();
-  const fileUrl = resolveAssetUrl(rawFileUrl) || rawFileUrl;
-  const ext = fileExtension(fileUrl);
-  const isImage = isImagePreviewExtension(ext);
+  const fileUrl = String(model?.preview_file_url || resolveModelFileUrl(model) || '').trim();
   const hasPreview = modelHasPreview(model);
-  const optimizedSources = useMemo(
-    () =>
-      getOptimizedImageSources(fileUrl, {
-        variant: 'thumbnail',
-        sizes: '80px',
-      }),
-    [fileUrl]
-  );
-
-  if (isImage && fileUrl) {
-    return (
-      <img
-        src={optimizedSources.src || fileUrl}
-        srcSet={optimizedSources.srcSet || undefined}
-        sizes={optimizedSources.srcSet ? '80px' : undefined}
-        alt={model?.name || 'Preview do modelo 3D'}
-        className="h-16 w-16 rounded-lg border border-slate-200 object-cover sm:h-20 sm:w-20"
-        loading="lazy"
-        decoding="async"
-        width="80"
-        height="80"
-      />
-    );
-  }
-
-  if (isModel3dPreviewExtension(ext) && fileUrl) {
-    return (
-      <Model3dMiniPreview
-        src={fileUrl}
-        className="h-16 w-16 sm:h-20 sm:w-20"
-      />
-    );
-  }
-
   return (
-    <div className="flex h-16 w-16 flex-col items-center justify-center rounded-lg border border-slate-200 bg-slate-100 text-slate-500 sm:h-20 sm:w-20">
-      <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="1.8">
-        <path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z" />
-        <path d="m4 7.5 8 4.5 8-4.5" />
-        <path d="M12 12v9" />
-      </svg>
-      <span className="mt-1 text-[10px] font-medium">{hasPreview ? '3D' : 'Sem'}</span>
-    </div>
+    <Model3DThumbnail
+      url={fileUrl}
+      alt={model?.name || 'Preview do modelo 3D'}
+      className="h-16 w-16 sm:h-20 sm:w-20"
+      fallbackLabel={hasPreview ? '3D' : 'Sem'}
+    />
   );
 }
 
@@ -733,18 +546,12 @@ function AdminProductsPage() {
   const [uploadingExtraImages, setUploadingExtraImages] = useState(false);
   const [uploadingSubItems, setUploadingSubItems] = useState({});
   const [product3dModels, setProduct3dModels] = useState([]);
-  const [model3dModalOpen, setModel3dModalOpen] = useState(false);
-  const [model3dForm, setModel3dForm] = useState(createEmpty3dModelForm());
-  const [editing3dModelId, setEditing3dModelId] = useState(null);
-  const [model3dSortTouched, setModel3dSortTouched] = useState(false);
-  const [uploading3dFile, setUploading3dFile] = useState(false);
   const [batch3dQueue, setBatch3dQueue] = useState([]);
   const [batch3dActiveId, setBatch3dActiveId] = useState('');
   const [batch3dUploading, setBatch3dUploading] = useState(false);
   const [batch3dSaving, setBatch3dSaving] = useState(false);
   const [batch3dResult, setBatch3dResult] = useState(null);
   const [applyingSubItemModelById, setApplyingSubItemModelById] = useState({});
-  const [selected3dCardId, setSelected3dCardId] = useState(null);
 /*  */  const [form, setForm] = usePersistentState('modal:admin-products:form', initialForm);
   const [error, setError] = useState('');
   const [isModalOpen, setIsModalOpen] = usePersistentState('modal:admin-products:open', false);
@@ -773,14 +580,6 @@ function AdminProductsPage() {
   const coverImageUrl = String(form.cover_image || '').trim();
   const extraImageLinks = useMemo(() => parseImageLinks(form.images), [form.images]);
   const calculatedProductionDays = useMemo(() => toProductionDaysFromHours(form.lead_time_hours), [form.lead_time_hours]);
-
-  useEffect(() => {
-    setSelected3dCardId((current) => {
-      if (!product3dModels.length) return null;
-      if (current && product3dModels.some((item) => item.id === current)) return current;
-      return product3dModels[0].id;
-    });
-  }, [product3dModels, selectedProduct?.id]);
 
   const closeProductModal = () => {
     setIsModalOpen(false);
@@ -1120,13 +919,6 @@ function AdminProductsPage() {
     }
   };
 
-  const computeNext3dSortOrder = (subItemId = '') => {
-    const target = String(subItemId || '').trim();
-    const matches = (product3dModels || []).filter((item) => String(item?.sub_item_id || '').trim() === target);
-    const maxOrder = matches.reduce((acc, item) => Math.max(acc, Number(item?.sort_order || 0)), 0);
-    return Math.max(1, maxOrder + 1);
-  };
-
 const toModel3dPayload = (source, overrides = {}) => ({
     sub_item_id: String(source?.sub_item_id || '').trim() || null,
     name: String(source?.name || '').trim(),
@@ -1156,90 +948,6 @@ const toModel3dPayload = (source, overrides = {}) => ({
     return scoped[0]?.id === model?.id;
   };
 
-  const openCreate3dModel = () => {
-    setEditing3dModelId(null);
-    setModel3dSortTouched(false);
-    const nextOrder = computeNext3dSortOrder('');
-    setModel3dForm({ ...createEmpty3dModelForm(), sort_order: nextOrder });
-    setModel3dModalOpen(true);
-  };
-
-  const openEdit3dModel = (model) => {
-    setEditing3dModelId(model.id);
-    setModel3dSortTouched(true);
-    setModel3dForm({
-      sub_item_id: String(model.sub_item_id || ''),
-      name: model.name || '',
-      description: model.description || '',
-      file_url: resolveModelFileUrl(model),
-      width_mm: model.width_mm == null ? '' : String(model.width_mm),
-      height_mm: model.height_mm == null ? '' : String(model.height_mm),
-      depth_mm: model.depth_mm == null ? '' : String(model.depth_mm),
-      dimensions_source: model.dimensions_source || 'auto',
-      allow_download: Boolean(model.allow_download),
-      show_to_customer: Boolean(model.show_to_customer),
-      sort_order: Number(model.sort_order || 1),
-      is_active: Boolean(model.is_active),
-    });
-    setModel3dModalOpen(true);
-  };
-
-  useEffect(() => {
-    if (!model3dModalOpen || editing3dModelId || model3dSortTouched) return;
-    setModel3dForm((current) => ({
-      ...current,
-      sort_order: computeNext3dSortOrder(current.sub_item_id),
-    }));
-  }, [model3dModalOpen, editing3dModelId, model3dSortTouched, model3dForm.sub_item_id, product3dModels]);
-
-  const submit3dModelForm = async (event) => {
-    event.preventDefault();
-    if (!selectedProduct?.id || Number(selectedProduct.id) <= 0) {
-      setError('Publique o produto antes de cadastrar modelos 3D.');
-      return;
-    }
-    if (!String(model3dForm.file_url || '').trim()) {
-      setError('Importe ou informe um arquivo 3D.');
-      return;
-    }
-
-    setSaving(true);
-    setError('');
-    try {
-      const payload = toModel3dPayload(model3dForm);
-
-      if (editing3dModelId) {
-        await updateAdminProduct3DModel(selectedProduct.id, editing3dModelId, payload);
-      } else {
-        await createAdminProduct3DModel(selectedProduct.id, payload);
-      }
-      setModel3dModalOpen(false);
-      setEditing3dModelId(null);
-      setModel3dSortTouched(false);
-      setModel3dForm(createEmpty3dModelForm());
-      load3dModels(selectedProduct.id);
-      loadProducts();
-    } catch (submitError) {
-      setError(submitError.message || 'Falha ao salvar modelo 3D.');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const toggle3dModelStatus = async (model) => {
-    if (!selectedProduct?.id) return;
-    setSaving(true);
-    setError('');
-    try {
-      await setAdminProduct3DModelStatus(selectedProduct.id, model.id, !model.is_active);
-      load3dModels(selectedProduct.id);
-    } catch (toggleError) {
-      setError(toggleError.message || 'Falha ao atualizar status do modelo 3D.');
-    } finally {
-      setSaving(false);
-    }
-  };
-
   const toggle3dModelCustomerVisibility = async (model) => {
     if (!selectedProduct?.id) return;
     setSaving(true);
@@ -1261,7 +969,20 @@ const toModel3dPayload = (source, overrides = {}) => ({
 
   const remove3dModel = async (model) => {
     if (!selectedProduct?.id) return;
-    const confirmed = window.confirm(`Excluir modelo 3D "${model.name}"?`);
+    const details = [
+      `Excluir modelo 3D: ${model?.name || 'Sem nome'}`,
+      `Produto: ${selectedProduct?.title || model?.product_title || `#${selectedProduct.id}`}`,
+      `Subitem: ${model?.sub_item_title || 'Produto principal'}`,
+      '',
+      'Esta acao removera o vinculo/modelo do produto. O arquivo podera deixar de aparecer no admin e no produto.',
+    ];
+    if (isPrimary3dModel(model)) {
+      details.push('', 'Atencao: este modelo esta marcado como principal.');
+    }
+    if (Boolean(model?.show_to_customer)) {
+      details.push('Atencao: este modelo esta visivel para o cliente.');
+    }
+    const confirmed = window.confirm(details.join('\n'));
     if (!confirmed) return;
     setSaving(true);
     setError('');
@@ -1270,78 +991,6 @@ const toModel3dPayload = (source, overrides = {}) => ({
       load3dModels(selectedProduct.id);
     } catch (deleteError) {
       setError(deleteError.message || 'Falha ao excluir modelo 3D.');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const upload3dFile = async (file) => {
-    if (!file) return;
-    setUploading3dFile(true);
-    setError('');
-    try {
-      const ext = fileExtension(file.name);
-      const original = await uploadAdmin3DOriginalFile(file, file.name);
-      let preview = null;
-      if (isModel3dPreviewExtension(ext)) {
-        preview = await uploadAdmin3DPreviewFile(file, file.name);
-      }
-
-      const fileUrl = String(preview?.url || original?.url || '').trim();
-      setModel3dForm((current) => {
-        const next = {
-          ...current,
-          file_url: fileUrl || current.file_url,
-          name: current.name || fileBaseName(file.name),
-        };
-        if (preview?.width_mm != null) next.width_mm = String(preview.width_mm);
-        if (preview?.height_mm != null) next.height_mm = String(preview.height_mm);
-        if (preview?.depth_mm != null) next.depth_mm = String(preview.depth_mm);
-        if (preview?.dimensions_extracted) next.dimensions_source = 'auto';
-        return next;
-      });
-    } catch (uploadError) {
-      setError(uploadError.message || 'Falha no upload do arquivo 3D.');
-    } finally {
-      setUploading3dFile(false);
-    }
-  };
-
-  const setPrimary3dModel = async (model) => {
-    if (!selectedProduct?.id) return;
-    const target = String(model?.sub_item_id || '').trim();
-    const scoped = (product3dModels || [])
-      .filter((item) => String(item?.sub_item_id || '').trim() === target)
-      .sort((a, b) => {
-        const bySort = Number(a?.sort_order || 0) - Number(b?.sort_order || 0);
-        if (bySort !== 0) return bySort;
-        return Number(a?.id || 0) - Number(b?.id || 0);
-      });
-    if (!scoped.length) return;
-
-    const ordered = [model, ...scoped.filter((item) => item.id !== model.id)];
-    const updates = ordered
-      .map((item, index) => ({ item, sort_order: index + 1 }))
-      .filter(({ item, sort_order }) => Number(item.sort_order || 0) !== sort_order || !item.is_active);
-
-    if (!updates.length) return;
-    setSaving(true);
-    setError('');
-    try {
-      for (const entry of updates) {
-        await updateAdminProduct3DModel(
-          selectedProduct.id,
-          entry.item.id,
-          toModel3dPayload(entry.item, {
-            sort_order: entry.sort_order,
-            is_active: true,
-          })
-        );
-      }
-      load3dModels(selectedProduct.id);
-      loadProducts();
-    } catch (updateError) {
-      setError(updateError.message || 'Falha ao definir modelo principal.');
     } finally {
       setSaving(false);
     }
@@ -1504,10 +1153,14 @@ const toModel3dPayload = (source, overrides = {}) => ({
   });
   const formatModel3dDimensions = (model) =>
     model ? `${model.width_mm ?? '-'} x ${model.height_mm ?? '-'} x ${model.depth_mm ?? '-'} mm` : '-';
-  const open3dModelsLibrary = (filtered = true) => {
+  const open3dModelsLibrary = ({ filtered = true, modelId = null } = {}) => {
     const params = new URLSearchParams();
     if (filtered && selectedProduct?.id && Number(selectedProduct.id) > 0) {
       params.set('product_id', String(selectedProduct.id));
+      params.set('source_product_id', String(selectedProduct.id));
+    }
+    if (modelId) {
+      params.set('model_id', String(modelId));
     }
     const query = params.toString();
     navigate(`/painel-interno/modelos-3d${query ? `?${query}` : ''}`);
@@ -2874,89 +2527,6 @@ const toModel3dPayload = (source, overrides = {}) => ({
               </div>
             ) : null}
             </ProductFormSection>
-
-            {false ? (
-            <ProductFormSection
-              title="Modelos 3D"
-              subtitle="Associe multiplos arquivos 3D ao produto e defina qual e o principal para dimensoes no front."
-            >
-            <div className="md:col-span-2 flex items-center justify-between gap-2">
-              <p className="text-sm text-slate-600">
-                {selectedProduct?.id > 0
-                  ? `${product3dModels.length} modelo(s) cadastrado(s).`
-                  : 'Publique o produto para habilitar cadastro de modelos 3D.'}
-              </p>
-              <Button type="button" variant="secondary" onClick={openCreate3dModel} disabled={!selectedProduct?.id || selectedProduct.id <= 0}>
-                Adicionar modelo 3D
-              </Button>
-            </div>
-            <div className="md:col-span-2">
-              {product3dModels.length === 0 ? (
-                <p className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-xs text-slate-500">Nenhum modelo 3D cadastrado.</p>
-              ) : (
-                <div className="space-y-2">
-                  {product3dModels.map((model) => (
-                    <article
-                      key={model.id}
-                      className={`rounded-xl border p-3 transition ${
-                        selected3dCardId === model.id
-                          ? 'border-violet-300 bg-violet-50 ring-1 ring-violet-100'
-                          : 'border-slate-200 bg-slate-50 hover:border-violet-200 hover:bg-white'
-                      }`}
-                      onClick={() => setSelected3dCardId(model.id)}
-                    >
-                      <div className="flex flex-col gap-3">
-                        <div className="flex items-center gap-3">
-                          <Model3dListThumbnail model={model} />
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-2">
-                              <p className="truncate text-sm font-semibold text-slate-900">
-                                {model.name} {isPrimary3dModel(model) ? <span className="text-emerald-700">(principal)</span> : null}
-                              </p>
-                              <span
-                                className={`h-2.5 w-2.5 shrink-0 rounded-full ${model.is_active ? 'bg-emerald-500' : 'bg-slate-300'}`}
-                                aria-label={model.is_active ? 'Modelo ativo' : 'Modelo inativo'}
-                                title={model.is_active ? 'Modelo ativo' : 'Modelo inativo'}
-                              />
-                            </div>
-                            <p className="mt-1 text-xs text-slate-500">
-                              {model.width_mm ?? '-'} x {model.height_mm ?? '-'} x {model.depth_mm ?? '-'} mm | ordem {model.sort_order} | {model.sub_item_title ? `subitem: ${model.sub_item_title}` : 'principal'}
-                            </p>
-                            <p className="text-xs text-slate-500">
-                              {modelHasPreview(model)
-                                ? `Preview 3D habilitado (${fileExtension(model.preview_file_url || resolveModelFileUrl(model))})`
-                                : `Sem preview 3D (${fileExtension(resolveModelFileUrl(model)) || 'arquivo'})`}
-                            </p>
-                          </div>
-                        </div>
-
-                        <div className="flex flex-wrap gap-2">
-                          {isPrimary3dModel(model) ? <StatusBadge tone="info">Principal</StatusBadge> : <StatusBadge tone="neutral">Secundario</StatusBadge>}
-                          {Boolean(model.show_to_customer) ? <StatusBadge tone="success">Publico</StatusBadge> : <StatusBadge tone="neutral">Interno</StatusBadge>}
-                          {model.is_active ? <StatusBadge tone="success">Ativo</StatusBadge> : <StatusBadge tone="danger">Inativo</StatusBadge>}
-                        </div>
-
-                        <div className="flex flex-wrap gap-2">
-                          <Button type="button" variant="secondary" onClick={() => setPrimary3dModel(model)} disabled={isPrimary3dModel(model)}>
-                            Definir principal
-                          </Button>
-                          <Button type="button" variant={Boolean(model.show_to_customer) ? 'ghost' : 'secondary'} onClick={() => toggle3dModelCustomerVisibility(model)}>
-                            {Boolean(model.show_to_customer) ? 'Ocultar do cliente' : 'Exibir para cliente'}
-                          </Button>
-                          <Button type="button" variant="secondary" onClick={() => openEdit3dModel(model)}>Editar</Button>
-                          <Button type="button" variant="ghost" onClick={() => toggle3dModelStatus(model)}>
-                            {model.is_active ? 'Inativar' : 'Ativar'}
-                          </Button>
-                          <Button type="button" variant="danger" onClick={() => remove3dModel(model)}>Excluir</Button>
-                        </div>
-                      </div>
-                    </article>
-                  ))}
-                </div>
-              )}
-            </div>
-            </ProductFormSection>
-            ) : null}
             </>
           ) : null}
 
@@ -2979,12 +2549,12 @@ const toModel3dPayload = (source, overrides = {}) => ({
                 <div className="flex flex-wrap gap-2">
                   <Button
                     type="button"
-                    onClick={() => open3dModelsLibrary(true)}
+                    onClick={() => open3dModelsLibrary({ filtered: true })}
                     disabled={!selectedProduct?.id || Number(selectedProduct.id) <= 0}
                   >
-                    Gerenciar modelos 3D
+                    Gerenciar na biblioteca 3D
                   </Button>
-                  <Button type="button" variant="secondary" onClick={() => open3dModelsLibrary(false)}>
+                  <Button type="button" variant="secondary" onClick={() => open3dModelsLibrary({ filtered: false })}>
                     Abrir biblioteca completa
                   </Button>
                 </div>
@@ -3002,7 +2572,7 @@ const toModel3dPayload = (source, overrides = {}) => ({
                   </p>
                 </div>
                 <div className="rounded-xl border border-slate-200 bg-white p-3">
-                  <p className="text-xs uppercase tracking-wide text-slate-500">Modelo 3D publico</p>
+                  <p className="text-xs uppercase tracking-wide text-slate-500">Visivel para cliente</p>
                   <p className={`mt-1 text-sm font-semibold ${model3dPublicStatus === 'Ativo' ? 'text-emerald-700' : 'text-slate-700'}`}>
                     {model3dPublicStatus}
                   </p>
@@ -3028,6 +2598,7 @@ const toModel3dPayload = (source, overrides = {}) => ({
                             <div className="flex flex-wrap items-center gap-2">
                               <p className="truncate text-sm font-semibold text-slate-900">{model.name}</p>
                               {isPrimary3dModel(model) ? <StatusBadge tone="info">Principal</StatusBadge> : <StatusBadge tone="neutral">Secundario</StatusBadge>}
+                              {model.sub_item_title ? <StatusBadge tone="info">Subitem</StatusBadge> : null}
                               {Boolean(model.show_to_customer) ? <StatusBadge tone="success">Publico</StatusBadge> : <StatusBadge tone="neutral">Interno</StatusBadge>}
                               {model.is_active ? <StatusBadge tone="success">Ativo</StatusBadge> : <StatusBadge tone="danger">Inativo</StatusBadge>}
                             </div>
@@ -3036,6 +2607,14 @@ const toModel3dPayload = (source, overrides = {}) => ({
                             </p>
                           </div>
                           <div className="flex flex-wrap gap-2 sm:justify-end">
+                            <Button
+                              type="button"
+                              variant="secondary"
+                              onClick={() => open3dModelsLibrary({ filtered: true, modelId: model.id })}
+                              disabled={!selectedProduct?.id}
+                            >
+                              Editar na biblioteca
+                            </Button>
                             <Button
                               type="button"
                               variant={Boolean(model.show_to_customer) ? 'ghost' : 'secondary'}
@@ -3195,84 +2774,6 @@ const toModel3dPayload = (source, overrides = {}) => ({
           </ProductFormSection>
             </>
           ) : null}
-        </form>
-      </Modal>
-
-      <Modal
-        open={false && model3dModalOpen}
-        title={editing3dModelId ? 'Editar modelo 3D' : 'Novo modelo 3D'}
-        onClose={() => setModel3dModalOpen(false)}
-        footer={
-          <>
-            <Button variant="secondary" onClick={() => setModel3dModalOpen(false)}>Cancelar</Button>
-            <Button loading={saving} onClick={submit3dModelForm}>{editing3dModelId ? 'Salvar alteracoes' : 'Criar modelo'}</Button>
-          </>
-        }
-      >
-        <form className="grid grid-cols-1 gap-4 md:grid-cols-2" onSubmit={submit3dModelForm}>
-          <label className="md:col-span-2 flex flex-col gap-1.5">
-            <span className="text-xs font-medium uppercase tracking-wide text-slate-500">Destino do modelo</span>
-            <select
-              value={model3dForm.sub_item_id}
-              onChange={(event) => {
-                setModel3dSortTouched(false);
-                setModel3dForm({ ...model3dForm, sub_item_id: event.target.value });
-              }}
-              className="h-11 rounded-[10px] border border-slate-200 bg-white px-3 text-sm text-slate-700"
-            >
-              <option value="">Produto principal</option>
-              {(form.sub_items || []).map((subItem, index) => (
-                <option key={subItem.id || `subitem-option-${index}`} value={subItem.id || ''}>
-                  {subItem.title || `Sub item ${index + 1}`}
-                </option>
-              ))}
-            </select>
-          </label>
-          <Input label="Nome do modelo" value={model3dForm.name} onChange={(event) => setModel3dForm({ ...model3dForm, name: event.target.value })} required />
-          <Input
-            label="Ordem"
-            type="number"
-            min="1"
-            step="1"
-            value={model3dForm.sort_order}
-            onChange={(event) => {
-              setModel3dSortTouched(true);
-              setModel3dForm({ ...model3dForm, sort_order: event.target.value });
-            }}
-          />
-          <TextArea
-            label="Descricao"
-            className="md:col-span-2"
-            rows="2"
-            value={model3dForm.description}
-            onChange={(event) => setModel3dForm({ ...model3dForm, description: event.target.value })}
-          />
-          <Input
-            label="Arquivo 3D (URL)"
-            className="md:col-span-2"
-            value={model3dForm.file_url}
-            onChange={(event) => setModel3dForm({ ...model3dForm, file_url: event.target.value })}
-            required
-          />
-          <label className="md:col-span-2 flex flex-col gap-1.5">
-            <span className="text-xs font-medium uppercase tracking-wide text-slate-500">Importar arquivo 3D (.3mf, .stl, .glb, .obj, .step, .stp, .gcode)</span>
-            <input className="h-11 rounded-[10px] border border-slate-200 bg-white px-3 text-sm text-slate-700" type="file" accept=".3mf,.stl,.gcode,.glb,.obj,.step,.stp" onChange={(event) => upload3dFile(event.target.files?.[0] || null)} />
-            {uploading3dFile ? <small className="text-xs text-slate-500">Enviando arquivo 3D...</small> : null}
-            <small className="text-xs text-slate-500">Arquivos .stl/.glb geram preview 3D automaticamente. Arquivos .3mf exibem nome do arquivo sem preview.</small>
-          </label>
-
-          <Input label="Largura (mm)" type="number" min="0" step="0.01" value={model3dForm.width_mm} onChange={(event) => setModel3dForm({ ...model3dForm, width_mm: event.target.value, dimensions_source: 'manual' })} />
-          <Input label="Altura (mm)" type="number" min="0" step="0.01" value={model3dForm.height_mm} onChange={(event) => setModel3dForm({ ...model3dForm, height_mm: event.target.value, dimensions_source: 'manual' })} />
-          <Input label="Profundidade (mm)" type="number" min="0" step="0.01" value={model3dForm.depth_mm} onChange={(event) => setModel3dForm({ ...model3dForm, depth_mm: event.target.value, dimensions_source: 'manual' })} />
-
-          <label className="inline-flex items-center gap-2 rounded-[10px] border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
-            <input type="checkbox" checked={Boolean(model3dForm.allow_download)} onChange={(event) => setModel3dForm({ ...model3dForm, allow_download: event.target.checked })} />
-            <span>Permitir download</span>
-          </label>
-          <label className="inline-flex items-center gap-2 rounded-[10px] border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
-            <input type="checkbox" checked={Boolean(model3dForm.is_active)} onChange={(event) => setModel3dForm({ ...model3dForm, is_active: event.target.checked })} />
-            <span>Modelo ativo</span>
-          </label>
         </form>
       </Modal>
 
