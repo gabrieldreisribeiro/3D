@@ -56,9 +56,9 @@ function Header() {
   const activeNavKey = location.hash === '#catalogo' ? 'categorias' : location.pathname.endsWith('/cart') ? '' : 'inicio';
 
   return (
-    <header className="sticky top-0 z-50 border-b border-[#E6EAF0] bg-white shadow-[0_3px_14px_rgba(15,23,42,0.06)]">
-      <div className="mx-auto grid w-full max-w-7xl grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 px-3 py-2 sm:gap-4 sm:px-6 lg:h-[74px] lg:px-8 lg:py-0">
-        <Link to={`${previewPrefix}/`} className="flex min-w-[62px] items-center sm:min-w-[124px]">
+    <header className="site-market-header sticky top-0 z-50 border-b border-[#E6EAF0] bg-white shadow-[0_3px_14px_rgba(15,23,42,0.06)]">
+      <div className="market-header-main mx-auto grid w-full max-w-7xl grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 px-3 py-2 sm:gap-4 sm:px-6 lg:h-[74px] lg:px-8 lg:py-0">
+        <Link to={`${previewPrefix}/`} className="market-header-logo flex min-w-[62px] items-center sm:min-w-[124px]">
           {logoUrl ? (
             <img
               src={logoUrl}
@@ -71,7 +71,7 @@ function Header() {
           )}
         </Link>
 
-        <form onSubmit={onSearch} className="w-full">
+        <form onSubmit={onSearch} className="market-header-search w-full">
           <div className="relative">
             <input
               type="search"
@@ -93,7 +93,7 @@ function Header() {
           </div>
         </form>
 
-        <div className="flex items-center gap-1 sm:gap-2">
+        <div className="market-header-actions flex items-center gap-1 sm:gap-2">
           <NavLink
             to={`${previewPrefix}/`}
             end
@@ -138,7 +138,7 @@ function Header() {
         </div>
       </div>
 
-      <div className="border-t border-[#E6EAF0] bg-[#F9FAFB]">
+      <div className="market-header-nav border-t border-[#E6EAF0] bg-[#F9FAFB]">
         <div className="mx-auto flex w-full max-w-7xl gap-2 overflow-x-auto px-3 py-2 text-sm text-[#667085] [scrollbar-width:none] sm:px-6 lg:px-8 [&::-webkit-scrollbar]:hidden">
           {mainMarketNav.map((item) => (
             <a
