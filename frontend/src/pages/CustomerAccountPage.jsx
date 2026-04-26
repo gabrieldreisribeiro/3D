@@ -507,16 +507,10 @@ function CustomerAccountPage() {
                         const currentProgress = orderProgress(selectedOrder);
                         return (
                           <>
-                      <div className="customer-content-head customer-order-detail-head">
+                      <div className="customer-content-head">
                         <div>
                           <h3 className="customer-card-title">Pedido #{selectedOrder.id}</h3>
                           <p className="text-sm text-slate-500">Criado em {formatDateTime(selectedOrder.created_at)}</p>
-                          <div className="customer-order-detail-head-badges">
-                            <StatusBadge tone={productionBadgeTone(selectedOrder.production_status)}>{currentStageLabel}</StatusBadge>
-                            <span className={paymentStatusClass(selectedOrder.payment_status)}>
-                              {paymentStatusIcon(selectedOrder.payment_status)} {paymentStatusLabel(selectedOrder.payment_status)}
-                            </span>
-                          </div>
                         </div>
                         <Button variant="secondary" className="w-full sm:w-auto" onClick={() => setActiveTab('orders')}>
                           Voltar para compras
@@ -535,9 +529,6 @@ function CustomerAccountPage() {
                           <p className="customer-order-hero-subtitle">
                             Acompanhe as etapas atualizadas do seu pedido em tempo real.
                           </p>
-                          <div className="customer-order-hero-progress">
-                            <span style={{ width: `${currentProgress}%` }} />
-                          </div>
                         </div>
                         <div className="customer-order-hero-metrics">
                           <div className="customer-order-hero-metric">
