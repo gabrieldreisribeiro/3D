@@ -1352,8 +1352,8 @@ function ProductPage() {
     : fallbackHighlightItems;
 
   return (
-    <section className="mx-auto flex w-full max-w-[1280px] flex-col gap-8 px-4 py-6 sm:px-6 lg:gap-10 lg:px-6">
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-12 lg:gap-6">
+    <section className="mx-auto flex w-full max-w-[1280px] flex-col gap-5 px-3 py-3 sm:gap-8 sm:px-6 sm:py-6 lg:gap-10 lg:px-6">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-12 lg:gap-6">
         <div className="lg:col-span-7">
           <ProductGallery
             images={galleryImages}
@@ -1367,7 +1367,7 @@ function ProductPage() {
           />
         </div>
 
-        <aside className="space-y-4 rounded-[16px] border border-[#E6EAF0] bg-white p-5 shadow-[0_8px_24px_rgba(15,23,42,0.07)] lg:col-span-5">
+        <aside className="product-purchase-panel space-y-4 rounded-[16px] border border-[#E6EAF0] bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.07)] sm:p-5 lg:col-span-5">
           <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#6B7280]">{categoryLabel}</p>
           <h1 className="line-clamp-2 text-[24px] font-semibold tracking-tight text-[#111827]">{product.title}</h1>
           <p className="text-sm leading-6 text-[#6B7280]">{product.short_description}</p>
@@ -1578,7 +1578,7 @@ function ProductPage() {
                 Prazo estimado: {customizedLeadTimeDays} dia(s) apos confirmacao do pagamento.
               </p>
 
-              <div className="flex flex-col gap-2">
+              <div className="product-purchase-actions flex flex-col gap-2">
                 <div className="flex items-center gap-2">
                   <QuantitySelector value={quantity} onChange={setQuantity} />
                   <Button
@@ -1669,7 +1669,7 @@ function ProductPage() {
                 </div>
               ) : null}
 
-              <div className="flex flex-col gap-2">
+              <div className="product-purchase-actions flex flex-col gap-2">
                 <div className="flex items-center gap-2">
                   <QuantitySelector value={quantity} onChange={setQuantity} />
                   <Button

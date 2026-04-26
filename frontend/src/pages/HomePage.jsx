@@ -48,6 +48,7 @@ function HomePage() {
   const { addToCart } = useCart();
   const filterPopoverRef = useRef(null);
   const query = (searchParams.get('q') || '').trim().toLowerCase();
+  const categoryParam = (searchParams.get('categoria') || '').trim();
   const isPreview = location.pathname.startsWith('/preview');
   const previewPrefix = isPreview ? '/preview' : '';
 
@@ -65,7 +66,7 @@ function HomePage() {
       .catch(() => setBanners(fallbackSlides));
 
     fetchCategories().then(setCategories).catch(() => setCategories([]));
-    fetchMostOrderedProducts(4).then(setMostOrdered).catch(() => setMostOrdered([]));
+    fetchMostOrderedProducts(8).then(setMostOrdered).catch(() => setMostOrdered([]));
   }, []);
 
   useEffect(() => {
@@ -84,6 +85,16 @@ function HomePage() {
       metadata_json: { query },
     }).catch(() => {});
   }, [query]);
+
+  useEffect(() => {
+    if (!categoryParam) {
+      setActiveCategory('all');
+      return;
+    }
+    if (categories.some((category) => category.slug === categoryParam)) {
+      setActiveCategory(categoryParam);
+    }
+  }, [categoryParam, categories]);
 
   useEffect(() => {
     if (banners.length <= 1) return undefined;
@@ -189,11 +200,24 @@ function HomePage() {
       }),
     [visibleBanner?.image_url]
   );
-  const mostOrderedProducts = useMemo(() => mostOrdered.slice(0, 4), [mostOrdered]);
+  const mostOrderedProducts = useMemo(() => mostOrdered.slice(0, 8), [mostOrdered]);
+  const promoProducts = useMemo(
+    () => products.filter((product) => Boolean(product.is_on_sale)).slice(0, 8),
+    [products]
+  );
 
   const chips = [
-    { key: 'all', label: 'Todos os produtos' },
+    { key: 'all', label: 'Tudo' },
     ...categories.map((category) => ({ key: category.slug, label: category.name })),
+  ];
+  const quickShortcuts = [
+    { key: 'promos', label: 'Promocoes', href: '#promocoes' },
+    { key: 'most', label: 'Mais pedidos', href: '#mais-pedidos' },
+    ...categories.slice(0, 5).map((category) => ({
+      key: category.slug,
+      label: category.name,
+      href: `?categoria=${encodeURIComponent(category.slug)}#catalogo`,
+    })),
   ];
 
   const onChipClick = (key) => {
@@ -205,6 +229,7 @@ function HomePage() {
       metadata_json: { category_slug: key },
     }).catch(() => {});
     setActiveCategory(key);
+    navigate(key === 'all' ? `${previewPrefix}/#catalogo` : `${previewPrefix}/?categoria=${encodeURIComponent(key)}#catalogo`, { replace: true });
   };
 
   const rangeStart = filteredProducts.length ? (currentPage - 1) * itemsPerPage + 1 : 0;
@@ -218,9 +243,9 @@ function HomePage() {
   };
 
   return (
-    <div className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-4 py-6 sm:px-6 lg:gap-10 lg:px-8">
-      <section className="overflow-hidden rounded-[16px] border border-[#E6EAF0] bg-white shadow-sm">
-        <div className="relative min-h-[300px] sm:min-h-[360px]">
+    <div className="mx-auto flex w-full max-w-7xl flex-col gap-5 px-3 py-3 sm:gap-8 sm:px-6 sm:py-6 lg:gap-10 lg:px-8">
+      <section className="overflow-hidden rounded-[14px] border border-[#E6EAF0] bg-white shadow-sm sm:rounded-[16px]">
+        <div className="relative min-h-[210px] sm:min-h-[360px]">
           <img
             src={visibleBannerSources.src || visibleBanner.image_url}
             srcSet={visibleBannerSources.srcSet || undefined}
@@ -235,14 +260,14 @@ function HomePage() {
           />
           <div className="absolute inset-0 bg-gradient-to-r from-slate-900/70 via-slate-900/30 to-transparent" />
 
-          <div className="relative flex min-h-[300px] flex-col justify-between p-6 sm:min-h-[360px] sm:p-8">
+          <div className="relative flex min-h-[210px] flex-col justify-between p-4 sm:min-h-[360px] sm:p-8">
             <div className="max-w-2xl">
               <p className="text-xs font-semibold uppercase tracking-[0.14em] text-violet-100">Vitrine em destaque</p>
-              <h1 className="mt-3 text-3xl font-bold leading-tight tracking-tight text-white sm:text-4xl">
+              <h1 className="mt-2 text-[24px] font-bold leading-tight tracking-tight text-white sm:mt-3 sm:text-4xl">
                 {visibleBanner.title}
               </h1>
-              <p className="mt-3 max-w-xl text-sm text-white/90 sm:text-base">{visibleBanner.subtitle}</p>
-              <div className="mt-5">
+              <p className="mt-2 line-clamp-2 max-w-xl text-xs text-white/90 sm:mt-3 sm:text-base">{visibleBanner.subtitle}</p>
+              <div className="mt-4 sm:mt-5">
                 <Link
                   to={
                     visibleBanner.target_url?.startsWith('/')
@@ -260,15 +285,15 @@ function HomePage() {
                       },
                     }).catch(() => {});
                   }}
-                  className="inline-flex h-10 items-center justify-center rounded-[10px] bg-[#6D28D9] px-4 text-sm font-semibold text-white transition hover:bg-[#5B21B6]"
+                  className="inline-flex h-9 items-center justify-center rounded-[10px] bg-[#6D28D9] px-3 text-xs font-semibold text-white transition hover:bg-[#5B21B6] sm:h-10 sm:px-4 sm:text-sm"
                 >
                   Ver catalogo completo
                 </Link>
               </div>
             </div>
 
-            <div className="mt-8 flex items-center justify-between">
-              <div className="flex items-center gap-2">
+            <div className="mt-5 flex items-center justify-between sm:mt-8">
+              <div className="hidden items-center gap-2 sm:flex">
                 {banners.map((item, index) => (
                   <button
                     key={item.id || index}
@@ -304,18 +329,35 @@ function HomePage() {
         </div>
       </section>
 
+      {quickShortcuts.length ? (
+        <section className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" aria-label="Atalhos rapidos">
+          {quickShortcuts.map((item, index) => (
+            <a
+              key={`${item.key}-${index}`}
+              href={item.href.startsWith('?') && isPreview ? `${previewPrefix}/${item.href}` : item.href}
+              className="quick-shortcut-card"
+            >
+              <span>
+                {index + 1}
+              </span>
+              <strong>{item.label}</strong>
+            </a>
+          ))}
+        </section>
+      ) : null}
+
       {mostOrderedProducts.length ? (
-        <section id="mais-pedidos" className="space-y-4 rounded-[16px] border border-[#E6EAF0] bg-white p-4 shadow-sm sm:p-6">
+        <section id="mais-pedidos" className="market-section space-y-4">
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
-              <h2 className="text-[28px] font-bold tracking-tight text-[#111827]">Mais pedidos</h2>
+              <h2 className="market-section-title">Mais pedidos</h2>
               <p className="mt-1 text-sm text-[#667085]">Os campeoes de vendas da vitrine nesta semana.</p>
             </div>
             <a href="#catalogo" className="text-sm font-semibold text-[#6D28D9] transition hover:text-[#5B21B6]">
               Ver catalogo completo
             </a>
           </div>
-          <div className="market-products-grid">
+          <div className="market-products-grid market-products-grid-featured">
             {mostOrderedProducts.map((product) => (
               <ProductCard
                 key={`most-ordered-${product.id}`}
@@ -328,17 +370,41 @@ function HomePage() {
         </section>
       ) : null}
 
-      <section id="catalogo" className="space-y-4 rounded-[16px] border border-[#E6EAF0] bg-white p-4 shadow-sm sm:p-6">
+      {promoProducts.length ? (
+        <section id="promocoes" className="market-section space-y-4">
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <h2 className="market-section-title">Promocoes</h2>
+              <p className="mt-1 text-sm text-[#667085]">Ofertas e oportunidades ativas na loja.</p>
+            </div>
+            <a href="#catalogo" className="text-sm font-semibold text-[#6D28D9] transition hover:text-[#5B21B6]">
+              Ver todos
+            </a>
+          </div>
+          <div className="market-products-grid market-products-grid-featured">
+            {promoProducts.map((product) => (
+              <ProductCard
+                key={`promo-${product.id}`}
+                product={product}
+                onAdd={handleAddToCart}
+                highlightLabel={product.promotion_badge || 'Oferta'}
+              />
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      <section id="catalogo" className="market-section space-y-4">
         <div className="space-y-2 border-b border-[#E6EAF0] pb-4">
-          <h2 className="text-[28px] font-bold tracking-tight text-[#111827]">Catalogo completo</h2>
+          <h2 className="market-section-title">{query ? `Resultados para "${query}"` : 'Catalogo completo'}</h2>
           <p className="text-sm text-[#667085]">Explore a linha completa e filtre por categoria, preco e relevancia.</p>
-          <div className="flex flex-wrap items-center gap-2 pt-1">
+          <div className="flex items-center gap-2 overflow-x-auto pt-1 [scrollbar-width:none] sm:flex-wrap [&::-webkit-scrollbar]:hidden">
             {chips.map((chip) => (
               <button
                 key={chip.key}
                 type="button"
                 onClick={() => onChipClick(chip.key)}
-                className={`h-9 rounded-full border px-3.5 text-xs font-semibold transition-all duration-200 sm:text-sm ${
+                className={`h-9 shrink-0 rounded-full border px-3.5 text-xs font-semibold transition-all duration-200 sm:text-sm ${
                   activeCategory === chip.key
                     ? 'border-[#6D28D9] bg-[#6D28D9] text-white'
                     : 'border-[#E6EAF0] bg-[#F5F7FA] text-[#475467] hover:border-violet-200 hover:bg-white hover:text-[#6D28D9]'

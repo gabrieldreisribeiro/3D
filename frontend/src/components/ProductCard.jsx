@@ -18,6 +18,7 @@ function ProductCard({ product, onAdd, highlightLabel = '', compact = false }) {
   const coverImageUrl = coverImageSources.src || resolveAssetUrl(product.cover_image) || product.cover_image || '';
   const hasSubItems = (product.sub_items || []).length > 0;
   const isOnSale = Boolean(product.is_on_sale && originalPrice > price);
+  const discountPercent = isOnSale ? Math.max(1, Math.round(((originalPrice - price) / originalPrice) * 100)) : 0;
   const ratingCount = Number(product.rating_count || 0);
   const ratingAverage = ratingCount > 0 ? Number(product.rating_average || 0) : 0;
   const badgeLabel = product?.promotion_badge || highlightLabel || (hasSubItems ? 'Personalizado' : '');
@@ -56,12 +57,12 @@ function ProductCard({ product, onAdd, highlightLabel = '', compact = false }) {
 
   return (
     <article className={`product-card-pro ${compact ? 'product-card-pro-compact' : ''}`}>
-      <Link to={productLink} className="product-card-image-link" onClick={handleProductClick}>
-        <div className="product-card-image-wrap">
+      <div className="product-card-image-wrap">
+        <Link to={productLink} className="product-card-image-link" onClick={handleProductClick}>
           <img
             src={coverImageUrl}
             srcSet={coverImageSources.srcSet || undefined}
-            sizes={coverImageSources.srcSet ? '(max-width: 640px) 100vw, (max-width: 1200px) 50vw, 33vw' : undefined}
+            sizes={coverImageSources.srcSet ? '(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 260px' : undefined}
             alt={product.title || 'Produto'}
             className="product-card-image h-full w-full object-cover"
             loading="lazy"
@@ -69,9 +70,34 @@ function ProductCard({ product, onAdd, highlightLabel = '', compact = false }) {
             width="640"
             height="480"
           />
+        </Link>
+        <div className="product-card-badges">
+          {isOnSale ? <span className="product-card-badge product-card-badge-sale">{discountPercent}% OFF</span> : null}
           {badgeLabel ? <span className="product-card-badge">{badgeLabel}</span> : null}
         </div>
-      </Link>
+        {hasSubItems ? (
+          <Link to={productLink} className="product-card-quick-add" aria-label="Montar produto" onClick={handleProductClick}>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 5v14M5 12h14" />
+            </svg>
+          </Link>
+        ) : (
+          <button
+            type="button"
+            className="product-card-quick-add"
+            onClick={handleAdd}
+            disabled={isAdding}
+            aria-label="Adicionar ao carrinho"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M3 4h2l2.2 10.2a1 1 0 0 0 1 .8h8.9a1 1 0 0 0 1-.8L20 7H7.2" />
+              <path d="M12 10v4M10 12h4" />
+              <circle cx="9" cy="20" r="1.5" />
+              <circle cx="18" cy="20" r="1.5" />
+            </svg>
+          </button>
+        )}
+      </div>
 
       <div className="product-card-body">
         <Link to={productLink} className="product-card-title-link" onClick={handleProductClick}>
