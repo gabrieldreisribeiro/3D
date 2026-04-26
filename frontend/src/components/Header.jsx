@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react';
 import { Link, NavLink, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
-import { fetchCategories, fetchPublicLogo, getCustomerToken, resolveAssetUrl, trackEvent } from '../services/api';
+import { fetchPublicLogo, getCustomerToken, resolveAssetUrl, trackEvent } from '../services/api';
 import { useCart } from '../services/cart';
 import { getLogoSizeConfig, getLogoSizeKey } from '../services/logoSettings';
 
-const fallbackMarketNav = [
-  { label: 'Tudo', to: '/#catalogo', key: 'all' },
+const mainMarketNav = [
+  { label: 'Inicio', to: '/', key: 'inicio' },
+  { label: 'Categorias', to: '/#catalogo', key: 'categorias' },
   { label: 'Promocoes', to: '/#catalogo', key: 'promocoes' },
-  { label: 'Mais pedidos', to: '/#mais-pedidos', key: 'mais-pedidos' },
   { label: 'Personalizados', to: '/#catalogo', key: 'personalizados' },
 ];
 
@@ -17,7 +17,6 @@ function Header() {
   const [query, setQuery] = useState(searchParams.get('q') || '');
   const [logoUrl, setLogoUrl] = useState(null);
   const [logoSizeKey, setLogoSizePreference] = useState(getLogoSizeKey());
-  const [categories, setCategories] = useState([]);
   const navigate = useNavigate();
   const location = useLocation();
   const isPreview = location.pathname.startsWith('/preview');
@@ -30,7 +29,6 @@ function Header() {
     fetchPublicLogo()
       .then((data) => setLogoUrl(resolveAssetUrl(data?.url)))
       .catch(() => setLogoUrl(null));
-    fetchCategories().then(setCategories).catch(() => setCategories([]));
   }, []);
 
   useEffect(() => {
@@ -55,18 +53,7 @@ function Header() {
   };
 
   const logoSize = getLogoSizeConfig(logoSizeKey);
-  const categoryParam = searchParams.get('categoria') || 'all';
-  const marketNav = categories.length
-    ? [
-      fallbackMarketNav[0],
-      ...categories.map((category) => ({
-        label: category.name,
-        to: `/?categoria=${encodeURIComponent(category.slug)}#catalogo`,
-        key: category.slug,
-      })),
-      ...fallbackMarketNav.slice(1),
-    ]
-    : fallbackMarketNav;
+  const activeNavKey = location.hash === '#catalogo' ? 'categorias' : location.pathname.endsWith('/cart') ? '' : 'inicio';
 
   return (
     <header className="sticky top-0 z-50 border-b border-[#E6EAF0] bg-white shadow-[0_3px_14px_rgba(15,23,42,0.06)]">
@@ -153,12 +140,12 @@ function Header() {
 
       <div className="border-t border-[#E6EAF0] bg-[#F9FAFB]">
         <div className="mx-auto flex w-full max-w-7xl gap-2 overflow-x-auto px-3 py-2 text-sm text-[#667085] [scrollbar-width:none] sm:px-6 lg:px-8 [&::-webkit-scrollbar]:hidden">
-          {marketNav.map((item) => (
+          {mainMarketNav.map((item) => (
             <a
               key={`${item.key}-${item.label}`}
               href={isPreview && item.to.startsWith('/') ? `${previewPrefix}${item.to}` : item.to}
               className={`whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-semibold transition sm:text-sm ${
-                categoryParam === item.key || (item.key === 'all' && !searchParams.get('categoria'))
+                activeNavKey === item.key
                   ? 'bg-white text-[#6D28D9] shadow-sm ring-1 ring-violet-100'
                   : 'text-[#667085] hover:bg-white hover:text-[#111827]'
               }`}

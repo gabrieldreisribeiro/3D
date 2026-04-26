@@ -1530,6 +1530,16 @@ select {
   font-weight: 800;
 }
 
+.quick-shortcut-card span svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 .quick-shortcut-card strong {
   color: #111827;
   font-size: 13px;
@@ -1657,7 +1667,7 @@ select {
   height: 38px;
   border: 0;
   border-radius: 999px;
-  display: inline-flex;
+  display: none;
   align-items: center;
   justify-content: center;
   background: var(--primary);
@@ -1869,6 +1879,7 @@ select {
   }
 
   .product-card-quick-add {
+    display: inline-flex;
     width: 34px;
     height: 34px;
     right: 7px;
@@ -1903,6 +1914,12 @@ select {
     height: 34px;
     padding: 0 8px;
     font-size: 10px;
+  }
+}
+
+@media (max-width: 700px) {
+  .product-card-actions {
+    display: none;
   }
 }
 

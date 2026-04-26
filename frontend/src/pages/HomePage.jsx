@@ -66,7 +66,7 @@ function HomePage() {
       .catch(() => setBanners(fallbackSlides));
 
     fetchCategories().then(setCategories).catch(() => setCategories([]));
-    fetchMostOrderedProducts(8).then(setMostOrdered).catch(() => setMostOrdered([]));
+    fetchMostOrderedProducts(6).then(setMostOrdered).catch(() => setMostOrdered([]));
   }, []);
 
   useEffect(() => {
@@ -200,24 +200,18 @@ function HomePage() {
       }),
     [visibleBanner?.image_url]
   );
-  const mostOrderedProducts = useMemo(() => mostOrdered.slice(0, 8), [mostOrdered]);
-  const promoProducts = useMemo(
-    () => products.filter((product) => Boolean(product.is_on_sale)).slice(0, 8),
-    [products]
-  );
+  const mostOrderedProducts = useMemo(() => mostOrdered.slice(0, 6), [mostOrdered]);
 
   const chips = [
     { key: 'all', label: 'Tudo' },
     ...categories.map((category) => ({ key: category.slug, label: category.name })),
   ];
   const quickShortcuts = [
-    { key: 'promos', label: 'Promocoes', href: '#promocoes' },
-    { key: 'most', label: 'Mais pedidos', href: '#mais-pedidos' },
-    ...categories.slice(0, 5).map((category) => ({
-      key: category.slug,
-      label: category.name,
-      href: `?categoria=${encodeURIComponent(category.slug)}#catalogo`,
-    })),
+    { key: 'most', label: 'Mais pedidos', href: '#mais-pedidos', icon: 'star' },
+    { key: 'promos', label: 'Promocoes', href: '#catalogo', icon: 'tag' },
+    { key: 'custom', label: 'Personalizados', href: '#catalogo', icon: 'spark' },
+    { key: 'new', label: 'Novidades', href: '#catalogo', icon: 'new' },
+    { key: 'kits', label: 'Kits', href: '#catalogo', icon: 'kit' },
   ];
 
   const onChipClick = (key) => {
@@ -331,14 +325,24 @@ function HomePage() {
 
       {quickShortcuts.length ? (
         <section className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" aria-label="Atalhos rapidos">
-          {quickShortcuts.map((item, index) => (
+          {quickShortcuts.map((item) => (
             <a
-              key={`${item.key}-${index}`}
+              key={item.key}
               href={item.href.startsWith('?') && isPreview ? `${previewPrefix}/${item.href}` : item.href}
               className="quick-shortcut-card"
             >
-              <span>
-                {index + 1}
+              <span aria-hidden="true">
+                {item.icon === 'star' ? (
+                  <svg viewBox="0 0 24 24"><path d="M12 3 9.7 8.2 4 8.8l4.3 3.8L7 18.2l5-2.9 5 2.9-1.3-5.6L20 8.8l-5.7-.6L12 3Z" /></svg>
+                ) : item.icon === 'tag' ? (
+                  <svg viewBox="0 0 24 24"><path d="M20 13 13 20 4 11V4h7l9 9Z" /><path d="M7.5 7.5h.01" /></svg>
+                ) : item.icon === 'spark' ? (
+                  <svg viewBox="0 0 24 24"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9L12 3Z" /><path d="M19 15l.9 2.1L22 18l-2.1.9L19 21l-.9-2.1L16 18l2.1-.9L19 15Z" /></svg>
+                ) : item.icon === 'new' ? (
+                  <svg viewBox="0 0 24 24"><path d="M5 5h14v14H5z" /><path d="M8 15V9l4 6V9" /><path d="M16 9v6" /></svg>
+                ) : (
+                  <svg viewBox="0 0 24 24"><path d="M4 8h16v12H4z" /><path d="M12 8v12" /><path d="M4 12h16" /><path d="M7 8c-1.2-2 0-4 2-4 1.4 0 2.4 1.6 3 4 0 0 .6-4 3-4 2 0 3.2 2 2 4" /></svg>
+                )}
               </span>
               <strong>{item.label}</strong>
             </a>
@@ -353,9 +357,6 @@ function HomePage() {
               <h2 className="market-section-title">Mais pedidos</h2>
               <p className="mt-1 text-sm text-[#667085]">Os campeoes de vendas da vitrine nesta semana.</p>
             </div>
-            <a href="#catalogo" className="text-sm font-semibold text-[#6D28D9] transition hover:text-[#5B21B6]">
-              Ver catalogo completo
-            </a>
           </div>
           <div className="market-products-grid market-products-grid-featured">
             {mostOrderedProducts.map((product) => (
@@ -364,30 +365,6 @@ function HomePage() {
                 product={product}
                 onAdd={handleAddToCart}
                 highlightLabel="Mais vendido"
-              />
-            ))}
-          </div>
-        </section>
-      ) : null}
-
-      {promoProducts.length ? (
-        <section id="promocoes" className="market-section space-y-4">
-          <div className="flex flex-wrap items-end justify-between gap-3">
-            <div>
-              <h2 className="market-section-title">Promocoes</h2>
-              <p className="mt-1 text-sm text-[#667085]">Ofertas e oportunidades ativas na loja.</p>
-            </div>
-            <a href="#catalogo" className="text-sm font-semibold text-[#6D28D9] transition hover:text-[#5B21B6]">
-              Ver todos
-            </a>
-          </div>
-          <div className="market-products-grid market-products-grid-featured">
-            {promoProducts.map((product) => (
-              <ProductCard
-                key={`promo-${product.id}`}
-                product={product}
-                onAdd={handleAddToCart}
-                highlightLabel={product.promotion_badge || 'Oferta'}
               />
             ))}
           </div>
