@@ -19,11 +19,46 @@ import {
 } from '../services/api';
 
 const NAV_ITEMS = [
-  { key: 'overview', label: 'Minha conta', icon: 'HM' },
-  { key: 'orders', label: 'Minhas compras', icon: 'PD' },
-  { key: 'profile', label: 'Perfil', icon: 'PF' },
-  { key: 'password', label: 'Alterar senha', icon: 'SG' },
+  { key: 'overview', label: 'Minha conta', icon: 'home' },
+  { key: 'orders', label: 'Minhas compras', icon: 'bag' },
+  { key: 'profile', label: 'Perfil', icon: 'user' },
+  { key: 'password', label: 'Alterar senha', icon: 'lock' },
 ];
+
+function CustomerIcon({ name, className = '' }) {
+  const common = {
+    className,
+    viewBox: '0 0 24 24',
+    fill: 'none',
+    stroke: 'currentColor',
+    strokeWidth: '1.9',
+    strokeLinecap: 'round',
+    strokeLinejoin: 'round',
+    'aria-hidden': 'true',
+  };
+  if (name === 'home') {
+    return <svg {...common}><path d="M3 10.5 12 3l9 7.5V21h-6v-6H9v6H3v-10.5Z" /></svg>;
+  }
+  if (name === 'bag') {
+    return <svg {...common}><path d="M6 8h12l-1 13H7L6 8Z" /><path d="M9 8a3 3 0 0 1 6 0" /></svg>;
+  }
+  if (name === 'user') {
+    return <svg {...common}><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z" /><path d="M4 21a8 8 0 0 1 16 0" /></svg>;
+  }
+  if (name === 'lock') {
+    return <svg {...common}><rect x="5" y="10" width="14" height="11" rx="2" /><path d="M8 10V7a4 4 0 0 1 8 0v3" /></svg>;
+  }
+  if (name === 'money') {
+    return <svg {...common}><rect x="3" y="6" width="18" height="12" rx="2" /><path d="M7 12h.01M17 12h.01M12 14a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z" /></svg>;
+  }
+  if (name === 'check') {
+    return <svg {...common}><path d="M20 6 9 17l-5-5" /></svg>;
+  }
+  if (name === 'clock') {
+    return <svg {...common}><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 3" /></svg>;
+  }
+  return <svg {...common}><path d="M12 3l8 4v6c0 5-3.4 7.8-8 9-4.6-1.2-8-4-8-9V7l8-4Z" /></svg>;
+}
 
 function formatMoney(value) {
   return Number(value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -212,8 +247,13 @@ function CustomerAccountPage() {
     const totalOrders = orders.length;
     const paidOrders = orders.filter((order) => String(order.payment_status || '').toLowerCase() === 'paid').length;
     const totalSpent = orders.reduce((sum, order) => sum + Number(order.total || 0), 0);
+    const inProgressOrders = orders.filter((order) => {
+      const production = String(order.production_status || '').toLowerCase();
+      const payment = String(order.payment_status || '').toLowerCase();
+      return payment !== 'canceled' && production !== 'ready';
+    }).length;
     const lastOrder = orders[0] || null;
-    return { totalOrders, paidOrders, totalSpent, lastOrder };
+    return { totalOrders, paidOrders, totalSpent, inProgressOrders, lastOrder };
   }, [orders]);
 
   const load = () => {
@@ -330,7 +370,7 @@ function CustomerAccountPage() {
                   className={`customer-nav-item ${(activeTab === item.key || (item.key === 'orders' && activeTab === 'order_detail')) ? 'is-active' : ''}`}
                   onClick={() => setActiveTab(item.key)}
                 >
-                  <span className="customer-nav-icon" aria-hidden="true">{item.icon}</span>
+                  <span className="customer-nav-icon"><CustomerIcon name={item.icon} /></span>
                   <span>{item.label}</span>
                 </button>
               ))}
@@ -341,26 +381,50 @@ function CustomerAccountPage() {
                 <>
                   <div className="customer-stats-grid">
                     <Card className="customer-stat-card">
-                      <p>Total de pedidos</p>
-                      <strong>{stats.totalOrders}</strong>
+                      <span className="customer-stat-icon"><CustomerIcon name="bag" /></span>
+                      <div>
+                        <p>Total de pedidos</p>
+                        <strong>{stats.totalOrders}</strong>
+                      </div>
                     </Card>
                     <Card className="customer-stat-card">
-                      <p>Pedidos pagos</p>
-                      <strong>{stats.paidOrders}</strong>
+                      <span className="customer-stat-icon"><CustomerIcon name="check" /></span>
+                      <div>
+                        <p>Pedidos pagos</p>
+                        <strong>{stats.paidOrders}</strong>
+                      </div>
                     </Card>
                     <Card className="customer-stat-card">
-                      <p>Total em compras</p>
-                      <strong>{formatMoney(stats.totalSpent)}</strong>
+                      <span className="customer-stat-icon"><CustomerIcon name="money" /></span>
+                      <div>
+                        <p>Total em compras</p>
+                        <strong>{formatMoney(stats.totalSpent)}</strong>
+                      </div>
+                    </Card>
+                    <Card className="customer-stat-card">
+                      <span className="customer-stat-icon"><CustomerIcon name="clock" /></span>
+                      <div>
+                        <p>Em andamento</p>
+                        <strong>{stats.inProgressOrders}</strong>
+                      </div>
                     </Card>
                   </div>
 
-                  <Card className="space-y-3">
-                    <h3 className="customer-card-title">Resumo da conta</h3>
+                  <Card className="customer-account-summary-card space-y-4">
+                    <div className="customer-content-head">
+                      <div>
+                        <h3 className="customer-card-title">Resumo da conta</h3>
+                        <p className="text-sm text-slate-500">Dados principais usados para acompanhar compras e contato.</p>
+                      </div>
+                      <button type="button" className="customer-soft-action" onClick={() => setActiveTab('profile')}>
+                        Editar perfil
+                      </button>
+                    </div>
                     <div className="customer-account-list">
-                      <p><strong>Nome:</strong> {customer?.full_name || '-'}</p>
-                      <p><strong>Email:</strong> {customer?.email || '-'}</p>
-                      <p><strong>Telefone:</strong> {customer?.phone_number || '-'}</p>
-                      <p><strong>Ultimo pedido:</strong> {stats.lastOrder ? `#${stats.lastOrder.id}` : '-'}</p>
+                      <p><span>Nome</span><strong>{customer?.full_name || '-'}</strong></p>
+                      <p><span>Email</span><strong>{customer?.email || '-'}</strong></p>
+                      <p><span>Telefone</span><strong>{customer?.phone_number || '-'}</strong></p>
+                      <p><span>Ultimo pedido</span><strong>{stats.lastOrder ? `#${stats.lastOrder.id}` : '-'}</strong></p>
                     </div>
                   </Card>
                 </>
@@ -617,7 +681,7 @@ function CustomerAccountPage() {
                     <h3 className="customer-card-title">Perfil</h3>
                     <p className="text-sm text-slate-500">Mantenha seus dados atualizados para facilitar novos pedidos.</p>
                   </div>
-                  <form className="grid gap-3" onSubmit={handleSaveProfile}>
+                  <form className="customer-form-grid" onSubmit={handleSaveProfile}>
                     <Input
                       label="Nome completo"
                       value={profileForm.full_name}
@@ -637,7 +701,9 @@ function CustomerAccountPage() {
                       onChange={(event) => setProfileForm((current) => ({ ...current, phone_number: event.target.value }))}
                       required
                     />
-                    <Button type="submit" className="w-full sm:w-auto" loading={savingProfile}>Salvar perfil</Button>
+                    <div className="customer-form-actions">
+                      <Button type="submit" className="w-full sm:w-auto" loading={savingProfile}>Salvar perfil</Button>
+                    </div>
                   </form>
                 </Card>
               ) : null}
@@ -648,7 +714,7 @@ function CustomerAccountPage() {
                     <h3 className="customer-card-title">Alterar senha</h3>
                     <p className="text-sm text-slate-500">Use uma senha forte para proteger sua conta.</p>
                   </div>
-                  <form className="grid gap-3" onSubmit={handleChangePassword}>
+                  <form className="customer-form-grid customer-form-grid-narrow" onSubmit={handleChangePassword}>
                     <Input
                       label="Senha atual"
                       type="password"
@@ -670,7 +736,9 @@ function CustomerAccountPage() {
                       onChange={(event) => setPasswordForm((current) => ({ ...current, confirm_password: event.target.value }))}
                       required
                     />
-                    <Button type="submit" className="w-full sm:w-auto" loading={savingPassword}>Salvar nova senha</Button>
+                    <div className="customer-form-actions">
+                      <Button type="submit" className="w-full sm:w-auto" loading={savingPassword}>Salvar nova senha</Button>
+                    </div>
                   </form>
                 </Card>
               ) : null}

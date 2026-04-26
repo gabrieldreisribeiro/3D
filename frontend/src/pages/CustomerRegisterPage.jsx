@@ -40,6 +40,16 @@ function CustomerRegisterPage() {
   return (
     <section className="customer-auth-shell">
       <div className="customer-auth-wrap">
+        <aside className="customer-auth-hero" aria-hidden="true">
+          <span className="customer-auth-hero-icon">3D</span>
+          <h2>Crie sua conta e acompanhe suas compras.</h2>
+          <p>Seu historico, pedidos e dados ficam reunidos em uma area simples e segura.</p>
+          <div className="customer-auth-hero-list">
+            <span>Cadastro rapido</span>
+            <span>Pedidos vinculados</span>
+            <span>Acompanhamento claro</span>
+          </div>
+        </aside>
         <Card className="customer-auth-card">
           <p className="customer-auth-eyebrow">Area do cliente</p>
           <h1 className="customer-auth-title">Criar conta</h1>

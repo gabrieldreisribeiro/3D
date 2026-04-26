@@ -34,6 +34,16 @@ function CustomerLoginPage() {
   return (
     <section className="customer-auth-shell">
       <div className="customer-auth-wrap">
+        <aside className="customer-auth-hero" aria-hidden="true">
+          <span className="customer-auth-hero-icon">3D</span>
+          <h2>Seu espaco para acompanhar cada pedido.</h2>
+          <p>Veja pagamentos, producao, prazos e historico de compras com clareza.</p>
+          <div className="customer-auth-hero-list">
+            <span>Pedidos organizados</span>
+            <span>Status em tempo real</span>
+            <span>Dados seguros</span>
+          </div>
+        </aside>
         <Card className="customer-auth-card">
           <p className="customer-auth-eyebrow">Area do cliente</p>
           <h1 className="customer-auth-title">Entrar na conta</h1>
