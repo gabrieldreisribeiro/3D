@@ -32,16 +32,6 @@ function CustomerForgotPasswordPage() {
   return (
     <section className="customer-auth-shell">
       <div className="customer-auth-wrap">
-        <aside className="customer-auth-hero" aria-hidden="true">
-          <span className="customer-auth-hero-icon">3D</span>
-          <h2>Recupere seu acesso com seguranca.</h2>
-          <p>Gere um token de redefinicao para voltar a acompanhar seus pedidos.</p>
-          <div className="customer-auth-hero-list">
-            <span>Fluxo seguro</span>
-            <span>Acesso rapido</span>
-            <span>Conta protegida</span>
-          </div>
-        </aside>
         <Card className="customer-auth-card">
           <p className="customer-auth-eyebrow">Area do cliente</p>
           <h1 className="customer-auth-title">Recuperar senha</h1>

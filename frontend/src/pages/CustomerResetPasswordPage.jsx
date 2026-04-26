@@ -35,16 +35,6 @@ function CustomerResetPasswordPage() {
   return (
     <section className="customer-auth-shell">
       <div className="customer-auth-wrap">
-        <aside className="customer-auth-hero" aria-hidden="true">
-          <span className="customer-auth-hero-icon">3D</span>
-          <h2>Defina uma nova senha para sua conta.</h2>
-          <p>Depois disso, voce ja pode voltar ao painel do cliente normalmente.</p>
-          <div className="customer-auth-hero-list">
-            <span>Senha atualizada</span>
-            <span>Pedidos preservados</span>
-            <span>Login protegido</span>
-          </div>
-        </aside>
         <Card className="customer-auth-card">
           <p className="customer-auth-eyebrow">Area do cliente</p>
           <h1 className="customer-auth-title">Redefinir senha</h1>
