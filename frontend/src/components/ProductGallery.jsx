@@ -37,7 +37,7 @@ function ProductGallery({
   return (
     <div className="space-y-3">
       <div
-        className={`relative min-h-[320px] overflow-hidden rounded-2xl border border-slate-100 bg-slate-50 shadow-sm transition-shadow sm:min-h-[420px] lg:min-h-[560px] ${
+        className={`relative h-[320px] overflow-hidden rounded-2xl border border-slate-100 bg-slate-50 shadow-sm transition-shadow sm:h-[420px] lg:h-[560px] ${
           isZoomed ? 'shadow-md' : ''
         }`}
         onMouseEnter={() => setIsZoomed(true)}
