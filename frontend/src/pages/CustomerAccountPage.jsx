@@ -300,7 +300,7 @@ function CustomerAccountPage() {
   };
 
   return (
-    <section className="container py-6 md:py-8">
+    <section className="customer-account-page container py-6 md:py-8">
       <div className="customer-panel-shell">
         <div className="customer-panel-head">
           <div>

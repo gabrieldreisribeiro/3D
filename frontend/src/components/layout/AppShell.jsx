@@ -45,7 +45,7 @@ function AppShell({ header, footer, children }) {
   return (
     <div className="min-h-screen bg-[#F5F7FA] text-slate-900">
       {header}
-      <main className="pb-24 pt-2 sm:pt-5 lg:pb-0">{children}</main>
+      <main className="app-shell-main pb-24 pt-2 sm:pt-5 lg:pb-0">{children}</main>
       {footer}
       <MobileBottomNav />
     </div>

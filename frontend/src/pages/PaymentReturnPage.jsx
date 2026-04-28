@@ -98,7 +98,7 @@ function PaymentReturnPage() {
   }, [clearCart, status?.payment_status]);
 
   return (
-    <section className="container py-8">
+    <section className="payment-return-page container py-8">
       <SectionHeader title="Retorno do pagamento" subtitle="Validacao do checkout online da InfinitePay." />
       <Card className="space-y-4">
         {loading ? <p className="text-sm text-slate-500">Validando pagamento...</p> : null}
@@ -116,7 +116,7 @@ function PaymentReturnPage() {
             </div>
           </>
         ) : null}
-        <div className="flex flex-wrap gap-2">
+        <div className="payment-return-actions flex flex-wrap gap-2">
           <Link
             to="/"
             className="inline-flex h-10 items-center justify-center rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 px-4 text-sm font-semibold text-white"
